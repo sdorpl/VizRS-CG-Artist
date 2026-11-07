@@ -2,6 +2,8 @@
 
 ## Niewydane
 
+## 0.3.0 – 2026-11-07
+
 - **Przejście na Tauri 2 (wersja 0.3.0, Linux, Windows, macOS):**
   - Zastąpienie okna GTK 4 + WebKitGTK 6.0 programem Tauri 2 w korzeniu repozytorium (prototyp `proto/tauri` usunięty). Silniki WebView: Linux – WebKitGTK 4.1 (przez wry), Windows – WebView2, macOS – WKWebView.
   - Usunięto kod okna GTK, `src/desktop.rs`, `src/instance.rs`, `tools/webkit6-shim.sh`, `packaging/deb/build.sh` oraz `.github/workflows/proto-tauri.yml`.

@@ -19,12 +19,12 @@ Plan źródłowy: `../VizRS CG System/docs/plany/PLAN-artist-osobny.md` (A2–A6
 | S6 | Import BTB i `.cgpack` w Ruście | do zrobienia |
 | S7 | Repo na GitHubie, CI z testem w działaniu, wydania (`release.yml`) | zrobione (czeka na pierwszy przebieg CI) |
 | S8 | AppImage; w CG System usunięcie Artist z `vizrs-shell` i pakietu `vizrs` (A7) | AppImage jest (bundler Tauri); A7 – decyzja użytkownika |
-| S9 | Windows i macOS – okno na Tauri 2 zamiast GTK ([plany/RAPORT-tauri.md](plany/RAPORT-tauri.md)) | zrobione lokalnie (Linux); Windows/macOS czekają na pierwszy przebieg CI po `git push` |
+| S9 | Windows i macOS – okno na Tauri 2 zamiast GTK ([plany/RAPORT-tauri.md](plany/RAPORT-tauri.md)) | zrobione – wydanie 0.3.0 (CI zielone na Linux, Windows, macOS; AppImage sprawdzony testem dymnym) |
 | S10 | Android (opcja, tablet) – PLAN-platformy P6 | zaplanowane na później |
 
 ## Następne zadanie
-`git push origin main` (zgoda użytkownika) i sprawdzenie CI na trzech systemach; potem jednolinijkowa zmiana w `../VizRS CG System/source/web/native.js` (RAPORT-tauri §6 p.6) i wydanie 0.3.0.
+Jednolinijkowa zmiana w `../VizRS CG System/source/web/native.js` (RAPORT-tauri §6 p.6). Paczki Windows/macOS sprawdzić ręcznie na czystym systemie.
 Nadal do decyzji: A7 w CG System.
 
 ## Blokery
-`git push` wymaga zgody użytkownika (repozytorium publiczne). Repozytorium: https://github.com/sdorpl/VizRS-CG-Artist (`origin`).
+`git push` i wydania – tylko na prośbę użytkownika (repozytorium publiczne). Repozytorium: https://github.com/sdorpl/VizRS-CG-Artist (`origin`).
