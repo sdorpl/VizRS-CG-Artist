@@ -248,7 +248,7 @@ pub fn page_data(
         .iter()
         .map(|(u, t)| json!({ "url": u, "hasToken": t.is_some() }))
         .collect();
-    let remote = local != Some(current);
+    let remote = !current.is_empty() && local != Some(current);
     let data = json!({
         "current": current,
         "remote": remote,
@@ -312,7 +312,7 @@ button:disabled { opacity:.5; cursor:default; }
 const C = window.__vizrsConn || { servers: [] };
 const $ = (id) => document.getElementById(id);
 const send = (m) => window.ipc.postMessage(JSON.stringify(m));
-$('now').textContent = 'Teraz: ' + (C.remote ? C.current : 'serwer lokalny (' + C.current + ')');
+$('now').textContent = 'Teraz: ' + (!C.current ? 'nie połączono' : C.remote ? C.current : 'serwer lokalny (' + C.current + ')');
 if (!C.local) $('local').hidden = true;
 if (C.remote) { $('url').value = C.current; $('token').value = C.token || ''; $('auto').checked = C.auto === C.current; }
 function fill(s) {
@@ -395,6 +395,28 @@ mod tests {
         assert!(parse_msg(r#"{"action":"connect","url":"cg.pl","token":"a&b"}"#).is_err());
         assert_eq!(parse_msg(r#"{"action":"local"}"#).unwrap(), Msg::Local);
         assert!(parse_msg("probe:{}").is_err());
+    }
+
+    #[test]
+    fn page_data_current_server() {
+        let data = |cur, tok, local| {
+            let js = page_data(&Saved::default(), cur, tok, local);
+            let v: Value = serde_json::from_str(
+                js.strip_prefix("window.__vizrsConn = ")
+                    .and_then(|j| j.strip_suffix(';'))
+                    .unwrap(),
+            )
+            .unwrap();
+            (v["remote"].as_bool().unwrap(), v["token"].clone())
+        };
+        // `connect` przed wyborem: brak serwera – nie „zdalny”, token nie trafia do strony
+        assert_eq!(data("", Some("t"), None), (false, Value::Null));
+        let local = Some("http://127.0.0.1:8088");
+        assert_eq!(
+            data("http://127.0.0.1:8088", Some("t"), local),
+            (false, Value::Null)
+        );
+        assert_eq!(data("https://cg.pl", Some("t"), local), (true, json!("t")));
     }
 
     #[test]

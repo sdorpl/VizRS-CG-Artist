@@ -5,7 +5,7 @@ Zamykając pozycję, usuń wiersz i dopisz wersję w `CHANGELOG.md`. Nowe braki 
 ## G1 – niezawodność i bezpieczeństwo
 | # | Luka | Uwagi |
 |---|---|---|
-| 1 | Brak testów w działaniu (okno, most, zamykanie) – tylko testy jednostkowe | `--probe` pozwala na automat; wzór: `tests/e2e/shell.js` w VizRS CG System |
+| 1 | Test w działaniu (`tests/e2e/okno.js`) tylko ręcznie – nie w CI | potrzebny `vizrs` z repo VizRS CG System; w CI: zbudować go albo pobrać z wydania, `xvfb-run` |
 | 2 | Sprawdzenie serwera przed przełączeniem tylko dla `http://` (bez TLS w oknie) | `https://` – błąd widać dopiero po wczytaniu strony |
 | 3 | Jedna instancja tylko na Unix (gniazdo); Windows: brak | okno i tak jest tylko na Linux |
 

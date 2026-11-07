@@ -11,6 +11,7 @@ w repo `VizRS CG System`.
 | Etap | Stan |
 |---|---|
 | Okno Artist, menu, akcje, powiększenie, pisownia | zrobione |
+| Test w działaniu `tests/e2e/okno.js` (20 sprawdzeń) | zrobione, uruchamiany ręcznie |
 | Serwer: dołączanie / uruchamianie `vizrs serve --idle-exit`, wolny port | zrobione |
 | Okno „Połącz z serwerem”, `connections.json`, łączenie przy uruchomieniu | zrobione |
 | „Zapisz jako”, import, przeciąganie, skojarzenia plików | zrobione |
@@ -21,7 +22,7 @@ w repo `VizRS CG System`.
 | Windows / macOS | nie planowane (GTK 4 + WebKitGTK – tylko Linux); tam `vizrs-shell` |
 
 ## Następne zadanie
-Test w działaniu (LUKI #1): skrypt `--probe` z prawdziwym `vizrs`, potem paczka `.deb`.
+Paczka `.deb` (LUKI #5): `vizrs-cg-artist` + wpis `.desktop` + ikona + skojarzenie `.cgpack`; potem test w działaniu w CI (LUKI #1).
 
 ## Blokery
 Brak. (`libwebkitgtk-6.0-dev` jest już na maszynie deweloperskiej; `tools/webkit6-shim.sh` zostaje dla maszyn bez pakietu `-dev`.)

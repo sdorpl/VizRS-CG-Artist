@@ -36,7 +36,7 @@ vizrs-cg-artist [connect] [opcje] [PLIK]
 
 | Opcja | Zmienna | Znaczenie |
 |---|---|---|
-| `connect` | – | najpierw okno wyboru serwera |
+| `connect` | – | najpierw okno wyboru serwera; serwer lokalny powstaje dopiero po wyborze „Serwer lokalny” (program `vizrs` niepotrzebny do łączenia ze zdalnym) |
 | `PLIK` | – | `.cgpack` albo `.vizrs.json` (też obraz, czcionka) – import w oknie Artist |
 | `--data KAT` | `VIZRS_DATA` | katalog danych serwera; domyślnie `./vizrs-data`, jeśli ma `show.json`, inaczej `~/.local/share/vizrs` |
 | `--port N` | `VIZRS_PORT` | port uruchamianego serwera (domyślnie pierwszy wolny od 8088) |
@@ -90,6 +90,10 @@ Okno „Połącz z serwerem” (Plik → Połącz…, Ctrl+Shift+K, `connect`) j
 na inny adres. Lista do 20 serwerów w `connections.json` (prawa tylko dla właściciela); token zapisywany tylko na życzenie;
 opcja „łącz przy uruchomieniu”. Dla `http://` okno sprawdza `GET /api/state` z tokenem przed przełączeniem (token wyjścia → 403).
 
+Uruchomione jako `connect` (bez `--connect` i bez zapisanego łączenia przy uruchomieniu) okno nie ma jeszcze serwera:
+nagłówek pokazuje „Teraz: nie połączono”, Plik → Trio / Wyjście w przeglądarce i Pomoc → Strona startowa i API są wyłączone, a prośba kolejnego uruchomienia
+(także z plikiem) tylko wysuwa okno połączenia. Zamknięcie okna bez wyboru kończy program.
+
 ## 9. Most strona → okno
 
 Strona wysyła `window.ipc.postMessage(tekst)` (shim na `webkit.messageHandlers.ipc`, jak w oknie wry). Okno przyjmuje:
@@ -125,3 +129,16 @@ Bez `libwebkitgtk-6.0-dev` (jest tylko `libwebkitgtk-6.0-4`): `eval "$(tools/web
 i dowiązania `.so`, potem `cargo build`.
 
 Bramka przed commitem: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo build --release`.
+To samo robi CI (`.github/workflows/ci.yml`, Ubuntu 24.04).
+
+Test w działaniu (prawdziwy `vizrs`, widoczne okna na kilka sekund; bez ekranu: `xvfb-run`):
+
+```bash
+node tests/e2e/okno.js [ścieżka-do-vizrs] [ścieżka-do-vizrs-cg-artist]
+```
+
+Domyślnie `../VizRS CG System/source/target/release/vizrs` (albo `VIZRS_BIN`) i `target/release/vizrs-cg-artist`.
+Sprawdza most okna (pytanie przy zamykaniu, plik od okna, ignorowanie nieznanych komunikatów), jedną instancję,
+uruchamianie i dołączanie do serwera, `--idle-exit`, blokadę katalogu danych, okno połączenia (token, zapis, prawa pliku,
+`connect` bez programu `vizrs`) i to, że strona serwera nie przełącza okna na inny adres. Katalogi konfiguracji, stanu
+i gniazdo instancji są tymczasowe (`KEEP_TMP=1` – zostaw je do wglądu).

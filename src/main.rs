@@ -31,6 +31,7 @@ const CLOSE_PATIENCE: Duration = Duration::from_secs(5);
 const RELEASES: &str = "https://github.com/sdorpl/VizRS-CG-Artist/releases";
 /// Klucz w `window.json` (osobny od okna `vizrs-shell`).
 const STATE_KEY: &str = "cg-artist";
+const NOT_CONNECTED: &str = "nie połączono – wybierz serwer (Plik → Połącz z serwerem)";
 /// Komendy menu wysyłane do strony (`__vizrsCmd`): akcja, etykieta.
 const PAGE_CMDS: &[(&str, &str)] = &[
     ("new", "Nowa scena"),
@@ -363,6 +364,16 @@ impl App {
 
 /// Stan pozycji menu zależnych od strony.
 fn sync_actions(app: &App) {
+    // strony serwera – dopiero po wyborze serwera (`connect` startuje bez adresu)
+    for name in ["trio", "output", "docs"] {
+        if let Some(a) = app
+            .gtk
+            .lookup_action(name)
+            .and_downcast::<gio::SimpleAction>()
+        {
+            a.set_enabled(!app.base.is_empty());
+        }
+    }
     let w = app.focused();
     let artist = w.is_some_and(|w| w.kind == Kind::Artist);
     for (name, _) in PAGE_CMDS {
@@ -529,7 +540,7 @@ fn install_actions(gapp: &gtk::Application) {
             format!(
                 "vizrs-cg-artist {}\nSerwer: {}\n{}",
                 env!("CARGO_PKG_VERSION"),
-                a.base,
+                if a.base.is_empty() { "–" } else { &a.base },
                 a.server_note
             )
         };
@@ -1000,6 +1011,10 @@ fn on_remote(app: &Shared, body: &str) {
     let Ok(v) = serde_json::from_str::<Value>(body) else {
         return;
     };
+    // serwer jeszcze niewybrany: najpierw okno połączenia
+    if app.borrow().base.is_empty() {
+        return open_connect(app);
+    }
     if let Some(f) = v["file"].as_str() {
         return open_file(app, PathBuf::from(f));
     }
@@ -1077,12 +1092,14 @@ fn switch(app: &Shared, base: String, token: Option<String>, note: String) {
         (a.start_url(), a.title(Kind::Artist), artists)
     };
     if artists.is_empty() {
-        return open_window(app, Kind::Artist, url);
+        open_window(app, Kind::Artist, url);
+    } else {
+        for (w, v) in artists {
+            w.set_title(Some(&title));
+            v.load_uri(&url);
+        }
     }
-    for (w, v) in artists {
-        w.set_title(Some(&title));
-        v.load_uri(&url);
-    }
+    sync_actions(&app.borrow());
 }
 
 fn on_conn(app: &Shared, body: &str) {
@@ -1273,6 +1290,9 @@ fn main() -> glib::ExitCode {
             None,
             "serwer zdalny (łączenie przy uruchomieniu; serwer lokalny: --local)".into(),
         ))
+    } else if args.kind == Kind::Connect {
+        // najpierw wybór: serwer lokalny powstaje dopiero po „Serwer lokalny” (bez `vizrs` okno i tak się otwiera)
+        Ok((String::new(), None, NOT_CONNECTED.into()))
     } else {
         local_server(
             &args.data,

@@ -60,6 +60,9 @@ cargo test
 cargo build --release
 ```
 
+Przy zmianie zachowania okna (most, serwer, okno połączenia, instancja) także test w działaniu:
+`node tests/e2e/okno.js` (wymaga zbudowanego `vizrs`; opis: DOKUMENTACJA §11).
+
 ## Struktura
 
 | Ścieżka | Rola |
@@ -72,6 +75,8 @@ cargo build --release
 | `src/paths.rs` | katalogi użytkownika (dane, stan, logi), `window.json`, zapis atomowy |
 | `src/desktop.rs` | ukryty wpis `pl.vizrs.CgArtist.desktop` i ikona (Wayland szuka ikony po identyfikatorze aplikacji) |
 | `assets/vizrs-256.png` | ikona okna (wkompilowana) |
+| `tests/e2e/okno.js` | test w działaniu przez `--probe` z prawdziwym `vizrs` |
+| `.github/workflows/ci.yml` | CI: bramka na Ubuntu 24.04 |
 | `tools/webkit6-shim.sh` | pliki pkg-config dla budowy bez `libwebkitgtk-6.0-dev` |
 | `.dev/` | wygenerowany shim — nie commituj |
 
