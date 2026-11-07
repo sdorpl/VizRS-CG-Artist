@@ -3,3 +3,4 @@
 *.png
 !assets/*.png
 /dist/
+!proto/tauri/icons/*.png
