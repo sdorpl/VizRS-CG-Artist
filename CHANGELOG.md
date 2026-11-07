@@ -2,6 +2,8 @@
 
 ## Niewydane
 
+- **Most strony** `window.__vizrsPost` (z rezerwą `window.ipc.postMessage`) – działa też w oknie Tauri; sekret magazynu lokalnego bez `/dev/urandom` tam, gdzie go nie ma (Windows). Test dymny `tests/e2e/smoke.js`.
+
 - **GitHub:** repozytorium `sdorpl/VizRS-CG-Artist`. CI jak w VizRS CG System / Playout: bramka, `.deb` jako artefakt i test w działaniu pod Xvfb z serwerem `vizrs`; wydania z `release.yml` (znacznik `v*` albo ręcznie: archiwum Linux, `.deb`, sumy SHA256); `drafts.yml` usuwa szkice wydań.
 
 - **Wyślij na serwer** (pasek ⇧ Wyślij, Plik → Wyślij na serwer…): sceny z pracy lokalnej trafiają na zapisany serwer `vizrs` razem z brakującymi grafikami i czcionkami. Przed wysyłką stan każdej sceny na serwerze i ostrzeżenie „na antenie”; zmiana sceny na serwerze od ostatniej wysyłki = konflikt, który rozwiązuje świadome „nadpisz”. Token zostaje w oknie.

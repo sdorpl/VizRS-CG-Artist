@@ -101,7 +101,9 @@ Przycisk **Praca lokalna (bez serwera)** wraca do magazynu lokalnego (albo do `v
 
 ## 9. Most strona → okno
 
-Strona wysyła `window.ipc.postMessage(tekst)` (shim na `webkit.messageHandlers.ipc`, jak w oknie wry). Okno przyjmuje:
+Strona wysyła `window.__vizrsPost(tekst)`, gdy okno je wstrzyknęło, inaczej `window.ipc.postMessage(tekst)` (shim na
+`webkit.messageHandlers.ipc`, jak w oknie wry; strony serwera `vizrs` używają tylko tego). W oknie Tauri `window.ipc` należy
+do Tauri i nie da się go podmienić – stąd `__vizrsPost`. Okno przyjmuje:
 
 | Prefiks | Od kogo | Komunikaty |
 |---|---|---|
@@ -162,6 +164,9 @@ i job `e2e`: test w działaniu pod Xvfb z serwerem `vizrs` zbudowanym z CG Syste
 `git tag v<wersja> && git push origin v<wersja>` – albo Actions → Release → Run workflow (bez `publish` = szkic; szkice usuwa
 Actions → Usuń szkic wydania). Wydanie zawiera `VizRS-CG-Artist-<wersja>-linux-x86_64.tar.gz`, `vizrs-cg-artist_<wersja>_amd64.deb`
 i `SHA256SUMS.txt`; wersja ze znacznika musi się zgadzać z `Cargo.toml`, łącznik (`-rc1`) = wydanie wstępne.
+
+Test dymny na dowolnym systemie, bez serwera: `node tests/e2e/smoke.js ŚCIEŻKA-DO-PROGRAMU` (magazyn, zapis sceny, plik od okna,
+zwolnienie blokady).
 
 Test w działaniu (widoczne okna na kilka sekund; bez ekranu: `xvfb-run`):
 

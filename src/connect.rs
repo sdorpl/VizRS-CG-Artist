@@ -292,7 +292,7 @@ button:disabled { opacity:.5; cursor:default; }
 <script>
 const C = window.__vizrsConn || { servers: [] };
 const $ = (id) => document.getElementById(id);
-const send = (m) => window.ipc.postMessage(JSON.stringify(m));
+const send = (m) => (window.__vizrsPost || window.ipc.postMessage)(JSON.stringify(m));
 $('now').textContent = 'Teraz: ' + (!C.current ? 'nie połączono' : C.remote ? C.current : 'praca lokalna');
 if (C.remote) { $('url').value = C.current; $('token').value = C.token || ''; $('auto').checked = C.auto === C.current; }
 function fill(s) {

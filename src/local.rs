@@ -41,12 +41,28 @@ impl Drop for Local {
     }
 }
 
-/// Losowy tekst szesnastkowy z `/dev/urandom` (Linux – jedyna platforma okna GTK).
+/// Losowy tekst szesnastkowy: `/dev/urandom` (Linux, macOS); gdzie go nie ma (Windows) – klucze `RandomState`
+/// biblioteki standardowej, losowane z generatora systemu (SipHash z losowym kluczem, osobny dla każdej porcji).
 pub fn random_hex(bytes: usize) -> Result<String, String> {
     let mut b = vec![0u8; bytes];
-    std::fs::File::open("/dev/urandom")
+    if std::fs::File::open("/dev/urandom")
         .and_then(|mut f| f.read_exact(&mut b))
-        .map_err(|e| format!("/dev/urandom: {e}"))?;
+        .is_err()
+    {
+        use std::hash::{BuildHasher, Hasher};
+        for (i, chunk) in b.chunks_mut(8).enumerate() {
+            let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+            h.write_usize(i);
+            h.write_u128(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0),
+            );
+            let v = h.finish().to_le_bytes();
+            chunk.copy_from_slice(&v[..chunk.len()]);
+        }
+    }
     Ok(b.iter().map(|x| format!("{x:02x}")).collect())
 }
 

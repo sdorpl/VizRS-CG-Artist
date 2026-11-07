@@ -37,7 +37,7 @@ const PROBE = write('probe.js', `(async () => {
   for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
   await sleep(500);
   const r = { title: document.title, conn: document.querySelector('#conn')?.textContent, href: location.href, scenes: document.querySelectorAll('#sceneSel option').length };
-  window.ipc.postMessage('probe:' + JSON.stringify(r));
+  (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
 })();`);
 const health = (port = PORT) => new Promise((res) => {
   http.get(`http://127.0.0.1:${port}/health`, (r) => { let b = ''; r.on('data', (c) => (b += c)); r.on('end', () => { try { res(JSON.parse(b)); } catch { res(null); } }); }).on('error', () => res(null));
@@ -72,8 +72,8 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
       window.__vizrsCmd('close'); await sleep(50);
       r.modal = !!document.querySelector('#nativeClose');
       document.querySelector('[data-nc="stay"]')?.click();
-      window.ipc.postMessage('app:' + JSON.stringify({ t: 'nieznany' }));
-      window.ipc.postMessage('probe:' + JSON.stringify(r));
+      (window.__vizrsPost || window.ipc.postMessage)('app:' + JSON.stringify({ t: 'nieznany' }));
+      (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
     })();`), 'local');
     ok(loc.title === 'VizRS Artist' && loc.conn === 'połączono' && /^http:\/\/127\.0\.0\.1:\d+\/artist/.test(loc.href || ''), 'praca lokalna: strona z binarki, połączona z magazynem okna', loc);
     ok(loc.state?.mode === 'local' && loc.pages === 400 && !loc.mkPage && !loc.nav, 'bez Trio: tryb lokalny, strony Trio odrzucone, brak zakładek i „Utwórz stronę”', loc);
@@ -127,11 +127,11 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
     return;
   }
   // strona serwera nie może przełączyć okna na inny adres
-  window.ipc.postMessage(JSON.stringify({ action: 'connect', url: 'http://127.0.0.1:1' }));
-  window.ipc.postMessage('connect:' + JSON.stringify({ url: 'http://127.0.0.1:1' }));
+  (window.__vizrsPost || window.ipc.postMessage)(JSON.stringify({ action: 'connect', url: 'http://127.0.0.1:1' }));
+  (window.__vizrsPost || window.ipc.postMessage)('connect:' + JSON.stringify({ url: 'http://127.0.0.1:1' }));
   for (let i = 0; i < 100 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
   await sleep(500);
-  window.ipc.postMessage('probe:' + JSON.stringify({ href: location.href, conn: document.querySelector('#conn')?.textContent, scenes: document.querySelectorAll('#sceneSel option').length }));
+  (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify({ href: location.href, conn: document.querySelector('#conn')?.textContent, scenes: document.querySelectorAll('#sceneSel option').length }));
 })();`);
         const c = run(['connect', '--data', path.join(tmp, 'local')], CPROBE, 'connect');
         ok(c.conn === 'połączono' && c.scenes > 0 && c.href?.startsWith(`http://127.0.0.1:${RPORT}/artist`), 'okno połączenia przełącza Artist na serwer zdalny z tokenem; strona serwera nie zmienia adresu', c);
@@ -150,7 +150,7 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
   const check = async () => (await j('POST', '/api/deploy/check', { server: '${SRV}', scenes: ['dep1'] })).scenes?.[0]?.status;
   const r = {};
   ${js}
-  window.ipc.postMessage('probe:' + JSON.stringify(r));
+  (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
 })();`), name);
         const d1 = dep('deploy1', `
   r.servers = await (await fetch('/api/deploy/servers')).json();
@@ -198,11 +198,11 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   if (document.title === 'Połącz z serwerem') {
     const b = document.getElementById('local');
-    if (b.hidden || !b.offsetParent) return window.ipc.postMessage('probe:' + JSON.stringify({ hidden: true, now: document.getElementById('now').textContent }));
+    if (b.hidden || !b.offsetParent) return (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify({ hidden: true, now: document.getElementById('now').textContent }));
     b.click(); return;
   }
   for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
-  window.ipc.postMessage('probe:' + JSON.stringify({ href: location.href, conn: document.querySelector('#conn')?.textContent, mode: (await (await fetch('/api/state')).json()).mode }));
+  (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify({ href: location.href, conn: document.querySelector('#conn')?.textContent, mode: (await (await fetch('/api/state')).json()).mode }));
 })();`), 'connlocal');
     ok(lp.conn === 'połączono' && lp.mode === 'local', 'connect → „Praca lokalna” otwiera Artist na magazynie okna', lp);
   } catch (e) {

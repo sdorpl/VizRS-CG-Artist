@@ -57,7 +57,7 @@ const PAGE_CMDS: &[(&str, &str)] = &[
     ("marker", "Dodaj marker (M)"),
 ];
 /// `window.ipc.postMessage` jak w oknie wry – strony serwera (`native.js`) i okno połączenia mówią tym samym mostem.
-const IPC_SHIM: &str = "window.ipc = { postMessage: (m) => window.webkit.messageHandlers.ipc.postMessage(String(m)) };";
+const IPC_SHIM: &str = "window.ipc = { postMessage: (m) => window.webkit.messageHandlers.ipc.postMessage(String(m)) }; window.__vizrsPost = (m) => window.ipc.postMessage(m);";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Kind {
