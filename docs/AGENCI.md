@@ -1,7 +1,7 @@
 # Współpraca agentów: Claude i Gemini
 
 Zasady podziału pracy między Claude Code i Gemini (Antigravity CLI) w tym repozytorium. Cel: tokeny Claude idą na myślenie i kod, a zadania lekkie i wykonawcze (dokumentacja, kompilacja, długie wyjścia) bierze Gemini.
-Zasady ogólne repozytorium są w [../CLAUDE.md](../CLAUDE.md) i obowiązują obu agentów. Ten plik dodaje tylko podział ról. Wzór: `docs/AGENCI.md` w repo `../VizRS Live` (tam pomiary i próby narzędzia).
+Zasady ogólne repozytorium są w [../CLAUDE.md](../CLAUDE.md) i obowiązują obu agentów. Ten plik dodaje tylko podział ról. Ten sam podział obowiązuje w `../VizRS CG System` (`docs/AGENCI.md`, `GEMINI.md`). Wzór: `docs/AGENCI.md` w repo `../VizRS Live` (tam pomiary i próby narzędzia).
 
 ## 1. Role
 
@@ -98,6 +98,8 @@ Ustalone w próbach (VizRS Live, 2026-11-07):
 - **Kolejność przełączników:** `-p` bierze następny argument jako prompt, więc stawiaj go na końcu (albo `-p='…'`).
 - **Powłoka w trybie `-p` jest domyślnie zablokowana.** Zezwolenie daje `--settings` z regułą `command(<polecenie>)`; działa przy **dokładnie** tym samym tekście polecenia (bez `cd … &&`, bez `eval`). Zezwolenia nie zapisuj na stałe w ustawieniach `agy`.
 - **Budowa na Linuksie:** wymaga bibliotek deweloperskich (`libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev libssl-dev`); shimu `webkit6-shim.sh` już nie ma.
+- **Odrzucone polecenie kończy całe zlecenie bez wyniku** („no output produced … auto-denied”). Gemini lubi zacząć od `git status` / `git diff` – zezwól na nie przy redakcji dokumentacji (`--settings '{"permissions":{"allow":["command(git status)","command(git diff --stat)"]}}'`) albo napisz w zleceniu, że ma nie uruchamiać poleceń.
+- **Gemini dopowiada fakty**, których nie ma w zleceniu ani w kodzie (2026-11-07: zmyślone ścieżki na Windows/macOS, inny limit czasu klienta, „etapy wykonane”, których nie wykonano). W zleceniu podawaj fakty wprost, a przy przeglądzie sprawdzaj każdą liczbę, ścieżkę i stan etapu z kodem.
 - **`--dangerously-skip-permissions` nie używamy.**
 - Odmowa zmiany kodu to zachowanie modelu, nie blokada narzędzia – dlatego przegląd z §7 jest obowiązkowy.
 
