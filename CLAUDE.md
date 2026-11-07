@@ -88,7 +88,7 @@ Przy zmianie zachowania okna (most, magazyn, serwer, okno połączenia, instancj
 | `src/desktop.rs` | ukryty wpis `pl.vizrs.CgArtist.desktop` i ikona (Wayland szuka ikony po identyfikatorze aplikacji) |
 | `assets/vizrs-256.png` | ikona okna (wkompilowana) |
 | `tests/e2e/okno.js` | test w działaniu przez `--probe` (praca lokalna; kroki z `vizrs`, gdy jest) |
-| `.github/workflows/ci.yml` | CI: bramka na Ubuntu 24.04 |
+| `.github/workflows/` | `ci.yml` – bramka, `.deb`, test w działaniu pod Xvfb; `release.yml` – wydanie (znacznik `v*`); `drafts.yml` – usuwanie szkiców |
 | `packaging/deb/build.sh`, `packaging/pl.vizrs.CgArtist.xml` | paczka `.deb`, typy plików `.cgpack` / `.vizrs.json` |
 | `web/` | strona Artist: `artist.html`, `native.js` (tego repo) + kopie modułów i fontów z CG System; `CG_SYSTEM` – wersja źródła |
 | `tools/sync-cg.sh` | kopiowanie i `--check` modułów strony z CG System |

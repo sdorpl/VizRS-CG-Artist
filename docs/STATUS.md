@@ -17,11 +17,12 @@ Plan źródłowy: `../VizRS CG System/docs/plany/PLAN-artist-osobny.md` (A2–A6
 | S4 | Serwer zdalny jako cel wysyłki scen (deploy, `rev`/409), nie miejsce edycji | zrobione (`client`, `deploy`, okno „Wyślij na serwer”; test w działaniu 22/22) |
 | S5 | Walidacja show przez `vizrs-model` (najpierw A1 w CG System) | czeka na A1 |
 | S6 | Import BTB i `.cgpack` w Ruście | do zrobienia |
-| S7 | AppImage, wydania na GitHubie; w CG System usunięcie Artist z `vizrs-shell` i pakietu `vizrs` (A7) | do zrobienia |
+| S7 | Repo na GitHubie, CI z testem w działaniu, wydania (`release.yml`) | zrobione (czeka na pierwszy przebieg CI) |
+| S8 | AppImage; w CG System usunięcie Artist z `vizrs-shell` i pakietu `vizrs` (A7) | do zrobienia (A7 – decyzja użytkownika) |
 
 ## Następne zadanie
 Do decyzji użytkownika: A7 w CG System (usunięcie Artist z `vizrs-shell` i pakietu `vizrs`).
-Potem: test w działaniu w CI (LUKI #1 – praca lokalna nie potrzebuje `vizrs`), okno połączenia „zapisz bez łączenia” (LUKI #12).
+Potem: pierwszy przebieg CI na GitHubie (LUKI #1), okno połączenia „zapisz bez łączenia” (LUKI #12).
 
 ## Blokery
-Brak. Repozytorium nie ma jeszcze zdalnego (`git remote`) – CI nie było uruchomione.
+Brak. Repozytorium: https://github.com/sdorpl/VizRS-CG-Artist (`origin`).

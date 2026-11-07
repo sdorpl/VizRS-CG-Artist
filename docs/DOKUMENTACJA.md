@@ -155,7 +155,13 @@ to kopie z VizRS CG System – `tools/sync-cg.sh [katalog-CG]` kopiuje, `tools/s
 (CI pobiera CG System w wersji z `web/CG_SYSTEM`). Zmiana rysowania zawsze najpierw w CG System.
 
 Bramka przed commitem: `tools/sync-cg.sh --check`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo build --release`.
-To samo robi CI (`.github/workflows/ci.yml`, Ubuntu 24.04).
+To samo robi CI (`.github/workflows/ci.yml`, Ubuntu 24.04, przy każdym wypchnięciu i PR), plus paczka `.deb` jako artefakt
+i job `e2e`: test w działaniu pod Xvfb z serwerem `vizrs` zbudowanym z CG System w wersji z `web/CG_SYSTEM`.
+
+**Wydanie** (`.github/workflows/release.yml`): podnieś `version` w `Cargo.toml` i sekcję w `CHANGELOG.md`, potem
+`git tag v<wersja> && git push origin v<wersja>` – albo Actions → Release → Run workflow (bez `publish` = szkic; szkice usuwa
+Actions → Usuń szkic wydania). Wydanie zawiera `VizRS-CG-Artist-<wersja>-linux-x86_64.tar.gz`, `vizrs-cg-artist_<wersja>_amd64.deb`
+i `SHA256SUMS.txt`; wersja ze znacznika musi się zgadzać z `Cargo.toml`, łącznik (`-rc1`) = wydanie wstępne.
 
 Test w działaniu (widoczne okna na kilka sekund; bez ekranu: `xvfb-run`):
 

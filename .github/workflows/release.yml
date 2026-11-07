@@ -1,0 +1,98 @@
+name: Release
+# Wydanie po wypchnięciu znacznika v* (np. v0.2.0) albo ręcznie (Actions → Release → Run workflow):
+#   ręcznie bez `publish` – szkic; z `publish` – wydanie i znacznik na commicie z wybranej gałęzi.
+#   Linux x86_64: archiwum VizRS-CG-Artist-<wersja>-linux-x86_64.tar.gz (program, README, CHANGELOG)
+#   .deb: vizrs-cg-artist_<wersja>_amd64.deb (packaging/deb/build.sh) – Ubuntu 24.04+ / Debian 13+ (WebKitGTK 6.0)
+#   sumy SHA256SUMS.txt. Wersja z łącznikiem (v0.3.0-rc1) = wydanie wstępne.
+# Wersja musi się zgadzać z `version` w Cargo.toml (program pokazuje ją w --version i „O programie”).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Wersja (np. 0.2.0) – bez znacznika powstaje tylko szkic wydania'
+        required: true
+      publish:
+        description: 'Opublikuj od razu: znacznik powstaje na tym commicie, szkic tej wersji jest zastępowany'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  VERSION: ${{ github.event.inputs.version || github.ref_name }}
+
+jobs:
+  bin:
+    # WebKitGTK 6.0 jest dopiero od Ubuntu 24.04 – starszej glibc nie da się użyć
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wersja = Cargo.toml
+        run: |
+          v=${VERSION#v}; c=$(sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -1)
+          [ "$v" = "$c" ] || { echo "::error::wersja $v ≠ Cargo.toml $c – podnieś version w Cargo.toml"; exit 1; }
+      - name: Biblioteki GTK 4 i WebKitGTK 6.0
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev desktop-file-utils
+      - name: Wersja CG System dla modułów strony
+        id: cg
+        run: echo "ref=$(cat web/CG_SYSTEM)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: sdorpl/VizRS-CG-System
+          ref: ${{ steps.cg.outputs.ref }}
+          path: cg
+      - name: Moduły strony zgodne z CG System
+        run: tools/sync-cg.sh --check cg
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --locked
+      - run: cargo build --release --locked
+      - name: Paczki
+        run: |
+          v=${VERSION#v}; d=VizRS-CG-Artist-$v-linux-x86_64; mkdir -p dist/$d
+          cp target/release/vizrs-cg-artist README.md CHANGELOG.md dist/$d/
+          (cd dist && tar czf $d.tar.gz $d && rm -rf $d)
+          packaging/deb/build.sh target/release/vizrs-cg-artist "$v" dist
+          mkdir x && dpkg-deb -x dist/*.deb x && desktop-file-validate x/usr/share/applications/*.desktop && rm -rf x
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-linux-x86_64
+          path: dist/*
+
+  release:
+    needs: [bin]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: 'bin-*'
+          merge-multiple: true
+      - name: Sumy kontrolne
+        run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Usuń szkic tej wersji (publikacja ręczna)
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq ".[] | select(.draft and .name == \"$VERSION\") | .id" |
+            xargs -r -I{} gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/{}"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          # znacznik tworzony przy publikacji wskazuje zbudowany commit, nie gałąź domyślną
+          target_commitish: ${{ github.sha }}
+          draft: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish }}
+          prerelease: ${{ contains(env.VERSION, '-') }}
+          make_latest: ${{ !contains(env.VERSION, '-') && (github.event_name == 'push' || inputs.publish) }}
+          generate_release_notes: true
+          files: dist/*
+          body: |
+            **Debian / Ubuntu 24.04+:** `sudo apt install ./vizrs-cg-artist_*_amd64.deb` – w menu „VizRS CG Artist” (praca lokalna, bez serwera) i „VizRS CG Artist – serwer zdalny”.
+            **Linux x86_64:** archiwum z programem `vizrs-cg-artist` (wymaga `libgtk-4-1` i `libwebkitgtk-6.0-4`).
+            Dane: `~/.local/share/vizrs-cg-artist`. Trio i wyjście dla OBS: [VizRS CG System](https://github.com/sdorpl/VizRS-CG-System).

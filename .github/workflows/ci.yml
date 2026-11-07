@@ -1,7 +1,15 @@
 name: CI
+# Bramka przy każdym wypchnięciu i PR: moduły strony = CG System, fmt, clippy, testy, budowa, paczka .deb (artefakt).
+# Test w działaniu (okna pod Xvfb, prawdziwy vizrs z CG System): job e2e. Wydanie: release.yml (znacznik v* albo ręcznie).
 on:
   push:
+    branches: [main]
+    tags: ['v*']
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -12,7 +20,7 @@ jobs:
       - name: Biblioteki GTK 4 i WebKitGTK 6.0
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev desktop-file-utils
       - name: Wersja CG System dla modułów strony
         id: cg
         run: echo "ref=$(cat web/CG_SYSTEM)" >> "$GITHUB_OUTPUT"
@@ -27,9 +35,9 @@ jobs:
         with:
           components: rustfmt, clippy
       - run: cargo fmt --check
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test
-      - run: cargo build --release
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked
+      - run: cargo build --release --locked
       - name: Wersja i suma kontrolna
         run: |
           ./target/release/vizrs-cg-artist --version
@@ -37,7 +45,6 @@ jobs:
           sha256sum target/release/vizrs-cg-artist
       - name: Paczka .deb
         run: |
-          sudo apt-get install -y --no-install-recommends desktop-file-utils
           packaging/deb/build.sh target/release/vizrs-cg-artist "" dist
           dpkg-deb -I dist/*.deb
           mkdir dist/x && dpkg-deb -x dist/*.deb dist/x
@@ -49,3 +56,36 @@ jobs:
           path: |
             target/release/vizrs-cg-artist
             dist/*.deb
+
+  e2e:
+    needs: test
+    runs-on: ubuntu-24.04
+    env:
+      # bez GPU i DMA-BUF pod Xvfb; bez magistrali dostępności
+      WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      NO_AT_BRIDGE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Biblioteki GTK 4, WebKitGTK 6.0, Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev xvfb xauth dbus-x11 glib-networking
+      - name: Wersja CG System
+        id: cg
+        run: echo "ref=$(cat web/CG_SYSTEM)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: sdorpl/VizRS-CG-System
+          ref: ${{ steps.cg.outputs.ref }}
+          path: cg
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Serwer vizrs (kroki z serwerem w teście)
+        run: cargo build --release --locked
+        working-directory: cg/source
+      - run: cargo build --release --locked
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test w działaniu
+        run: dbus-run-session -- xvfb-run -a -s "-screen 0 1920x1080x24" node tests/e2e/okno.js cg/source/target/release/vizrs target/release/vizrs-cg-artist

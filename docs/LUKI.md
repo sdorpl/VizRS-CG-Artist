@@ -5,7 +5,7 @@ Zamykając pozycję, usuń wiersz i dopisz wersję w `CHANGELOG.md`. Nowe braki 
 ## G1 – niezawodność i bezpieczeństwo
 | # | Luka | Uwagi |
 |---|---|---|
-| 1 | Test w działaniu (`tests/e2e/okno.js`) tylko ręcznie – nie w CI | praca lokalna nie potrzebuje `vizrs` – w CI wystarczy `xvfb-run`; kroki z serwerem: zbudować `vizrs` z CG System |
+| 1 | Test w działaniu w CI (job `e2e`, Xvfb) jeszcze nie sprawdzony na runnerze | lokalnie brak Xvfb; po pierwszym przebiegu na GitHubie – usunąć wiersz albo poprawić job |
 | 3 | Jedna instancja tylko na Unix (gniazdo); Windows: brak | okno i tak jest tylko na Linux |
 | 7 | Magazyn lokalny sprawdza scenę tylko podstawowo (typy, długości, rozmiar) – nie jak `validate.rs` serwera | S5: crate `vizrs-model` (A1 w CG System); serwer i tak waliduje przy wysyłce/imporcie |
 
@@ -18,7 +18,7 @@ Zamykając pozycję, usuń wiersz i dopisz wersję w `CHANGELOG.md`. Nowe braki 
 ## G3 – funkcje
 | # | Luka | Uwagi |
 |---|---|---|
-| 5 | Brak AppImage i Flatpak; brak wydań na GitHubie (`release.yml`) | `.deb` jest (`packaging/deb/build.sh`, w CI); paczki nie instalowano jeszcze na czystym systemie |
+| 5 | Brak AppImage i Flatpak | `.deb` i archiwum w wydaniach (`release.yml`); paczki nie instalowano jeszcze na czystym systemie |
 | 11 | Wysyłka nie nadpisuje zasobu o tej samej nazwie, który na serwerze jest inny (zmienione logo) | serwer nie podaje skrótu pliku; dziś: nowa nazwa pliku albo usunięcie zasobu na serwerze |
 | 12 | Zapisanie serwera do wysyłki wymaga połączenia okna z nim i powrotu do pracy lokalnej | okno połączenia: „zapisz bez łączenia” |
 | 10 | Sceny zrobione wcześniej w Artist na serwerze (`~/.local/share/vizrs`) nie przechodzą same do nowego katalogu | `--data ~/.local/share/vizrs` (gdy `vizrs` tam pracuje – okno dołącza) albo paczka `.cgpack` |
