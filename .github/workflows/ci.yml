@@ -1,6 +1,7 @@
 name: CI
-# Bramka przy każdym wypchnięciu i PR: moduły strony = CG System, fmt, clippy, testy, budowa, paczka .deb (artefakt).
-# Test w działaniu (okna pod Xvfb, prawdziwy vizrs z CG System): job e2e. Wydanie: release.yml (znacznik v* albo ręcznie).
+# Bramka przy każdym wypchnięciu i PR: moduły strony = CG System, fmt, clippy, testy (Linux).
+# Budowa, paczki bundlera Tauri i test dymny na Linux, Windows, macOS (artefakty). Test w działaniu
+# (okna pod Xvfb, prawdziwy vizrs z CG System): job e2e. Wydanie: release.yml (znacznik v* albo ręcznie).
 on:
   push:
     branches: [main]
@@ -11,16 +12,19 @@ on:
 permissions:
   contents: read
 
+env:
+  # biblioteki okna Tauri na Linuksie (WebKitGTK 4.1 jest od Ubuntu 22.04)
+  LINUX_DEPS: libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev libssl-dev patchelf file
+
 jobs:
-  test:
-    # Ubuntu 24.04: libwebkitgtk-6.0-dev jest w archiwum (22.04 go nie ma).
-    runs-on: ubuntu-24.04
+  gate:
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - name: Biblioteki GTK 4 i WebKitGTK 6.0
+      - name: Biblioteki okna
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev desktop-file-utils
+          sudo apt-get install -y --no-install-recommends $LINUX_DEPS
       - name: Wersja CG System dla modułów strony
         id: cg
         run: echo "ref=$(cat web/CG_SYSTEM)" >> "$GITHUB_OUTPUT"
@@ -34,31 +38,87 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - name: Wersja Cargo.toml = tauri.conf.json
+        run: |
+          c=$(sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -1)
+          t=$(sed -n 's/^ *"version": *"\(.*\)".*/\1/p' tauri.conf.json | head -1)
+          [ "$c" = "$t" ] || { echo "::error::Cargo.toml $c ≠ tauri.conf.json $t"; exit 1; }
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked
-      - run: cargo build --release --locked
-      - name: Wersja i suma kontrolna
+
+  build:
+    needs: gate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, name: linux-x86_64 }
+          - { os: windows-latest, name: windows-x86_64 }
+          - { os: macos-latest, name: macos-arm64 }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Biblioteki okna (Linux)
+        if: runner.os == 'Linux'
         run: |
-          ./target/release/vizrs-cg-artist --version
-          ./target/release/vizrs-cg-artist --help > /dev/null
-          sha256sum target/release/vizrs-cg-artist
-      - name: Paczka .deb
-        run: |
-          packaging/deb/build.sh target/release/vizrs-cg-artist "" dist
-          dpkg-deb -I dist/*.deb
-          mkdir dist/x && dpkg-deb -x dist/*.deb dist/x
-          desktop-file-validate dist/x/usr/share/applications/*.desktop
-          rm -rf dist/x
-      - uses: actions/upload-artifact@v4
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends $LINUX_DEPS xvfb xauth dbus-x11 desktop-file-utils
+      - uses: actions/setup-node@v4
         with:
-          name: vizrs-cg-artist-linux-x86_64
+          node-version: 22
+      - run: cargo build --release --locked
+      - name: Paczki (bundler Tauri)
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: npx --yes @tauri-apps/cli@2 build --ci
+      - name: Wersja, suma kontrolna, paczki
+        run: |
+          bin=target/release/vizrs-cg-artist; [ -f "$bin.exe" ] && bin="$bin.exe"
+          "$bin" --version
+          "$bin" --help > /dev/null
+          sha256sum "$bin" 2>/dev/null || shasum -a 256 "$bin"
+          find target/release/bundle -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*.msi' -o -name '*.exe' -o -name '*.dmg' \) -exec ls -la {} \;
+      - name: Wpis menu w .deb (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          deb=$(ls target/release/bundle/deb/*.deb | head -1)
+          dpkg-deb -I "$deb"
+          mkdir x && dpkg-deb -x "$deb" x
+          desktop-file-validate x/usr/share/applications/*.desktop
+          rm -rf x
+      - name: Test dymny (Linux, Xvfb)
+        if: runner.os == 'Linux'
+        env:
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          NO_AT_BRIDGE: "1"
+        run: dbus-run-session -- xvfb-run -a -s "-screen 0 1920x1080x24" node tests/e2e/smoke.js target/release/vizrs-cg-artist
+      - name: Test dymny (Windows, macOS)
+        if: runner.os != 'Linux'
+        run: |
+          bin=target/release/vizrs-cg-artist; [ -f "$bin.exe" ] && bin="$bin.exe"
+          node tests/e2e/smoke.js "$bin"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vizrs-cg-artist-${{ matrix.name }}
           path: |
-            target/release/vizrs-cg-artist
-            dist/*.deb
+            target/release/bundle/**/*.deb
+            target/release/bundle/**/*.rpm
+            target/release/bundle/**/*.AppImage
+            target/release/bundle/**/*.msi
+            target/release/bundle/nsis/*.exe
+            target/release/bundle/**/*.dmg
+          if-no-files-found: ignore
 
   e2e:
-    needs: test
+    needs: gate
+    # 24.04 jak dotąd dla serwera vizrs z CG System (okno ma WebKitGTK 4.1 też tutaj)
     runs-on: ubuntu-24.04
     env:
       # bez GPU i DMA-BUF pod Xvfb; bez magistrali dostępności
@@ -67,10 +127,10 @@ jobs:
       NO_AT_BRIDGE: "1"
     steps:
       - uses: actions/checkout@v4
-      - name: Biblioteki GTK 4, WebKitGTK 6.0, Xvfb
+      - name: Biblioteki okna, Xvfb
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev xvfb xauth dbus-x11 glib-networking
+          sudo apt-get install -y --no-install-recommends $LINUX_DEPS xvfb xauth dbus-x11
       - name: Wersja CG System
         id: cg
         run: echo "ref=$(cat web/CG_SYSTEM)" >> "$GITHUB_OUTPUT"

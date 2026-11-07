@@ -107,3 +107,10 @@ Workflow nie został jeszcze uruchomiony, ponieważ repozytorium nie zostało wy
 1. **Zgoda na `git push`:** wypchnięcie gałęzi na GitHub w celu uruchomienia workflow CI na Windows i macOS.
 2. **Nowe zależności:** zatwierdzenie `tauri`, `tauri-plugin-dialog`, `tauri-plugin-single-instance` oraz wybór przenośnego klienta HTTPS (`ureq` + `rustls` czy `reqwest`).
 3. **Wycofanie GTK:** decyzja, czy usunąć okno GTK 4 od razu po potwierdzeniu zielonego CI dla Tauri.
+
+---
+
+## Stan: przejście wykonane 2026-11-07
+
+Przejście na Tauri 2 zostało wykonane w korzeniu repozytorium (zastąpienie GTK 4, wdrożenie `ui/connect.html`, `window.json`, klienta HTTP(S) `ureq` z rustls, `getrandom`). Testy lokalne na Linuksie: `cargo test` 33/33, `tests/e2e/okno.js` 22/22. Windows i macOS czekają na pierwszy przebieg CI po `git push`.
+

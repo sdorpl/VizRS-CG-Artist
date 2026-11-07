@@ -5,7 +5,7 @@
 > **Ostatnia aktualizacja:** 2026-11-07
 
 ## Bieżący etap
-**0.2 – samodzielny edytor** (decyzja 2026-11-07): Artist to osobny edytor grafik i animacji pakietu VizRS, bez Trio.
+**0.3 – okno na Tauri 2 (Linux, Windows, macOS)** (decyzja 2026-11-07): Artist to osobny edytor grafik i animacji pakietu VizRS, bez Trio.
 Plan źródłowy: `../VizRS CG System/docs/plany/PLAN-artist-osobny.md` (A2–A6).
 
 | Etap | Zakres | Stan |
@@ -18,13 +18,12 @@ Plan źródłowy: `../VizRS CG System/docs/plany/PLAN-artist-osobny.md` (A2–A6
 | S5 | Walidacja show przez `vizrs-model` (najpierw A1 w CG System) | czeka na A1 |
 | S6 | Import BTB i `.cgpack` w Ruście | do zrobienia |
 | S7 | Repo na GitHubie, CI z testem w działaniu, wydania (`release.yml`) | zrobione (czeka na pierwszy przebieg CI) |
-| S8 | AppImage; w CG System usunięcie Artist z `vizrs-shell` i pakietu `vizrs` (A7) | do zrobienia (A7 – decyzja użytkownika) |
-| S9 | Windows i macOS – okno na Tauri 2 zamiast GTK: prototyp `proto/tauri` ([plany/RAPORT-tauri.md](plany/RAPORT-tauri.md)) | Linux: lepiej niż GTK (ostrość ×1,4–1,8, start, pamięć); Windows/macOS: CI gotowe, czeka na `git push` |
+| S8 | AppImage; w CG System usunięcie Artist z `vizrs-shell` i pakietu `vizrs` (A7) | AppImage jest (bundler Tauri); A7 – decyzja użytkownika |
+| S9 | Windows i macOS – okno na Tauri 2 zamiast GTK ([plany/RAPORT-tauri.md](plany/RAPORT-tauri.md)) | zrobione lokalnie (Linux); Windows/macOS czekają na pierwszy przebieg CI po `git push` |
 | S10 | Android (opcja, tablet) – PLAN-platformy P6 | zaplanowane na później |
 
 ## Następne zadanie
-Wypchnąć `main` (`git push origin main`) – ruszy `proto-tauri.yml` (Windows, macOS). Zielone → plan przejścia z RAPORT-tauri §6
-(rdzeń `artist-core`, okno Tauri jako program główny, okno połączenia, klient HTTPS, usunięcie GTK).
+`git push origin main` (zgoda użytkownika) i sprawdzenie CI na trzech systemach; potem jednolinijkowa zmiana w `../VizRS CG System/source/web/native.js` (RAPORT-tauri §6 p.6) i wydanie 0.3.0.
 Nadal do decyzji: A7 w CG System.
 
 ## Blokery

@@ -1,7 +1,7 @@
 // Test dymny okna Artist na dowolnym systemie (Linux, Windows, macOS), bez serwera vizrs:
 //   node tests/e2e/smoke.js ŚCIEŻKA-DO-PROGRAMU
 // Okno startuje na pustym katalogu danych, strona łączy się z magazynem lokalnym, zapisuje scenę (show.json)
-// i plik od okna (assets/), most odsyła wynik. Działa dla okna GTK i prototypu Tauri.
+// i plik od okna (assets/), most odsyła wynik.
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "connect",
+  "description": "Okno „Połącz z serwerem” (strona aplikacji ui/connect.html): most okna połączenia (komenda ipc).",
+  "windows": ["connect"],
+  "permissions": ["allow-ipc"]
+}

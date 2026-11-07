@@ -1,45 +1,47 @@
-//! VizRS CG Artist – samodzielny edytor grafik i animacji pakietu VizRS: GTK 4 + WebKitGTK 6.0.
+//! VizRS CG Artist – samodzielny edytor grafik i animacji pakietu VizRS na Tauri 2 (Linux, Windows, macOS).
 //!
-//! Strona Artist (kanwa `renderer.js`, panele) zostaje w JS i jest wkompilowana (`web`). Domyślnie pracuje na
-//! magazynie lokalnym w procesie okna (`local`, `store`) – bez serwera `vizrs`; serwer zdalny wybiera okno
-//! połączenia. Okno daje to, czego przeglądarka nie ma: menu, systemowe „Zapisz jako”, pytanie przy zamknięciu,
-//! kopię roboczą, jedną instancję, skojarzenia plików. Strona nie ma dostępu do systemu – tylko komunikaty
-//! z białej listy (`bridge`). Trio i wyjście należą do VizRS CG System i nie są tu dostarczane.
+//! Strona Artist (kanwa `renderer.js`, panele) zostaje w JS i jest wkompilowana (`web`). Okno ładuje ją zawsze
+//! z serwera strony w procesie (`local`): z magazynem lokalnym (praca bez serwera) albo jako pośrednik do serwera
+//! `vizrs` (token zostaje w oknie). Okno daje to, czego przeglądarka nie ma: menu, systemowe „Zapisz jako”,
+//! pytanie przy zamknięciu, kopię roboczą, jedną instancję, skojarzenia plików, okno „Połącz z serwerem”.
+//! Strona nie ma dostępu do systemu – tylko komunikaty z białej listy (`bridge`) przez komendę `ipc`.
+//! Trio i wyjście należą do VizRS CG System i nie są tu dostarczane.
 
 mod bridge;
 mod client;
 mod connect;
 mod deploy;
-mod desktop;
 mod http;
-mod instance;
 mod local;
 mod paths;
 mod server;
 mod store;
 mod web;
 
-use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use gtk::prelude::*;
-use gtk::{gdk, gio, glib};
 use serde_json::Value;
-use webkit6::prelude::*;
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::webview::{DownloadEvent, PageLoadEvent};
+use tauri::{
+    AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+};
+use tauri_plugin_dialog::DialogExt;
 
-const APP_ID: &str = "pl.vizrs.CgArtist";
-const ICON_PNG: &[u8] = include_bytes!("../assets/vizrs-256.png");
 /// Największy plik przekazywany stronie (paczka, obraz).
 const MAX_FILE: u64 = 512 * 1024 * 1024;
 /// Po takim czasie bez odpowiedzi strony kolejne zamknięcie nie pyta.
 const CLOSE_PATIENCE: Duration = Duration::from_secs(5);
 const RELEASES: &str = "https://github.com/sdorpl/VizRS-CG-Artist/releases";
-/// Klucz w `window.json` (osobny od okna `vizrs-shell`).
+/// Klucz w `window.json`.
 const STATE_KEY: &str = "cg-artist";
+const CONNECT: &str = "connect";
+const LOCAL_NOTE: &str = "praca lokalna (bez serwera)";
 const NOT_CONNECTED: &str = "nie połączono – wybierz serwer (Plik → Połącz z serwerem)";
-/// Komendy menu wysyłane do strony (`__vizrsCmd`): akcja, etykieta.
+/// Komendy menu wysyłane do strony (`__vizrsCmd`): akcja, etykieta (skróty edycji obsługuje strona).
 const PAGE_CMDS: &[(&str, &str)] = &[
     ("new", "Nowa scena"),
     ("save", "Zapisz (Ctrl+S)"),
@@ -56,137 +58,14 @@ const PAGE_CMDS: &[(&str, &str)] = &[
     ("play", "Odtwórz / zatrzymaj (Spacja)"),
     ("marker", "Dodaj marker (M)"),
 ];
-/// `window.ipc.postMessage` jak w oknie wry – strony serwera (`native.js`) i okno połączenia mówią tym samym mostem.
-const IPC_SHIM: &str = "window.ipc = { postMessage: (m) => window.webkit.messageHandlers.ipc.postMessage(String(m)) }; window.__vizrsPost = (m) => window.ipc.postMessage(m);";
+/// Most strony: `window.__vizrsPost(tekst)` → komenda `ipc`. `window.ipc` należy w Tauri do wry/Tauri
+/// (niezapisywalny), więc strona (`web/native.js`) i okno połączenia wołają `__vizrsPost`.
+const IPC_SHIM: &str = r#"(() => {
+  window.__vizrsPost = (m) => { window.__TAURI_INTERNALS__.invoke('ipc', { body: String(m) }).catch((e) => console.error('ipc', e)); };
+  window.__vizrsShell = { version: '__VERSION__', app: 'cg-artist' };
+})();"#;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Kind {
-    Artist,
-    Connect,
-}
-
-struct Args {
-    kind: Kind,
-    data: PathBuf,
-    token: Option<String>,
-    connect: Option<String>,
-    local: bool,
-    probe: Option<(PathBuf, PathBuf)>,
-    gpu: Option<bool>,
-    file: Option<PathBuf>,
-}
-
-fn help() -> &'static str {
-    "vizrs-cg-artist – VizRS CG Artist, edytor grafik i animacji VizRS (GTK 4 + WebKitGTK 6.0)
-
-Użycie: vizrs-cg-artist [connect] [opcje] [PLIK]   (connect – najpierw wybór serwera; PLIK .cgpack albo .vizrs.json – import)
-
-  --data KAT      katalog danych Artist (VIZRS_ARTIST_DATA; domyślnie ~/.local/share/vizrs-cg-artist)
-  --token T       token serwera (VIZRS_TOKEN)
-  --connect URL   serwer zdalny, np. https://cg.example.pl (VIZRS_CONNECT)
-  --local         praca lokalna, nawet gdy zapisano łączenie z serwerem zdalnym przy uruchomieniu
-  --gpu TRYB      akceleracja GPU strony: on, off, auto (VIZRS_GPU)
-  --probe JS --probe-out JSON   narzędzie testowe: po wczytaniu strony wykonaj skrypt, zapisz wynik, zakończ
-
-Bez serwera: sceny, zasoby i presety w katalogu danych (show.json, assets/). Gdy na tym katalogu działa serwer
-vizrs, okno dołącza do niego. Trio i wyjście dla OBS – VizRS CG System."
-}
-
-fn parse_args() -> Result<Args, String> {
-    let env = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
-    let mut a = Args {
-        kind: Kind::Artist,
-        data: env("VIZRS_ARTIST_DATA")
-            .map(PathBuf::from)
-            .unwrap_or_else(paths::default_data),
-        token: env("VIZRS_TOKEN"),
-        connect: env("VIZRS_CONNECT"),
-        local: false,
-        probe: None,
-        gpu: match env("VIZRS_GPU").as_deref() {
-            Some("on") => Some(true),
-            Some("off") => Some(false),
-            _ => None,
-        },
-        file: None,
-    };
-    let (mut probe_js, mut probe_out) = (None, None);
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let mut i = 0;
-    while i < args.len() {
-        let flag = args[i].clone();
-        let mut val = || -> Result<String, String> {
-            i += 1;
-            args.get(i).cloned().ok_or(format!("{flag}: brak wartości"))
-        };
-        match flag.as_str() {
-            "artist" => a.kind = Kind::Artist,
-            "connect" => a.kind = Kind::Connect,
-            "--data" => a.data = PathBuf::from(val()?),
-            "--token" => a.token = Some(val()?),
-            "--connect" => a.connect = Some(val()?),
-            "--local" => a.local = true,
-            "--gpu" => {
-                a.gpu = match val()?.as_str() {
-                    "on" => Some(true),
-                    "off" => Some(false),
-                    "auto" => None,
-                    _ => return Err("--gpu: podaj on, off albo auto".into()),
-                }
-            }
-            "--probe" => probe_js = Some(PathBuf::from(val()?)),
-            "--probe-out" => probe_out = Some(PathBuf::from(val()?)),
-            "--help" | "-h" => {
-                println!("{}", help());
-                std::process::exit(0);
-            }
-            "--version" | "-V" => {
-                println!("vizrs-cg-artist {}", env!("CARGO_PKG_VERSION"));
-                std::process::exit(0);
-            }
-            other if !other.starts_with('-') && Path::new(other).is_file() => {
-                a.file = Some(PathBuf::from(other))
-            }
-            other => {
-                return Err(format!(
-                    "nieznany argument {other} (vizrs-cg-artist --help)"
-                ))
-            }
-        }
-        i += 1;
-    }
-    if let Some(c) = &a.connect {
-        a.connect = Some(connect::normalize_url(c).map_err(|e| format!("--connect: {e}"))?);
-    }
-    a.probe = match (probe_js, probe_out) {
-        (Some(j), Some(o)) => Some((j, o)),
-        (None, None) => None,
-        _ => return Err("--probe i --probe-out podaje się razem".into()),
-    };
-    Ok(a)
-}
-
-/// Adres strony: baza serwera + ścieżka + token.
-fn page_url(base: &str, path: &str, token: Option<&str>) -> String {
-    match token {
-        Some(t) => format!(
-            "{base}{path}{}token={t}",
-            if path.contains('?') { '&' } else { '?' }
-        ),
-        None => format!("{base}{path}"),
-    }
-}
-
-/// Czy adres należy do serwera VizRS okna (inne otwiera przeglądarka systemowa).
-fn same_origin(base: &str, u: &str) -> bool {
-    u.starts_with(&format!("{base}/"))
-        || u == base
-        || u.starts_with("about:")
-        || u.starts_with("blob:")
-        || u.starts_with("data:")
-}
-
-/// Kodowanie identyfikatora sceny w adresie.
+/// Kodowanie identyfikatora w adresie.
 fn url_escape(s: &str) -> String {
     s.bytes()
         .map(|b| {
@@ -199,21 +78,20 @@ fn url_escape(s: &str) -> String {
         .collect()
 }
 
-/// Adres albo katalog w programie systemowym.
-fn open_external(target: &str) {
-    let uri = if target.contains("://") {
-        target.to_string()
-    } else {
-        gio::File::for_path(target).uri().to_string()
-    };
-    if let Err(e) = gio::AppInfo::launch_default_for_uri(&uri, None::<&gio::AppLaunchContext>) {
-        eprintln!("nie mogę otworzyć {target}: {e}");
-    }
+/// Gdzie pracuje okno.
+#[derive(Clone, PartialEq, Debug)]
+enum Mode {
+    /// magazyn lokalny na katalogu danych
+    Local,
+    /// serwer vizrs (zdalny albo na katalogu danych) przez pośrednika
+    Remote { url: String, token: Option<String> },
+    /// `connect` przed wyborem
+    None,
 }
 
 /// Stan okna Artist zgłaszany przez stronę.
 #[derive(Default)]
-struct PageState {
+struct Win {
     dirty: bool,
     undo: bool,
     redo: bool,
@@ -224,625 +102,520 @@ struct PageState {
     pending: Option<PathBuf>,
     /// strona zgodziła się zamknąć okno
     closing: bool,
-}
-
-struct Win {
-    window: gtk::ApplicationWindow,
-    view: webkit6::WebView,
-    kind: Kind,
     zoom: f64,
-    st: PageState,
 }
 
 struct App {
-    gtk: gtk::Application,
-    base: String,
-    token: Option<String>,
-    /// praca lokalna: adres magazynu w oknie albo serwera `vizrs` na tym katalogu danych
-    local: Option<String>,
-    local_token: Option<String>,
-    /// magazyn lokalny (żyje do końca programu; zwalnia blokadę katalogu)
-    store: Option<local::Local>,
-    /// token z `--token` / `VIZRS_TOKEN` (do serwera `vizrs` na katalogu danych)
-    user_token: Option<String>,
-    server_note: String,
+    mode: Mode,
+    note: String,
     data: PathBuf,
-    gpu: Option<bool>,
+    user_token: Option<String>,
+    /// magazyn lokalny (żyje, póki program działa – blokada katalogu; zwalniany w `RunEvent::Exit`)
+    store: Option<local::Local>,
+    /// pośrednik do serwera (osobny przy każdym przełączeniu)
+    proxy: Option<local::Local>,
     probe: Option<(String, PathBuf)>,
-    wins: Vec<Win>,
+    wins: HashMap<String, Win>,
+    focused: Option<String>,
+    next: u32,
     quitting: bool,
+    undo_item: Option<MenuItem<tauri::Wry>>,
+    redo_item: Option<MenuItem<tauri::Wry>>,
 }
 
-type Shared = Rc<RefCell<App>>;
-
-thread_local! {
-    /// Wątki pomocnicze (instancja, sprawdzanie serwera) wracają do pętli GTK przez `MainContext::invoke`.
-    static APP: RefCell<Option<Shared>> = const { RefCell::new(None) };
-}
-
-fn with_app(f: impl FnOnce(&Shared)) {
-    let app = APP.with(|a| a.borrow().clone());
-    if let Some(a) = app {
-        f(&a);
-    }
-}
-
-fn error_dialog(parent: Option<&gtk::ApplicationWindow>, msg: &str) {
-    eprintln!("{msg}");
-    gtk::AlertDialog::builder()
-        .modal(true)
-        .message("VizRS CG Artist")
-        .detail(msg)
-        .build()
-        .show(parent);
-}
-
-fn run_js(view: &webkit6::WebView, js: &str) {
-    view.evaluate_javascript(js, None, None, None::<&gio::Cancellable>, |_| {});
-}
+type Shared = Mutex<App>;
+/// Pobrania w toku: adres → plik tymczasowy (macOS nie podaje ścieżki w zdarzeniu końca).
+type Downloads = Mutex<HashMap<String, PathBuf>>;
 
 impl App {
-    fn title(&self, kind: Kind) -> String {
-        match kind {
-            Kind::Connect => "VizRS CG Artist – połącz z serwerem".into(),
-            Kind::Artist if self.local.as_deref() == Some(self.base.as_str()) => {
-                "VizRS CG Artist".into()
+    /// Serwer strony dla bieżącego trybu: (baza, sekret).
+    fn page_server(&self) -> Option<(&str, &str)> {
+        let l = match self.mode {
+            Mode::Local => self.store.as_ref(),
+            Mode::Remote { .. } => self.proxy.as_ref(),
+            Mode::None => None,
+        }?;
+        Some((l.base.as_str(), l.secret.as_str()))
+    }
+
+    /// Adres strony Artist; w pracy lokalnej wraca do ostatniej sceny.
+    fn start_url(&self) -> Option<String> {
+        let (base, secret) = self.page_server()?;
+        let mut url = format!("{base}/artist?token={secret}");
+        if self.mode == Mode::Local {
+            if let Some(s) = paths::load(STATE_KEY).scene {
+                url.push_str(&format!("&scene={}", url_escape(&s)));
             }
-            Kind::Artist => format!(
+        }
+        Some(url)
+    }
+
+    fn title(&self) -> String {
+        match &self.mode {
+            Mode::Remote { url, .. } => format!(
                 "VizRS CG Artist – {}",
-                self.base.split("://").nth(1).unwrap_or(&self.base)
+                url.split("://").nth(1).unwrap_or(url)
             ),
+            _ => "VizRS CG Artist".into(),
         }
     }
 
-    /// Adres Artist; na serwerze lokalnym wraca do ostatniej sceny.
-    fn start_url(&self) -> String {
-        let url = page_url(&self.base, "/artist", self.token.as_deref());
-        let last = (self.local.as_deref() == Some(self.base.as_str()))
-            .then(|| paths::load(STATE_KEY).scene)
-            .flatten();
-        match last {
-            Some(s) => format!(
-                "{url}{}scene={}",
-                if url.contains('?') { '&' } else { '?' },
-                url_escape(&s)
-            ),
-            None => url,
-        }
-    }
-
-    /// Klucz kopii roboczej: magazyn lokalny ma losowy port, więc liczy się katalog danych, nie adres.
+    /// Klucz kopii roboczej: katalog danych (praca lokalna) albo adres serwera – port serwera strony jest losowy.
     fn draft_key(&self) -> String {
-        match &self.store {
-            Some(l) if l.base == self.base => {
+        match &self.mode {
+            Mode::Remote { url, .. } => url.clone(),
+            _ => {
                 let d = std::fs::canonicalize(&self.data).unwrap_or_else(|_| self.data.clone());
                 format!("lokalny:{}", d.display())
             }
-            _ => self.base.clone(),
         }
     }
 
-    fn win(&self, w: &gtk::ApplicationWindow) -> Option<&Win> {
-        self.wins.iter().find(|x| &x.window == w)
-    }
-
-    fn win_mut(&mut self, w: &gtk::ApplicationWindow) -> Option<&mut Win> {
-        self.wins.iter_mut().find(|x| &x.window == w)
-    }
-
-    fn focused(&self) -> Option<&Win> {
-        let active = self.gtk.active_window();
-        self.wins
-            .iter()
-            .find(|w| active.as_ref() == Some(w.window.upcast_ref()))
-            .or(self.wins.first())
-    }
-
-    fn remember(&self, w: &Win) {
-        if w.kind != Kind::Artist {
-            return;
-        }
-        let old = paths::load(STATE_KEY);
-        let maximized = w.window.is_maximized();
-        let (ww, wh) = (w.window.width() as f64, w.window.height() as f64);
-        paths::save(
-            STATE_KEY,
-            &paths::WinState {
-                size: if maximized || ww < 1.0 {
-                    old.size
-                } else {
-                    Some((ww, wh))
-                },
-                // GTK 4 nie podaje położenia okna (Wayland) – zostaje zapisane wcześniej
-                pos: old.pos,
-                maximized: Some(maximized),
-                zoom: Some(w.zoom),
-                scene: w.st.scene.clone().or(old.scene),
-            },
-        );
+    /// Okno Artist, do którego trafiają komendy menu: aktywne, inaczej dowolne.
+    fn target_label(&self) -> Option<String> {
+        self.focused
+            .clone()
+            .filter(|l| self.wins.contains_key(l))
+            .or_else(|| self.wins.keys().next().cloned())
     }
 }
 
-/// Stan pozycji menu zależnych od strony.
-fn sync_actions(app: &App) {
-    let w = app.focused();
-    let artist = w.is_some_and(|w| w.kind == Kind::Artist);
-    for (name, _) in PAGE_CMDS {
-        let on = match *name {
-            "undo" => artist && w.is_some_and(|w| w.st.undo),
-            "redo" => artist && w.is_some_and(|w| w.st.redo),
-            _ => artist,
+fn state(app: &AppHandle) -> std::sync::MutexGuard<'_, App> {
+    app.state::<Shared>()
+        .inner()
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+}
+
+fn eval_in(app: &AppHandle, label: &str, js: &str) {
+    if let Some(w) = app.get_webview_window(label) {
+        let _ = w.eval(js);
+    }
+}
+
+fn error(app: &AppHandle, msg: &str) {
+    eprintln!("{msg}");
+    app.dialog()
+        .message(msg.to_string())
+        .title("VizRS CG Artist")
+        .show(|_| {});
+}
+
+/// Adres albo katalog w programie systemowym.
+fn open_external(target: &str) {
+    #[cfg(target_os = "windows")]
+    let r = std::process::Command::new("explorer").arg(target).spawn();
+    #[cfg(target_os = "macos")]
+    let r = std::process::Command::new("open").arg(target).spawn();
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let r = std::process::Command::new("xdg-open").arg(target).spawn();
+    if let Err(e) = r {
+        eprintln!("nie mogę otworzyć {target}: {e}");
+    }
+}
+
+// ------------------------------------------------------------------ argumenty
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Kind {
+    Artist,
+    Connect,
+}
+
+struct Args {
+    kind: Kind,
+    data: PathBuf,
+    token: Option<String>,
+    connect: Option<String>,
+    local: bool,
+    probe: Option<(PathBuf, PathBuf)>,
+    file: Option<PathBuf>,
+}
+
+fn help() -> &'static str {
+    "vizrs-cg-artist – VizRS CG Artist, edytor grafik i animacji VizRS (Tauri 2)
+
+Użycie: vizrs-cg-artist [connect] [opcje] [PLIK]   (connect – najpierw wybór serwera; PLIK .cgpack albo .vizrs.json – import)
+
+  --data KAT      katalog danych Artist (VIZRS_ARTIST_DATA; domyślnie katalog danych użytkownika/vizrs-cg-artist)
+  --token T       token serwera (VIZRS_TOKEN)
+  --connect URL   serwer zdalny, np. https://cg.example.pl (VIZRS_CONNECT)
+  --local         praca lokalna, nawet gdy zapisano łączenie z serwerem przy uruchomieniu
+
+Bez serwera: sceny, zasoby i presety w katalogu danych (show.json, assets/). Gdy na tym katalogu działa serwer
+vizrs, okno dołącza do niego. Trio i wyjście dla OBS – VizRS CG System."
+}
+
+fn parse_args(argv: &[String]) -> Result<Args, String> {
+    let env = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
+    let mut a = Args {
+        kind: Kind::Artist,
+        data: env("VIZRS_ARTIST_DATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(paths::default_data),
+        token: env("VIZRS_TOKEN"),
+        connect: env("VIZRS_CONNECT"),
+        local: false,
+        probe: None,
+        file: None,
+    };
+    let (mut pj, mut po) = (None, None);
+    let mut i = 0;
+    while i < argv.len() {
+        let flag = argv[i].clone();
+        let mut val = || -> Result<String, String> {
+            i += 1;
+            argv.get(i).cloned().ok_or(format!("{flag}: brak wartości"))
         };
-        if let Some(a) = app
-            .gtk
-            .lookup_action(name)
-            .and_downcast::<gio::SimpleAction>()
-        {
-            a.set_enabled(on);
-        }
-    }
-}
-
-fn section(items: &[(&str, &str)]) -> gio::Menu {
-    let m = gio::Menu::new();
-    for (action, label) in items {
-        m.append(Some(label), Some(&format!("app.{action}")));
-    }
-    m
-}
-
-fn build_menu() -> gio::Menu {
-    let menu = gio::Menu::new();
-    let file = gio::Menu::new();
-    file.append_section(
-        None,
-        &section(&[
-            ("new-window", "Nowe okno Artist"),
-            ("connect", "Połącz z serwerem…"),
-        ]),
-    );
-    let s2 = section(&PAGE_CMDS[..5]);
-    s2.append(Some("Importuj…"), Some("app.import"));
-    file.append_section(None, &s2);
-    file.append_section(None, &section(&[("data-dir", "Otwórz katalog danych")]));
-    file.append_section(
-        None,
-        &section(&[("close", "Zamknij okno"), ("quit", "Zakończ")]),
-    );
-    menu.append_submenu(Some("Plik"), &file);
-    menu.append_submenu(Some("Edycja"), &section(&PAGE_CMDS[5..9]));
-    let view = gio::Menu::new();
-    view.append_section(None, &section(&PAGE_CMDS[9..]));
-    view.append_section(
-        None,
-        &section(&[
-            ("zoom-in", "Powiększ"),
-            ("zoom-out", "Pomniejsz"),
-            ("zoom-reset", "Rozmiar 100%"),
-            ("reload", "Odśwież"),
-            ("fullscreen", "Pełny ekran"),
-            ("devtools", "Narzędzia deweloperskie"),
-        ]),
-    );
-    menu.append_submenu(Some("Widok"), &view);
-    menu.append_submenu(
-        Some("Pomoc"),
-        &section(&[
-            ("logs", "Pokaż logi"),
-            ("updates", "Sprawdź aktualizacje"),
-            ("about", "O programie"),
-        ]),
-    );
-    menu
-}
-
-fn add_action(gapp: &gtk::Application, name: &str, accels: &[&str], f: impl Fn(&Shared) + 'static) {
-    let a = gio::SimpleAction::new(name, None);
-    a.connect_activate(move |_, _| with_app(&f));
-    gapp.add_action(&a);
-    if !accels.is_empty() {
-        gapp.set_accels_for_action(&format!("app.{name}"), accels);
-    }
-}
-
-fn focused_window(app: &Shared) -> Option<gtk::ApplicationWindow> {
-    app.borrow().focused().map(|w| w.window.clone())
-}
-
-fn install_actions(gapp: &gtk::Application) {
-    // skróty edycji zostają w stronie: akcelerator menu przechwyciłby Ctrl+Z i Ctrl+S także w polach tekstowych
-    for (name, _) in PAGE_CMDS {
-        let n = name.to_string();
-        add_action(gapp, name, &[], move |app| {
-            if let Some(w) = app.borrow().focused() {
-                run_js(
-                    &w.view,
-                    &format!("window.__vizrsCmd && window.__vizrsCmd('{n}')"),
-                );
+        match flag.as_str() {
+            "artist" => a.kind = Kind::Artist,
+            "connect" => a.kind = Kind::Connect,
+            "--data" => a.data = PathBuf::from(val()?),
+            "--token" => a.token = Some(val()?),
+            "--connect" => a.connect = Some(val()?),
+            "--local" => a.local = true,
+            // narzędzie testowe: po wczytaniu strony wykonaj skrypt, zapisz wynik `probe:…`, zakończ
+            "--probe" => pj = Some(PathBuf::from(val()?)),
+            "--probe-out" => po = Some(PathBuf::from(val()?)),
+            "--help" | "-h" => {
+                println!("{}", help());
+                std::process::exit(0);
             }
-        });
-    }
-    add_action(gapp, "new-window", &[], |app| {
-        let url = app.borrow().start_url();
-        open_window(app, Kind::Artist, url);
-    });
-    add_action(gapp, "connect", &["<Control><Shift>k"], open_connect);
-    add_action(gapp, "import", &[], |app| {
-        let filter = gtk::FileFilter::new();
-        filter.set_name(Some("Paczka, scena, obraz, czcionka"));
-        for e in [
-            "cgpack", "json", "png", "jpg", "jpeg", "webp", "gif", "svg", "mp4", "webm", "ttf",
-            "otf", "woff", "woff2",
-        ] {
-            filter.add_suffix(e);
-        }
-        let filters = gio::ListStore::new::<gtk::FileFilter>();
-        filters.append(&filter);
-        let dlg = gtk::FileDialog::builder()
-            .title("Importuj")
-            .modal(true)
-            .filters(&filters)
-            .build();
-        dlg.open(
-            focused_window(app).as_ref(),
-            None::<&gio::Cancellable>,
-            |r| {
-                if let Some(p) = r.ok().and_then(|f| f.path()) {
-                    with_app(|app| open_file(app, p));
-                }
-            },
-        );
-    });
-    add_action(gapp, "data-dir", &[], |app| {
-        let d = app.borrow().data.clone();
-        open_external(&std::fs::canonicalize(&d).unwrap_or(d).to_string_lossy());
-    });
-    add_action(gapp, "logs", &[], |_| {
-        open_external(&paths::state_dir().to_string_lossy())
-    });
-    add_action(gapp, "updates", &[], |_| open_external(RELEASES));
-    add_action(gapp, "about", &[], |app| {
-        let msg = {
-            let a = app.borrow();
-            format!(
-                "vizrs-cg-artist {} (moduły rysowania: VizRS CG System {})\n{}\nDane: {}",
-                env!("CARGO_PKG_VERSION"),
-                web::cg_version(),
-                a.server_note,
-                a.data.display()
-            )
-        };
-        gtk::AlertDialog::builder()
-            .modal(true)
-            .message("O programie")
-            .detail(msg)
-            .build()
-            .show(focused_window(app).as_ref());
-    });
-    add_action(gapp, "close", &["<Control>w"], |app| {
-        if let Some(w) = focused_window(app) {
-            w.close();
-        }
-    });
-    add_action(gapp, "quit", &["<Control>q"], |app| {
-        app.borrow_mut().quitting = true;
-        quit_step(app);
-    });
-    add_action(gapp, "reload", &["F5"], |app| {
-        if let Some(w) = app.borrow().focused() {
-            w.view.reload();
-        }
-    });
-    add_action(gapp, "fullscreen", &["F11"], |app| {
-        if let Some(w) = focused_window(app) {
-            w.set_fullscreened(!w.is_fullscreen());
-        }
-    });
-    for (name, accel) in [
-        ("zoom-in", "<Control>equal"),
-        ("zoom-out", "<Control>minus"),
-        ("zoom-reset", "<Control>0"),
-    ] {
-        add_action(gapp, name, &[accel], move |app| {
-            let Some(win) = focused_window(app) else {
-                return;
-            };
-            let mut a = app.borrow_mut();
-            let Some(w) = a.win_mut(&win) else { return };
-            w.zoom = match name {
-                "zoom-in" => (w.zoom * 1.1).min(3.0),
-                "zoom-out" => (w.zoom / 1.1).max(0.3),
-                _ => 1.0,
-            };
-            w.view.set_zoom_level(w.zoom);
-        });
-    }
-    add_action(gapp, "devtools", &["<Control><Shift>i"], |app| {
-        if let Some(i) = app.borrow().focused().and_then(|w| w.view.inspector()) {
-            i.show();
-        }
-    });
-}
-
-fn current_window() -> Option<gtk::ApplicationWindow> {
-    let mut out = None;
-    with_app(|app| out = focused_window(app));
-    out
-}
-
-/// Systemowe „Zapisz jako” dla pobrań strony (eksport sceny, paczka).
-fn on_download(d: &webkit6::Download) {
-    d.connect_decide_destination(|d, suggested| {
-        let name = if suggested.is_empty() {
-            "vizrs-eksport".to_string()
-        } else {
-            suggested.to_string()
-        };
-        let dlg = gtk::FileDialog::builder()
-            .title("Zapisz plik")
-            .modal(true)
-            .initial_name(name)
-            .build();
-        let d = d.clone();
-        dlg.save(
-            current_window().as_ref(),
-            None::<&gio::Cancellable>,
-            move |r| match r.ok().and_then(|f| f.path()) {
-                Some(p) => {
-                    d.set_allow_overwrite(true);
-                    d.set_destination(&p.to_string_lossy());
-                }
-                None => d.cancel(),
-            },
-        );
-        true
-    });
-    d.connect_failed(|_, e| {
-        if !e.matches(webkit6::DownloadError::CancelledByUser) {
-            error_dialog(
-                current_window().as_ref(),
-                &format!("Nie udało się zapisać pliku: {e}"),
-            );
-        }
-    });
-}
-
-fn script(src: &str) -> webkit6::UserScript {
-    webkit6::UserScript::new(
-        src,
-        webkit6::UserContentInjectedFrames::TopFrame,
-        webkit6::UserScriptInjectionTime::Start,
-        &[],
-        &[],
-    )
-}
-
-fn open_window(app: &Shared, kind: Kind, url: String) {
-    let (gapp, title, gpu, base) = {
-        let a = app.borrow();
-        (a.gtk.clone(), a.title(kind), a.gpu, a.base.clone())
-    };
-    let st = if kind == Kind::Artist {
-        paths::load(STATE_KEY)
-    } else {
-        paths::WinState::default()
-    };
-    let (w, h) = match kind {
-        Kind::Connect => (560, 600),
-        Kind::Artist => st
-            .size
-            .map(|(w, h)| (w as i32, h as i32))
-            .unwrap_or((1600, 900)),
-    };
-    let window = gtk::ApplicationWindow::builder()
-        .application(&gapp)
-        .title(title)
-        .default_width(w)
-        .default_height(h)
-        .show_menubar(kind == Kind::Artist)
-        .build();
-    // Artist to stanowisko pracy – bez zapisanego wyglądu od razu na cały ekran
-    if kind == Kind::Artist && st.maximized.unwrap_or(true) {
-        window.maximize();
-    }
-
-    let ucm = webkit6::UserContentManager::new();
-    ucm.add_script(&script(IPC_SHIM));
-    // znacznik okna natywnego: strona chowa zakładki „Artist / Trio / Wyjście” i menu przeglądarki
-    ucm.add_script(&script(&format!(
-        "window.__vizrsShell = {{ version: '{}', app: 'cg-artist' }};",
-        env!("CARGO_PKG_VERSION")
-    )));
-    if kind == Kind::Connect {
-        let a = app.borrow();
-        ucm.add_script(&script(&connect::page_data(
-            &connect::Saved::load(),
-            &a.base,
-            a.token.as_deref(),
-            a.local.as_deref(),
-        )));
-    }
-    ucm.register_script_message_handler("ipc", None);
-    let view = webkit6::WebView::builder()
-        .user_content_manager(&ucm)
-        .build();
-    if let Some(s) = WebViewExt::settings(&view) {
-        s.set_enable_developer_extras(true);
-        s.set_javascript_can_access_clipboard(true);
-        if let Some(on) = gpu {
-            s.set_hardware_acceleration_policy(if on {
-                webkit6::HardwareAccelerationPolicy::Always
-            } else {
-                webkit6::HardwareAccelerationPolicy::Never
-            });
-        }
-    }
-    // pisownia polska w polach tekstowych (słownik hunspell pl_PL z systemu, przez enchant)
-    if let Some(ctx) = view.web_context() {
-        ctx.set_spell_checking_enabled(true);
-        ctx.set_spell_checking_languages(&["pl_PL"]);
-    }
-    let zoom = if kind == Kind::Artist {
-        st.zoom.unwrap_or(1.0)
-    } else {
-        1.0
-    };
-    view.set_zoom_level(zoom);
-
-    // odnośniki poza serwer VizRS i nowe okna otwiera przeglądarka systemowa
-    view.connect_decide_policy(move |_, decision, ty| {
-        let Some(nd) = decision.downcast_ref::<webkit6::NavigationPolicyDecision>() else {
-            return false;
-        };
-        let uri = nd
-            .navigation_action()
-            .and_then(|a| a.request())
-            .and_then(|r| r.uri())
-            .map(|u| u.to_string())
-            .unwrap_or_default();
-        if ty == webkit6::PolicyDecisionType::NewWindowAction || !same_origin(&base, &uri) {
-            if !uri.is_empty() {
-                open_external(&uri);
+            "--version" | "-V" => {
+                println!("vizrs-cg-artist {}", env!("CARGO_PKG_VERSION"));
+                std::process::exit(0);
             }
-            decision.ignore();
-            return true;
+            // macOS dopisuje przy pierwszym uruchomieniu z Findera `-psn_…`
+            o if o.starts_with("-psn_") => {}
+            o if !o.starts_with('-') && Path::new(o).is_file() => a.file = Some(PathBuf::from(o)),
+            o => return Err(format!("nieznany argument {o} (vizrs-cg-artist --help)")),
         }
-        false
-    });
-    if let Some(ns) = view.network_session() {
-        ns.connect_download_started(|_, d| on_download(d));
+        i += 1;
     }
-    let win = window.clone();
-    view.connect_load_changed(move |_, ev| {
-        if ev == webkit6::LoadEvent::Finished {
-            with_app(|app| page_loaded(app, &win));
-        }
-    });
-    let win = window.clone();
-    ucm.connect_script_message_received(Some("ipc"), move |_, v| {
-        let body = v.to_str().to_string();
-        with_app(|app| on_ipc(app, &win, &body));
-    });
-    let win = window.clone();
-    window.connect_close_request(move |_| {
-        let mut stop = false;
-        with_app(|app| stop = close_request(app, &win));
-        if stop {
-            glib::Propagation::Stop
-        } else {
-            glib::Propagation::Proceed
-        }
-    });
-    window.connect_is_active_notify(|_| with_app(|app| sync_actions(&app.borrow())));
-
-    window.set_child(Some(&view));
-    if kind == Kind::Connect {
-        view.load_html(connect::PAGE, Some("about:blank"));
-    } else {
-        view.load_uri(&url);
+    if let Some(c) = &a.connect {
+        a.connect = Some(connect::normalize_url(c).map_err(|e| format!("--connect: {e}"))?);
     }
-    app.borrow_mut().wins.push(Win {
-        window: window.clone(),
-        view,
-        kind,
-        zoom,
-        st: PageState::default(),
-    });
-    window.present();
-    sync_actions(&app.borrow());
-}
-
-/// Zamknięcie okna: ze zmianami pyta przez stronę (ona zna stan i umie zapisać); strona bez odpowiedzi
-/// nie zatrzyma okna na zawsze. `true` = wstrzymaj zamknięcie.
-fn close_request(app: &Shared, window: &gtk::ApplicationWindow) -> bool {
-    let mut a = app.borrow_mut();
-    let Some(w) = a.win_mut(window) else {
-        return false;
+    a.probe = match (pj, po) {
+        (Some(j), Some(o)) => Some((j, o)),
+        (None, None) => None,
+        _ => return Err("--probe i --probe-out podaje się razem".into()),
     };
-    let waited = w.st.asked.is_some_and(|t| t.elapsed() >= CLOSE_PATIENCE);
-    if w.st.dirty && !w.st.closing && !waited {
-        if w.st.asked.is_none() {
-            w.st.asked = Some(Instant::now());
-            run_js(&w.view, "window.__vizrsCmd && window.__vizrsCmd('close')");
-        }
-        return true;
-    }
-    if let Some(i) = a.wins.iter().position(|x| &x.window == window) {
-        let w = a.wins.remove(i);
-        a.remember(&w);
-    }
-    false
+    Ok(a)
 }
 
-/// Zakończ: okna bez zmian od razu, ze zmianami po kolei.
-fn quit_step(app: &Shared) {
-    let (clean, asking, next) = {
-        let a = app.borrow();
-        let clean: Vec<_> = a
-            .wins
-            .iter()
-            .filter(|w| !w.st.dirty)
-            .map(|w| w.window.clone())
-            .collect();
-        let asking = a.wins.iter().any(|w| w.st.asked.is_some());
-        let next = a.wins.iter().find(|w| w.st.dirty).map(|w| w.window.clone());
-        (clean, asking, next)
+// ------------------------------------------------------------------ tryb pracy
+
+/// Praca lokalna: serwer `vizrs` działający na katalogu danych (jeden zapisujący na `show.json` – okno dołącza
+/// przez pośrednika) albo magazyn lokalny.
+fn start_local(app: &AppHandle) -> Result<(), String> {
+    let (data, token, has_store) = {
+        let a = state(app);
+        (a.data.clone(), a.user_token.clone(), a.store.is_some())
     };
-    for w in clean {
-        w.close();
+    if !has_store {
+        if let Some(addr) = server::running_server(&data, token.as_deref())? {
+            let url = format!("http://{addr}");
+            let proxy = local::start_remote(&url, token.clone())?;
+            let mut a = state(app);
+            a.proxy = Some(proxy);
+            a.mode = Mode::Remote { url, token };
+            a.note =
+                format!("dołączono do serwera vizrs, który pracuje na katalogu danych ({addr})");
+            return Ok(());
+        }
+        let l = local::start(&data)?;
+        state(app).store = Some(l);
     }
-    if !asking {
-        if let Some(w) = next {
-            w.close();
+    let mut a = state(app);
+    a.mode = Mode::Local;
+    a.note = LOCAL_NOTE.into();
+    Ok(())
+}
+
+fn start_remote(
+    app: &AppHandle,
+    url: String,
+    token: Option<String>,
+    note: String,
+) -> Result<(), String> {
+    let proxy = local::start_remote(&url, token.clone())?;
+    let mut a = state(app);
+    a.proxy = Some(proxy);
+    a.mode = Mode::Remote { url, token };
+    a.note = note;
+    Ok(())
+}
+
+// ------------------------------------------------------------------ okna
+
+fn script() -> String {
+    IPC_SHIM.replace("__VERSION__", env!("CARGO_PKG_VERSION"))
+}
+
+fn open_artist(app: &AppHandle, pending: Option<PathBuf>) {
+    let (url, title, label) = {
+        let mut a = state(app);
+        let Some(url) = a.start_url() else {
+            drop(a);
+            return open_connect(app);
+        };
+        a.next += 1;
+        let label = format!("artist-{}", a.next);
+        a.wins.insert(
+            label.clone(),
+            Win {
+                pending,
+                zoom: 1.0,
+                ..Default::default()
+            },
+        );
+        (url, a.title(), label)
+    };
+    let st = paths::load(STATE_KEY);
+    let parsed = match url.parse() {
+        Ok(u) => u,
+        Err(_) => return error(app, "zły adres strony"),
+    };
+    let (w, h) = st.size.unwrap_or((1600.0, 900.0));
+    let app_dl = app.clone();
+    let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(parsed))
+        .title(&title)
+        .inner_size(w, h)
+        // Artist to stanowisko pracy – bez zapisanego wyglądu od razu na cały ekran
+        .maximized(st.maximized.unwrap_or(true))
+        .initialization_script(script())
+        .devtools(true)
+        .on_download(move |_, ev| on_download(&app_dl, ev))
+        .on_page_load(|w, p| {
+            if p.event() == PageLoadEvent::Finished {
+                page_loaded(w.app_handle(), w.label());
+            }
+        })
+        .build();
+    match built {
+        Ok(w) => {
+            if let Some(z) = st.zoom.filter(|z| (*z - 1.0).abs() > 0.01) {
+                let _ = w.set_zoom(z);
+                if let Some(win) = state(app).wins.get_mut(&label) {
+                    win.zoom = z;
+                }
+            }
+            let _ = w.set_focus();
+            spell_pl(&w);
+        }
+        Err(e) => {
+            state(app).wins.remove(&label);
+            error(app, &format!("Nie udało się otworzyć okna: {e}"));
         }
     }
 }
 
-fn page_loaded(app: &Shared, window: &gtk::ApplicationWindow) {
-    let (probe, pending, view) = {
-        let mut a = app.borrow_mut();
+/// Pisownia polska w polach tekstowych (Linux: WebKitGTK + enchant; Windows/macOS: słownik systemu WebView).
+fn spell_pl(w: &WebviewWindow) {
+    #[cfg(target_os = "linux")]
+    let _ = w.with_webview(|pv| {
+        use webkit2gtk::{WebContextExt, WebViewExt};
+        if let Some(ctx) = pv.inner().context() {
+            ctx.set_spell_checking_enabled(true);
+            ctx.set_spell_checking_languages(&["pl_PL"]);
+        }
+    });
+    #[cfg(not(target_os = "linux"))]
+    let _ = w;
+}
+
+fn page_loaded(app: &AppHandle, label: &str) {
+    let (probe, pending) = {
+        let mut a = state(app);
         let probe = a.probe.as_ref().map(|(c, _)| c.clone());
-        let Some(w) = a.win_mut(window) else { return };
-        (probe, w.st.pending.take(), w.view.clone())
+        let pending = a.wins.get_mut(label).and_then(|w| w.pending.take());
+        (probe, pending)
     };
     if let Some(code) = probe {
-        run_js(&view, &code);
+        eval_in(app, label, &code);
     }
     if let Some(p) = pending {
-        send_file(&view, &p);
+        send_file(app, label, &p);
     }
 }
 
-/// Most strona → okno. `probe:` – wynik skryptu testowego; okno połączenia – wybór serwera;
-/// `app:` – tylko strona Artist z serwera okna.
-fn on_ipc(app: &Shared, window: &gtk::ApplicationWindow, body: &str) {
+fn open_connect(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window(CONNECT) {
+        let _ = w.set_focus();
+        return;
+    }
+    let data = {
+        let a = state(app);
+        let (current, token, local): (String, Option<String>, Option<&str>) = match &a.mode {
+            Mode::Remote { url, token } => (url.clone(), token.clone(), None),
+            Mode::Local => ("lokalnie".into(), None, Some("lokalnie")),
+            Mode::None => (String::new(), None, None),
+        };
+        connect::page_data(&connect::Saved::load(), &current, token.as_deref(), local)
+    };
+    let built = WebviewWindowBuilder::new(app, CONNECT, WebviewUrl::App("connect.html".into()))
+        .title("VizRS CG Artist – połącz z serwerem")
+        .inner_size(560.0, 600.0)
+        .initialization_script(format!("{}\n{data}", script()))
+        .build();
+    match built {
+        Ok(w) => {
+            let _ = w.set_focus();
+            let probe = state(app).probe.as_ref().map(|(c, _)| c.clone());
+            if let Some(code) = probe {
+                // okno połączenia też dostaje sondę (test w działaniu)
+                let w2 = w.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(600));
+                    let _ = w2.eval(&code);
+                });
+            }
+        }
+        Err(e) => error(app, &format!("Nie udało się otworzyć okna połączenia: {e}")),
+    }
+}
+
+fn close_connect(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window(CONNECT) {
+        let _ = w.destroy();
+    }
+}
+
+fn conn_error(app: &AppHandle, msg: &str) {
+    eval_in(
+        app,
+        CONNECT,
+        &format!(
+            "window.__vizrsConnError && window.__vizrsConnError({})",
+            Value::from(msg)
+        ),
+    );
+}
+
+/// Przełącza okna Artist na bieżący tryb (okno połączenia się zamyka); bez okien – otwiera Artist.
+fn switch(app: &AppHandle) {
+    close_connect(app);
+    let (url, title, labels) = {
+        let a = state(app);
+        (
+            a.start_url(),
+            a.title(),
+            a.wins.keys().cloned().collect::<Vec<_>>(),
+        )
+    };
+    if labels.is_empty() {
+        return open_artist(app, None);
+    }
+    let Some(url) = url else { return };
+    for l in labels {
+        if let Some(w) = app.get_webview_window(&l) {
+            let _ = w.set_title(&title);
+            let _ = w.eval(format!("location.replace({})", Value::from(url.clone())));
+        }
+    }
+}
+
+/// Przekazuje plik stronie porcjami (strona składa `File` i decyduje o imporcie).
+fn send_file(app: &AppHandle, label: &str, path: &Path) {
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let data = match std::fs::metadata(path) {
+        Ok(m) if m.len() > MAX_FILE => {
+            return error(
+                app,
+                &format!("{name}: plik większy niż {} MB", MAX_FILE / 1024 / 1024),
+            )
+        }
+        _ => std::fs::read(path),
+    };
+    let data = match data {
+        Ok(d) => d,
+        Err(e) => return error(app, &format!("{}: {e}", path.display())),
+    };
+    eval_in(
+        app,
+        label,
+        &format!("window.__vizrsFile.begin({})", Value::from(name)),
+    );
+    for c in data.chunks(3 * 1024 * 1024) {
+        eval_in(
+            app,
+            label,
+            &format!("window.__vizrsFile.chunk('{}')", bridge::base64(c)),
+        );
+    }
+    eval_in(app, label, "window.__vizrsFile.end()");
+}
+
+/// Plik trafia do okna Artist: istniejącego albo nowego (po wczytaniu strony).
+fn open_file(app: &AppHandle, path: PathBuf) {
+    let target = state(app).target_label();
+    match target {
+        Some(l) => {
+            if let Some(w) = app.get_webview_window(&l) {
+                let _ = w.set_focus();
+            }
+            send_file(app, &l, &path);
+        }
+        None => open_artist(app, Some(path)),
+    }
+}
+
+/// Prośba kolejnego uruchomienia (wtyczka jednej instancji) albo pliku z Findera.
+fn on_remote(app: &AppHandle, argv: &[String]) {
+    let args = parse_args(argv).ok();
+    if state(app).mode == Mode::None {
+        return open_connect(app);
+    }
+    if let Some(f) = args.as_ref().and_then(|a| a.file.clone()) {
+        return open_file(app, f);
+    }
+    if args.as_ref().is_some_and(|a| a.kind == Kind::Connect) {
+        return open_connect(app);
+    }
+    let target = state(app).target_label();
+    match target.and_then(|l| app.get_webview_window(&l)) {
+        Some(w) => {
+            let _ = w.unminimize();
+            let _ = w.set_focus();
+        }
+        None => open_artist(app, None),
+    }
+}
+
+// ------------------------------------------------------------------ most
+
+#[tauri::command]
+fn ipc(app: AppHandle, webview: tauri::Webview, body: String) {
     if let Some(rest) = body.strip_prefix("probe:") {
-        let out = app.borrow().probe.as_ref().map(|(_, o)| o.clone());
+        let out = state(&app).probe.as_ref().map(|(_, o)| o.clone());
         if let Some(out) = out {
             if let Err(e) = std::fs::write(&out, rest) {
                 eprintln!("{}: {e}", out.display());
             }
-            app.borrow().gtk.quit();
+            app.exit(0);
         }
         return;
     }
-    let (kind, from, base, draft_key) = {
-        let a = app.borrow();
-        let Some(w) = a.win(window) else { return };
-        (
-            w.kind,
-            w.view.uri().map(|u| u.to_string()).unwrap_or_default(),
-            a.base.clone(),
-            a.draft_key(),
-        )
-    };
-    if kind == Kind::Connect {
-        return on_conn(app, body);
+    let label = webview.label().to_string();
+    if label == CONNECT {
+        return on_conn(&app, &body);
     }
     let Some(rest) = body.strip_prefix("app:") else {
         return;
     };
-    if !(from.starts_with("http") && same_origin(&base, &from)) {
+    // tylko strona z serwera strony tego okna (adres zmienia się przy przełączeniu)
+    let from = webview.url().map(|u| u.to_string()).unwrap_or_default();
+    let (base, key) = {
+        let a = state(&app);
+        let Some((base, _)) = a.page_server() else {
+            return;
+        };
+        (base.to_string(), a.draft_key())
+    };
+    if !from.starts_with(&format!("{base}/")) {
         return;
     }
     let Some(msg) = bridge::parse(rest) else {
@@ -856,56 +629,64 @@ fn on_ipc(app: &Shared, window: &gtk::ApplicationWindow, body: &str) {
             redo,
             scene,
         } => {
-            {
-                let mut a = app.borrow_mut();
+            let draft = {
+                let mut a = state(&app);
                 let suffix = a
-                    .title(Kind::Artist)
+                    .title()
                     .strip_prefix("VizRS CG Artist")
                     .unwrap_or("")
                     .to_string();
-                let Some(w) = a.win_mut(window) else { return };
-                w.window.set_title(Some(&format!("{title}{suffix}")));
-                (w.st.dirty, w.st.undo, w.st.redo) = (dirty, undo, redo);
-                if scene.is_some() && scene != w.st.scene {
-                    w.st.scene = scene.clone();
-                    let saved = scene.and_then(|s| {
-                        std::fs::read_to_string(bridge::draft_path(&draft_key, &s)).ok()
-                    });
-                    if let Some(text) = saved {
-                        run_js(
-                            &w.view,
-                            &format!(
-                                "window.__vizrsCmd && window.__vizrsCmd('draft', {})",
-                                Value::from(text)
-                            ),
-                        );
-                    }
+                if let Some(w) = app.get_webview_window(&label) {
+                    let _ = w.set_title(&format!("{title}{suffix}"));
                 }
+                let Some(w) = a.wins.get_mut(&label) else {
+                    return;
+                };
+                (w.dirty, w.undo, w.redo) = (dirty, undo, redo);
+                let mut draft = None;
+                if scene.is_some() && scene != w.scene {
+                    w.scene = scene.clone();
+                    draft = scene
+                        .and_then(|s| std::fs::read_to_string(bridge::draft_path(&key, &s)).ok());
+                }
+                draft
+            };
+            if let Some(text) = draft {
+                eval_in(
+                    &app,
+                    &label,
+                    &format!(
+                        "window.__vizrsCmd && window.__vizrsCmd('draft', {})",
+                        Value::from(text)
+                    ),
+                );
             }
-            sync_actions(&app.borrow());
+            sync_menu(&app);
         }
         bridge::Msg::Close => {
             let quitting = {
-                let mut a = app.borrow_mut();
-                if let Some(w) = a.win_mut(window) {
-                    w.st.closing = true;
+                let mut a = state(&app);
+                if let Some(w) = a.wins.get_mut(&label) {
+                    w.closing = true;
                 }
                 a.quitting
             };
-            window.close();
+            if let Some(w) = app.get_webview_window(&label) {
+                let _ = w.close();
+            }
             if quitting {
-                quit_step(app);
+                quit_step(&app);
             }
         }
         bridge::Msg::Stay => {
-            let mut a = app.borrow_mut();
+            let mut a = state(&app);
             a.quitting = false;
-            if let Some(w) = a.win_mut(window) {
-                w.st.asked = None;
+            if let Some(w) = a.wins.get_mut(&label) {
+                w.asked = None;
             }
         }
         bridge::Msg::Draft { id, data } => {
-            let p = bridge::draft_path(&draft_key, &id);
+            let p = bridge::draft_path(&key, &id);
             match data {
                 Some(d) => {
                     if let Err(e) = paths::write_atomic(&p, &d) {
@@ -920,159 +701,7 @@ fn on_ipc(app: &Shared, window: &gtk::ApplicationWindow, body: &str) {
     }
 }
 
-/// Przekazuje plik stronie porcjami (strona składa `File` i decyduje o imporcie).
-fn send_file(view: &webkit6::WebView, path: &Path) {
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let data = match std::fs::metadata(path) {
-        Ok(m) if m.len() > MAX_FILE => {
-            return error_dialog(
-                current_window().as_ref(),
-                &format!("{name}: plik większy niż {} MB", MAX_FILE / 1024 / 1024),
-            )
-        }
-        _ => std::fs::read(path),
-    };
-    let data = match data {
-        Ok(d) => d,
-        Err(e) => {
-            return error_dialog(
-                current_window().as_ref(),
-                &format!("{}: {e}", path.display()),
-            )
-        }
-    };
-    run_js(
-        view,
-        &format!("window.__vizrsFile.begin({})", Value::from(name)),
-    );
-    for c in data.chunks(3 * 1024 * 1024) {
-        run_js(
-            view,
-            &format!("window.__vizrsFile.chunk('{}')", bridge::base64(c)),
-        );
-    }
-    run_js(view, "window.__vizrsFile.end()");
-}
-
-/// Plik trafia do okna Artist: istniejącego albo nowego (po wczytaniu strony).
-fn open_file(app: &Shared, path: PathBuf) {
-    let found = app
-        .borrow()
-        .wins
-        .iter()
-        .find(|w| w.kind == Kind::Artist)
-        .map(|w| (w.window.clone(), w.view.clone()));
-    if let Some((win, view)) = found {
-        win.present();
-        return send_file(&view, &path);
-    }
-    let url = app.borrow().start_url();
-    open_window(app, Kind::Artist, url);
-    if let Some(w) = app.borrow_mut().wins.last_mut() {
-        w.st.pending = Some(path);
-    }
-}
-
-/// Prośba kolejnego uruchomienia: istniejące okno na wierzch albo nowe.
-fn on_remote(app: &Shared, body: &str) {
-    let Ok(v) = serde_json::from_str::<Value>(body) else {
-        return;
-    };
-    // serwer jeszcze niewybrany: najpierw okno połączenia
-    if app.borrow().base.is_empty() {
-        return open_connect(app);
-    }
-    if let Some(f) = v["file"].as_str() {
-        return open_file(app, PathBuf::from(f));
-    }
-    if v["kind"].as_str() == Some("connect") {
-        return open_connect(app);
-    }
-    let found = app
-        .borrow()
-        .wins
-        .iter()
-        .find(|w| w.kind == Kind::Artist)
-        .map(|w| w.window.clone());
-    match found {
-        Some(w) => w.present(),
-        None => {
-            let url = app.borrow().start_url();
-            open_window(app, Kind::Artist, url);
-        }
-    }
-}
-
-fn open_connect(app: &Shared) {
-    let found = app
-        .borrow()
-        .wins
-        .iter()
-        .find(|w| w.kind == Kind::Connect)
-        .map(|w| w.window.clone());
-    match found {
-        Some(w) => w.present(),
-        None => open_window(app, Kind::Connect, String::new()),
-    }
-}
-
-fn close_connect(app: &Shared) {
-    let wins: Vec<_> = app
-        .borrow()
-        .wins
-        .iter()
-        .filter(|w| w.kind == Kind::Connect)
-        .map(|w| w.window.clone())
-        .collect();
-    for w in wins {
-        w.close();
-    }
-}
-
-fn conn_error(app: &Shared, msg: &str) {
-    let js = format!(
-        "window.__vizrsConnError && window.__vizrsConnError({})",
-        Value::from(msg)
-    );
-    for w in app.borrow().wins.iter().filter(|w| w.kind == Kind::Connect) {
-        run_js(&w.view, &js);
-    }
-}
-
-/// Przełącza okna Artist na inny serwer (okno połączenia się zamyka); bez okien – otwiera Artist.
-fn switch(app: &Shared, base: String, token: Option<String>, note: String) {
-    {
-        let mut a = app.borrow_mut();
-        a.base = base;
-        a.token = token;
-        a.server_note = note;
-    }
-    close_connect(app);
-    let (url, title, artists) = {
-        let a = app.borrow();
-        let artists: Vec<_> = a
-            .wins
-            .iter()
-            .filter(|w| w.kind == Kind::Artist)
-            .map(|w| (w.window.clone(), w.view.clone()))
-            .collect();
-        (a.start_url(), a.title(Kind::Artist), artists)
-    };
-    if artists.is_empty() {
-        open_window(app, Kind::Artist, url);
-    } else {
-        for (w, v) in artists {
-            w.set_title(Some(&title));
-            v.load_uri(&url);
-        }
-    }
-    sync_actions(&app.borrow());
-}
-
-fn on_conn(app: &Shared, body: &str) {
+fn on_conn(app: &AppHandle, body: &str) {
     let msg = match connect::parse_msg(body) {
         Ok(m) => m,
         Err(e) => return conn_error(app, &e),
@@ -1086,46 +715,26 @@ fn on_conn(app: &Shared, body: &str) {
                 conn_error(app, &e);
             }
         }
-        connect::Msg::Local => {
-            let (local, token, data, user_token) = {
-                let a = app.borrow();
-                (
-                    a.local.clone(),
-                    a.local_token.clone(),
-                    a.data.clone(),
-                    a.user_token.clone(),
-                )
-            };
-            let (local, token, note) = match local {
-                Some(l) => (l, token, LOCAL_NOTE.to_string()),
-                None => match local_work(&data, user_token) {
-                    Ok(w) => {
-                        let mut a = app.borrow_mut();
-                        a.local = Some(w.base.clone());
-                        a.local_token = w.token.clone();
-                        a.store = w.store;
-                        (w.base, w.token, w.note)
-                    }
-                    Err(e) => return conn_error(app, &e),
-                },
-            };
-            switch(app, local, token, note);
-        }
+        connect::Msg::Local => match start_local(app) {
+            Ok(()) => switch(app),
+            Err(e) => conn_error(app, &e),
+        },
         connect::Msg::Connect(mut req) => {
             // puste pole tokenu = token zapamiętany dla tego serwera
             if req.token.is_none() {
                 req.token = connect::Saved::load().token_for(&req.url);
             }
+            let app = app.clone();
             std::thread::spawn(move || {
                 let err = check_server(&req.url, req.token.as_deref()).err();
-                glib::MainContext::default()
-                    .invoke(move || with_app(|app| on_checked(app, req, err)));
+                let app2 = app.clone();
+                let _ = app.run_on_main_thread(move || on_checked(&app2, req, err));
             });
         }
     }
 }
 
-fn on_checked(app: &Shared, req: connect::Request, err: Option<String>) {
+fn on_checked(app: &AppHandle, req: connect::Request, err: Option<String>) {
     if let Some(e) = err {
         return conn_error(app, &e);
     }
@@ -1140,41 +749,15 @@ fn on_checked(app: &Shared, req: connect::Request, err: Option<String>) {
     if let Err(e) = saved.save() {
         eprintln!("zapis listy serwerów: {e}");
     }
-    switch(
+    match start_remote(
         app,
         url,
         token,
         "serwer zdalny (Plik → Połącz z serwerem)".into(),
-    );
-}
-
-const LOCAL_NOTE: &str = "praca lokalna (bez serwera)";
-
-/// Praca lokalna: serwer `vizrs` działający na tym katalogu danych (jeden zapisujący na `show.json`)
-/// albo magazyn lokalny w oknie.
-struct LocalWork {
-    base: String,
-    token: Option<String>,
-    note: String,
-    store: Option<local::Local>,
-}
-
-fn local_work(data: &Path, user_token: Option<String>) -> Result<LocalWork, String> {
-    if let Some(addr) = server::running_server(data, user_token.as_deref())? {
-        return Ok(LocalWork {
-            base: format!("http://{addr}"),
-            token: user_token,
-            note: format!("dołączono do serwera vizrs, który pracuje na katalogu danych ({addr})"),
-            store: None,
-        });
+    ) {
+        Ok(()) => switch(app),
+        Err(e) => conn_error(app, &e),
     }
-    let l = local::start(data)?;
-    Ok(LocalWork {
-        base: l.base.clone(),
-        token: Some(l.secret.clone()),
-        note: LOCAL_NOTE.into(),
-        store: Some(l),
-    })
 }
 
 /// Przed przełączeniem: `GET /api/state` z tokenem (`http://` i `https://`) – dostępność, token, czy to VizRS.
@@ -1201,186 +784,599 @@ fn check_server(url: &str, token: Option<&str>) -> Result<(), String> {
     }
 }
 
-/// Ikona okien: PNG z binarki w katalogu stanu jako motyw ikon.
-fn set_icon() {
-    let root = paths::state_dir().join("icons");
-    let dir = root.join("hicolor/256x256/apps");
-    if std::fs::create_dir_all(&dir).is_ok()
-        && std::fs::write(dir.join("vizrs.png"), ICON_PNG).is_ok()
-    {
-        if let Some(display) = gdk::Display::default() {
-            gtk::IconTheme::for_display(&display).add_search_path(&root);
+// ------------------------------------------------------------------ zamykanie
+
+/// Zamknięcie okna Artist: ze zmianami pyta przez stronę (ona zna stan i umie zapisać); strona bez odpowiedzi
+/// nie zatrzyma okna na zawsze. `true` = wstrzymaj zamknięcie.
+fn close_request(app: &AppHandle, label: &str) -> bool {
+    let mut a = state(app);
+    let Some(w) = a.wins.get_mut(label) else {
+        return false;
+    };
+    let waited = w.asked.is_some_and(|t| t.elapsed() >= CLOSE_PATIENCE);
+    if w.dirty && !w.closing && !waited {
+        if w.asked.is_none() {
+            w.asked = Some(Instant::now());
+            drop(a);
+            eval_in(
+                app,
+                label,
+                "window.__vizrsCmd && window.__vizrsCmd('close')",
+            );
         }
-        gtk::Window::set_default_icon_name("vizrs");
+        return true;
+    }
+    false
+}
+
+/// Okno zniknęło: zapamiętaj wygląd (rozmiar, maksymalizacja, powiększenie, scena).
+fn window_gone(app: &AppHandle, label: &str, w: &tauri::Window) {
+    let win = state(app).wins.remove(label);
+    let Some(win) = win else { return };
+    let old = paths::load(STATE_KEY);
+    let maximized = w.is_maximized().unwrap_or(false);
+    let size = w
+        .inner_size()
+        .ok()
+        .zip(w.scale_factor().ok())
+        .map(|(s, f)| (s.width as f64 / f, s.height as f64 / f))
+        .filter(|(ww, _)| *ww >= 1.0);
+    paths::save(
+        STATE_KEY,
+        &paths::WinState {
+            size: if maximized {
+                old.size
+            } else {
+                size.or(old.size)
+            },
+            pos: old.pos,
+            maximized: Some(maximized),
+            zoom: Some(win.zoom),
+            scene: win.scene.or(old.scene),
+        },
+    );
+}
+
+/// Zakończ: okna bez zmian od razu, ze zmianami po kolei.
+fn quit_step(app: &AppHandle) {
+    let (clean, asking, next) = {
+        let a = state(app);
+        let clean: Vec<String> = a
+            .wins
+            .iter()
+            .filter(|(_, w)| !w.dirty || w.closing)
+            .map(|(l, _)| l.clone())
+            .collect();
+        let asking = a.wins.values().any(|w| w.asked.is_some());
+        let next = a
+            .wins
+            .iter()
+            .find(|(_, w)| w.dirty && !w.closing)
+            .map(|(l, _)| l.clone());
+        (clean, asking, next)
+    };
+    for l in clean {
+        if let Some(w) = app.get_webview_window(&l) {
+            let _ = w.close();
+        }
+    }
+    close_connect(app);
+    if !asking {
+        if let Some(l) = next.and_then(|l| app.get_webview_window(&l)) {
+            let _ = l.close();
+        }
+    }
+    if state(app).wins.is_empty() {
+        app.exit(0);
     }
 }
 
-fn main() -> glib::ExitCode {
-    let args = match parse_args() {
+// ------------------------------------------------------------------ pobrania
+
+/// Pobranie strony (eksport, paczka): najpierw do pliku tymczasowego, po zakończeniu systemowe „Zapisz jako”
+/// (blokujące okno w wywołaniu zwrotnym pobrania mogłoby zakleszczyć wątek okna).
+fn on_download(app: &AppHandle, ev: DownloadEvent<'_>) -> bool {
+    match ev {
+        DownloadEvent::Requested { url, destination } => {
+            let name = destination
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .filter(|n| !n.is_empty())
+                .unwrap_or_else(|| {
+                    url.path()
+                        .rsplit('/')
+                        .next()
+                        .filter(|n| !n.is_empty())
+                        .unwrap_or("vizrs-eksport")
+                        .to_string()
+                });
+            let dir = std::env::temp_dir().join(format!("vizrs-cg-artist-{}", std::process::id()));
+            std::fs::create_dir_all(&dir).ok();
+            *destination = dir.join(name);
+            if let Ok(mut m) = app.state::<Downloads>().lock() {
+                m.insert(url.to_string(), destination.clone());
+            }
+            true
+        }
+        DownloadEvent::Finished { url, path, success } => {
+            let remembered = app
+                .state::<Downloads>()
+                .lock()
+                .ok()
+                .and_then(|mut m| m.remove(url.as_str()));
+            let Some(tmp) = path.or(remembered) else {
+                return true;
+            };
+            if !success {
+                std::fs::remove_file(&tmp).ok();
+                error(app, "Nie udało się pobrać pliku ze strony.");
+                return true;
+            }
+            let name = tmp
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let app2 = app.clone();
+            app.dialog()
+                .file()
+                .set_title("Zapisz plik")
+                .set_file_name(&name)
+                .save_file(move |f| {
+                    if let Some(dst) = f.and_then(|f| f.into_path().ok()) {
+                        let moved = std::fs::rename(&tmp, &dst)
+                            .or_else(|_| std::fs::copy(&tmp, &dst).map(|_| ()));
+                        if let Err(e) = moved {
+                            error(
+                                &app2,
+                                &format!("Nie udało się zapisać {}: {e}", dst.display()),
+                            );
+                        }
+                    }
+                    std::fs::remove_file(&tmp).ok();
+                });
+            true
+        }
+        _ => true,
+    }
+}
+
+// ------------------------------------------------------------------ menu
+
+fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    type Item = dyn tauri::menu::IsMenuItem<tauri::Wry>;
+    let item =
+        |id: &str, label: &str, accel: Option<&str>| MenuItem::with_id(app, id, label, true, accel);
+    let cmd = |id: &str| -> tauri::Result<MenuItem<tauri::Wry>> {
+        let label = PAGE_CMDS
+            .iter()
+            .find(|(i, _)| *i == id)
+            .map(|(_, l)| *l)
+            .unwrap_or(id);
+        item(&format!("page:{id}"), label, None)
+    };
+    let sep = || PredefinedMenuItem::separator(app);
+    let (new, save, import, export, pack, deploy) = (
+        cmd("new")?,
+        cmd("save")?,
+        item("import", "Importuj…", None)?,
+        cmd("export")?,
+        cmd("pack")?,
+        cmd("deploy")?,
+    );
+    let connect = item("connect", "Połącz z serwerem…", Some("CmdOrCtrl+Shift+K"))?;
+    let new_window = item("new-window", "Nowe okno Artist", None)?;
+    let close = item("close", "Zamknij okno", Some("CmdOrCtrl+W"))?;
+    let quit = item("quit", "Zakończ", Some("CmdOrCtrl+Q"))?;
+    let (s1, s2, s3, s4) = (sep()?, sep()?, sep()?, sep()?);
+    let file: [&Item; 14] = [
+        &new,
+        &save,
+        &import,
+        &export,
+        &pack,
+        &deploy,
+        &s1,
+        &connect,
+        &s2,
+        &new_window,
+        &s3,
+        &close,
+        &s4,
+        &quit,
+    ];
+    let (undo, redo, dup, del) = (cmd("undo")?, cmd("redo")?, cmd("dup")?, cmd("del")?);
+    let s5 = sep()?;
+    let edit: [&Item; 5] = [&undo, &redo, &s5, &dup, &del];
+    let (fit, z100, zsel) = (cmd("fit")?, cmd("z100")?, cmd("zsel")?);
+    let reload = item("reload", "Odśwież", Some("F5"))?;
+    let full = item("fullscreen", "Pełny ekran", Some("F11"))?;
+    let zin = item("zoom-in", "Powiększ", Some("CmdOrCtrl+="))?;
+    let zout = item("zoom-out", "Pomniejsz", Some("CmdOrCtrl+-"))?;
+    let z0 = item("zoom-reset", "Rozmiar 100%", Some("CmdOrCtrl+0"))?;
+    let dev = item(
+        "devtools",
+        "Narzędzia deweloperskie",
+        Some("CmdOrCtrl+Shift+I"),
+    )?;
+    let (s6, s7, s8) = (sep()?, sep()?, sep()?);
+    let view: [&Item; 12] = [
+        &fit, &z100, &zsel, &s6, &reload, &full, &s7, &zin, &zout, &z0, &s8, &dev,
+    ];
+    let (play, marker) = (cmd("play")?, cmd("marker")?);
+    let logs = item("logs", "Pokaż logi", None)?;
+    let data_dir = item("data-dir", "Otwórz katalog danych", None)?;
+    let updates = item("updates", "Sprawdź aktualizacje", None)?;
+    let about = item("about", "O programie", None)?;
+    let s9 = sep()?;
+    let help: [&Item; 5] = [&logs, &data_dir, &s9, &updates, &about];
+    // lista rośnie tylko na macOS (menu aplikacji, „Tekst”)
+    #[allow(unused_mut, clippy::useless_vec)]
+    let mut subs = vec![
+        Submenu::with_items(app, "Plik", true, &file)?,
+        Submenu::with_items(app, "Edycja", true, &edit)?,
+        Submenu::with_items(app, "Widok", true, &view)?,
+        Submenu::with_items(app, "Scena", true, &[&play as &Item, &marker])?,
+        Submenu::with_items(app, "Pomoc", true, &help)?,
+    ];
+    // macOS: pierwsze podmenu to menu aplikacji (O programie, Ukryj, Zakończ) + standardowa edycja tekstu
+    #[cfg(target_os = "macos")]
+    {
+        let about_mac = item("about", "O programie VizRS CG Artist", None)?;
+        let app_menu = Submenu::with_items(
+            app,
+            "VizRS CG Artist",
+            true,
+            &[
+                &about_mac as &Item,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::hide(app, None)?,
+                &PredefinedMenuItem::hide_others(app, None)?,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::quit(app, None)?,
+            ],
+        )?;
+        let text = Submenu::with_items(
+            app,
+            "Tekst",
+            true,
+            &[
+                &PredefinedMenuItem::cut(app, None)? as &Item,
+                &PredefinedMenuItem::copy(app, None)?,
+                &PredefinedMenuItem::paste(app, None)?,
+                &PredefinedMenuItem::select_all(app, None)?,
+            ],
+        )?;
+        subs.insert(0, app_menu);
+        subs.insert(3, text);
+    }
+    {
+        let mut a = state(app);
+        a.undo_item = Some(undo.clone());
+        a.redo_item = Some(redo.clone());
+    }
+    let refs: Vec<&Item> = subs.iter().map(|s| s as &Item).collect();
+    Menu::with_items(app, &refs)
+}
+
+/// Cofnij / Ponów zgodnie ze stanem aktywnego okna Artist.
+fn sync_menu(app: &AppHandle) {
+    let a = state(app);
+    let w = a.target_label().and_then(|l| a.wins.get(&l));
+    let (u, r) = w.map(|w| (w.undo, w.redo)).unwrap_or((false, false));
+    if let Some(i) = &a.undo_item {
+        let _ = i.set_enabled(u);
+    }
+    if let Some(i) = &a.redo_item {
+        let _ = i.set_enabled(r);
+    }
+}
+
+fn on_menu(app: &AppHandle, id: &str) {
+    let target = state(app).target_label();
+    if let Some(cmd) = id.strip_prefix("page:") {
+        if let Some(l) = target {
+            eval_in(
+                app,
+                &l,
+                &format!("window.__vizrsCmd && window.__vizrsCmd('{cmd}')"),
+            );
+        }
+        return;
+    }
+    let win = target.as_deref().and_then(|l| app.get_webview_window(l));
+    let zoom = |f: fn(f64) -> f64| {
+        let (Some(l), Some(w)) = (target.as_deref(), win.as_ref()) else {
+            return;
+        };
+        let z = {
+            let mut a = state(app);
+            let Some(st) = a.wins.get_mut(l) else { return };
+            st.zoom = f(st.zoom).clamp(0.3, 3.0);
+            st.zoom
+        };
+        let _ = w.set_zoom(z);
+    };
+    match id {
+        "new-window" => open_artist(app, None),
+        "connect" => open_connect(app),
+        "import" => {
+            let app2 = app.clone();
+            app.dialog()
+                .file()
+                .set_title("Importuj")
+                .add_filter(
+                    "Paczka, scena, obraz, czcionka",
+                    &[
+                        "cgpack", "json", "png", "jpg", "jpeg", "webp", "gif", "svg", "mp4",
+                        "webm", "ttf", "otf", "woff", "woff2",
+                    ],
+                )
+                .pick_file(move |f| {
+                    if let Some(p) = f.and_then(|f| f.into_path().ok()) {
+                        open_file(&app2, p);
+                    }
+                });
+        }
+        "close" => {
+            if let Some(w) = win {
+                let _ = w.close();
+            }
+        }
+        "quit" => {
+            state(app).quitting = true;
+            quit_step(app);
+        }
+        "zoom-in" => zoom(|z| z * 1.1),
+        "zoom-out" => zoom(|z| z / 1.1),
+        "zoom-reset" => zoom(|_| 1.0),
+        "reload" => {
+            if let Some(w) = win {
+                let _ = w.eval("location.reload()");
+            }
+        }
+        "fullscreen" => {
+            if let Some(w) = win {
+                let _ = w.set_fullscreen(!w.is_fullscreen().unwrap_or(false));
+            }
+        }
+        "devtools" => {
+            if let Some(w) = win {
+                w.open_devtools();
+            }
+        }
+        "logs" => open_external(&paths::state_dir().to_string_lossy()),
+        "data-dir" => {
+            let d = state(app).data.clone();
+            std::fs::create_dir_all(&d).ok();
+            open_external(&std::fs::canonicalize(&d).unwrap_or(d).to_string_lossy());
+        }
+        "updates" => open_external(RELEASES),
+        "about" => {
+            let msg = {
+                let a = state(app);
+                format!(
+                    "VizRS CG Artist {} (Tauri {})\nModuły rysowania: VizRS CG System {}\n{}\nDane: {}",
+                    env!("CARGO_PKG_VERSION"),
+                    tauri::VERSION,
+                    web::cg_version(),
+                    a.note,
+                    a.data.display()
+                )
+            };
+            app.dialog().message(msg).title("O programie").show(|_| {});
+        }
+        _ => {}
+    }
+}
+
+// ------------------------------------------------------------------ start
+
+fn main() {
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    let args = match parse_args(&argv) {
         Ok(a) => a,
         Err(e) => {
             eprintln!("{e}");
             std::process::exit(2);
         }
     };
-
-    // pojedyncza instancja: prośba do działającego okna na tym katalogu danych
-    let single = args.connect.is_none() && args.probe.is_none();
-    if single {
-        let file = args
-            .file
-            .as_ref()
-            .and_then(|f| std::fs::canonicalize(f).ok());
-        let msg = serde_json::json!({ "kind": if args.kind == Kind::Connect { "connect" } else { "artist" }, "file": file });
-        if instance::forward(&args.data, &msg.to_string()) {
-            return glib::ExitCode::SUCCESS;
-        }
-    }
-    if args.probe.is_none() {
-        desktop::ensure_entry(ICON_PNG);
-    }
-
-    let probe = match &args.probe {
-        Some((js, out)) => match std::fs::read_to_string(js) {
-            Ok(code) => Some((code, out.clone())),
+    let probe = args
+        .probe
+        .as_ref()
+        .map(|(js, out)| match std::fs::read_to_string(js) {
+            Ok(code) => (code, out.clone()),
             Err(e) => {
                 eprintln!("{}: {e}", js.display());
                 std::process::exit(2);
             }
-        },
-        None => None,
-    };
-
-    // serwer zdalny (--connect albo zapisany „przy uruchomieniu”), inaczej praca lokalna
+        });
     let auto = if args.connect.is_none() && !args.local {
         connect::Saved::load().auto
     } else {
         None
     };
-    let mut token = args.token.clone();
-    let remote = |base: String, note: &str| LocalWork {
-        base,
-        token: None,
-        note: note.into(),
+    let app_state = App {
+        mode: Mode::None,
+        note: NOT_CONNECTED.into(),
+        data: args.data.clone(),
+        user_token: args.token.clone(),
         store: None,
+        proxy: None,
+        probe,
+        wins: HashMap::new(),
+        focused: None,
+        next: 0,
+        quitting: false,
+        undo_item: None,
+        redo_item: None,
     };
-    let start: Result<(LocalWork, bool), String> = if let Some(c) = &args.connect {
-        Ok((remote(c.clone(), "serwer zdalny (--connect)"), false))
-    } else if let Some(a) = auto {
-        token = connect::Saved::load().token_for(&a);
-        Ok((
-            remote(
-                a,
-                "serwer zdalny (łączenie przy uruchomieniu; praca lokalna: --local)",
-            ),
-            false,
-        ))
-    } else if args.kind == Kind::Connect {
-        // najpierw wybór: magazyn lokalny powstaje dopiero po „Praca lokalna”
-        Ok((remote(String::new(), NOT_CONNECTED), false))
-    } else {
-        local_work(&args.data, args.token.clone()).map(|w| (w, true))
-    };
-
-    // NON_UNIQUE: jedną instancję na katalog danych pilnuje `instance` (gniazdo), nie D-Bus
-    let gapp = gtk::Application::builder()
-        .application_id(APP_ID)
-        .flags(gio::ApplicationFlags::NON_UNIQUE)
-        .build();
-    let first = args.kind;
-    let first_file = args.file.clone();
-    let data = args.data.clone();
-    let user_token = args.token.clone();
-    let gpu = args.gpu;
-    let init = RefCell::new(Some((start, token, probe)));
-    gapp.connect_activate(move |gapp| {
-        let Some((start, token, probe)) = init.borrow_mut().take() else {
-            return;
-        };
-        set_icon();
-        gapp.set_menubar(Some(&build_menu()));
-        install_actions(gapp);
-        let (work, is_local) = match start {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("{e}");
-                // okno błędu trzyma aplikację przy życiu, dopóki użytkownik go nie zamknie
-                let hold = gapp.hold();
-                gtk::AlertDialog::builder()
-                    .modal(true)
-                    .message("VizRS CG Artist")
-                    .detail(e.as_str())
-                    .build()
-                    .choose(None::<&gtk::Window>, None::<&gio::Cancellable>, move |_| {
-                        drop(hold)
-                    });
-                return;
-            }
-        };
-        let token = if is_local { work.token.clone() } else { token };
-        let app: Shared = Rc::new(RefCell::new(App {
-            gtk: gapp.clone(),
-            base: work.base.clone(),
-            token,
-            local: is_local.then(|| work.base.clone()),
-            local_token: if is_local { work.token } else { None },
-            store: work.store,
-            user_token: user_token.clone(),
-            server_note: work.note,
-            data: data.clone(),
-            gpu,
-            probe,
-            wins: Vec::new(),
-            quitting: false,
+    let mut builder = tauri::Builder::default();
+    if args.probe.is_none() {
+        // jedna instancja: kolejne uruchomienie przekazuje prośbę (plik, okno połączenia) i kończy pracę
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            let argv: Vec<String> = argv.into_iter().skip(1).collect();
+            on_remote(app, &argv);
         }));
-        APP.with(|a| *a.borrow_mut() = Some(app.clone()));
-        if single {
-            instance::listen(&data, |m| {
-                glib::MainContext::default().invoke(move || with_app(|app| on_remote(app, &m)));
-            });
+    }
+    let first_kind = args.kind;
+    let first_file = args.file.clone();
+    let connect_url = args.connect.clone();
+    let token = args.token.clone();
+    let built = builder
+        .plugin(tauri_plugin_dialog::init())
+        .manage(Mutex::new(app_state))
+        .manage(Downloads::default())
+        .invoke_handler(tauri::generate_handler![ipc])
+        .setup(move |app| {
+            let h = app.handle().clone();
+            let menu = build_menu(&h)?;
+            app.set_menu(menu)?;
+            app.on_menu_event(|app, ev| on_menu(app, ev.id().as_ref()));
+            // serwer: zdalny (--connect albo zapisany „przy uruchomieniu”), inaczej praca lokalna
+            let started = if let Some(c) = connect_url {
+                start_remote(&h, c, token, "serwer zdalny (--connect)".into())
+            } else if let Some(a) = auto {
+                let t = connect::Saved::load().token_for(&a);
+                start_remote(
+                    &h,
+                    a,
+                    t,
+                    "serwer zdalny (łączenie przy uruchomieniu; praca lokalna: --local)".into(),
+                )
+            } else if first_kind == Kind::Connect {
+                Ok(())
+            } else {
+                start_local(&h)
+            };
+            if let Err(e) = started {
+                eprintln!("{e}");
+                let h2 = h.clone();
+                h.dialog()
+                    .message(e)
+                    .title("VizRS CG Artist")
+                    .show(move |_| h2.exit(1));
+                return Ok(());
+            }
+            if first_kind == Kind::Connect {
+                open_connect(&h);
+            } else {
+                open_artist(&h, first_file);
+            }
+            Ok(())
+        })
+        .on_window_event(|w, ev| {
+            let label = w.label().to_string();
+            let app = w.app_handle();
+            match ev {
+                WindowEvent::CloseRequested { api, .. } if label != CONNECT => {
+                    if close_request(app, &label) {
+                        api.prevent_close();
+                    }
+                }
+                WindowEvent::Focused(true) if label != CONNECT => {
+                    state(app).focused = Some(label);
+                    sync_menu(app);
+                }
+                WindowEvent::Destroyed => {
+                    if label != CONNECT {
+                        window_gone(app, &label, w);
+                        let quitting = state(app).quitting;
+                        if quitting {
+                            quit_step(app);
+                        }
+                    }
+                    if app.webview_windows().is_empty() {
+                        app.exit(0);
+                    }
+                }
+                _ => {}
+            }
+        })
+        .build(tauri::generate_context!());
+    let app = match built {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("VizRS CG Artist: {e}");
+            std::process::exit(1);
         }
-        if first == Kind::Connect {
-            open_connect(&app);
-        } else {
-            let url = app.borrow().start_url();
-            open_window(&app, Kind::Artist, url);
-            if let Some(w) = app.borrow_mut().wins.last_mut() {
-                w.st.pending = first_file.clone();
+    };
+    app.run(|app, ev| match ev {
+        // macOS: plik otwarty z Findera (skojarzenie .cgpack) przychodzi jako zdarzenie, nie argument
+        #[cfg(target_os = "macos")]
+        RunEvent::Opened { urls } => {
+            for u in urls {
+                if let Ok(p) = u.to_file_path() {
+                    open_file(app, p);
+                }
             }
         }
+        // app.exit() nie zwalnia stanu – blokada katalogu danych musi zniknąć jawnie
+        RunEvent::Exit => {
+            let mut a = state(app);
+            a.store.take();
+            a.proxy.take();
+        }
+        _ => {}
     });
-    // argumenty czytamy sami – GTK dostaje tylko nazwę programu
-    gapp.run_with_args(&[std::env::args().next().unwrap_or_default()])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn urls_with_token() {
-        assert_eq!(page_url("http://h:1", "/artist", None), "http://h:1/artist");
-        assert_eq!(
-            page_url("http://h:1", "/artist", Some("t")),
-            "http://h:1/artist?token=t"
-        );
-        assert_eq!(
-            page_url("http://h:1", "/output?checker=1", Some("t")),
-            "http://h:1/output?checker=1&token=t"
-        );
+    fn args(v: &[&str]) -> Result<Args, String> {
+        parse_args(&v.iter().map(|s| s.to_string()).collect::<Vec<_>>())
     }
 
     #[test]
-    fn origin_check() {
-        assert!(same_origin("http://h:1", "http://h:1/artist"));
-        assert!(same_origin("http://h:1", "blob:http://h:1/x"));
-        assert!(!same_origin("http://h:1", "http://h:12/artist"));
-        assert!(!same_origin("http://h:1", "https://example.com/"));
+    fn command_line() {
+        let a = args(&["connect", "--data", "/tmp/x", "--token", "t"]).unwrap();
+        assert_eq!(a.kind, Kind::Connect);
+        assert_eq!(a.data, PathBuf::from("/tmp/x"));
+        assert_eq!(a.token.as_deref(), Some("t"));
+        assert_eq!(
+            args(&["--connect", "cg.example.pl"])
+                .unwrap()
+                .connect
+                .as_deref(),
+            Some("https://cg.example.pl")
+        );
+        assert!(args(&["--probe", "a.js"]).is_err());
+        assert!(args(&["--nieznana"]).is_err());
+        assert!(args(&["-psn_0_12345"]).is_ok());
     }
 
     #[test]
     fn scene_escape() {
         assert_eq!(url_escape("belka-1"), "belka-1");
         assert_eq!(url_escape("a b/ć"), "a%20b%2F%C4%87");
+    }
+
+    #[test]
+    fn titles_and_draft_keys() {
+        let mut a = App {
+            mode: Mode::Remote {
+                url: "https://cg.example.pl".into(),
+                token: None,
+            },
+            note: String::new(),
+            data: PathBuf::from("/nie/ma"),
+            user_token: None,
+            store: None,
+            proxy: None,
+            probe: None,
+            wins: HashMap::new(),
+            focused: None,
+            next: 0,
+            quitting: false,
+            undo_item: None,
+            redo_item: None,
+        };
+        assert_eq!(a.title(), "VizRS CG Artist – cg.example.pl");
+        assert_eq!(a.draft_key(), "https://cg.example.pl");
+        assert!(a.start_url().is_none(), "bez serwera strony nie ma adresu");
+        a.mode = Mode::Local;
+        assert_eq!(a.title(), "VizRS CG Artist");
+        assert_eq!(a.draft_key(), "lokalny:/nie/ma");
     }
 }

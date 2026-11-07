@@ -8,24 +8,26 @@ repozytorium **VizRS CG System** (`docs/DOKUMENTACJA.md`).
 Samodzielny edytor grafik i animacji pakietu VizRS – odpowiednik Viz Artist. Projektuje sceny (szablony) z animacją;
 na antenę wydaje je Trio z VizRS CG System, które **nie jest dostarczane z Artist**.
 
-Natywny program Linux (GTK 4 + WebKitGTK 6.0). Strona **Artist** (kanwa, panele) jest wkompilowana w binarkę i domyślnie
+Natywny program wieloplatformowy na **Tauri 2** (Linux, Windows, macOS; silniki WebView: Linux – WebKitGTK 4.1 przez wry, Windows – WebView2, macOS – WKWebView; wersja 0.3.0). Strona **Artist** (kanwa, panele) jest wkompilowana w binarkę i domyślnie
 pracuje **bez serwera** – na magazynie lokalnym w katalogu danych. Okno dodaje menu, „Zapisz jako”, pytanie przy zamknięciu,
 kopię roboczą, jedną instancję, skojarzenia plików, przeciąganie plików i połączenie z serwerem `vizrs` (lokalnym albo VPS).
 
-Most strona–okno ma ten sam kształt co w `vizrs-shell` (tao + wry) z VizRS CG System.
+Most strona–okno opiera się na komendzie Tauri `ipc` wywoływanej przez `window.__vizrsPost` i zachowuje strukturę komunikatów znaną z `vizrs-shell`.
 
 ## 2. Architektura
 
 ```
-vizrs-cg-artist (jeden proces)
- ├─ okno Artist ── WebView ──► magazyn lokalny 127.0.0.1:<losowy>  (strona z binarki + API na katalogu danych)
- │                        └──► albo serwer vizrs (lokalny / VPS)    (jego /artist, /api, /events)
- ├─ okno „Połącz z serwerem” (strona wbudowana)
- └─ gniazdo jednej instancji
+vizrs-cg-artist (jeden proces Tauri 2)
+ ├─ okna Artist (artist-*) ── WebView ──► serwer strony 127.0.0.1:<losowy> (strona z binarki)
+ │                                          ├─ praca lokalna: magazyn lokalny (show.json, assets/)
+ │                                          └─ praca na serwerze: pośrednik do vizrs (/api, /assets, /events)
+ ├─ okno „Połącz z serwerem” (connect) ── strona ui/connect.html (frontendDist)
+ └─ jedna instancja (tauri-plugin-single-instance: Linux, Windows, macOS)
 ```
 
+- **Strona Artist z binarki:** strona jest zawsze serwowana z binarki przez serwer strony w procesie okna (`127.0.0.1`, losowy port, sekret → ciasteczko). Praca lokalna: API z magazynu lokalnego. Praca na serwerze (`--connect`, okno połączenia, dołączenie do `vizrs` pracującego na katalogu danych): ten sam serwer strony działa jako **pośrednik** (`src/local.rs`: `start_remote`, `proxy`) – `/api`, `/assets`, `/events` idą do serwera `vizrs` z tokenem trzymanym w oknie; **token nie trafia do strony**, a adres strony w oknie się nie zmienia (wcześniej okno wczytywało `/artist` bezpośrednio z serwera).
 - **Kolejność wyboru:** `--connect URL` → zapisane „łącz przy uruchomieniu” (o ile nie `--local`) → serwer `vizrs` działający
-  na katalogu danych (plik `.vizrs.lock` + zgodny `instance` w `/health`; okno dołącza, żeby `show.json` miał jednego
+  na katalogu danych (plik `.vizrs.lock` + zgodny `instance` w `/health`; okno dołącza przez pośrednika, żeby `show.json` miał jednego
   zapisującego) → **magazyn lokalny**. Artist nie uruchamia `vizrs`.
 - **Magazyn lokalny** (§12) odpowiada tym samym API co serwer, więc strona nie zna różnicy poza `GET /api/state` → `mode: "local"`.
 - **Odnośniki** poza serwerem okna i nowe okna strony otwiera przeglądarka systemowa. Okno nie otwiera Trio ani wyjścia –
@@ -42,32 +44,33 @@ vizrs-cg-artist [connect] [opcje] [PLIK]
 |---|---|---|
 | `connect` | – | najpierw okno wyboru serwera; magazyn lokalny powstaje dopiero po wyborze „Praca lokalna (bez serwera)” |
 | `PLIK` | – | `.cgpack` albo `.vizrs.json` (też obraz, czcionka) – import w oknie Artist |
-| `--data KAT` | `VIZRS_ARTIST_DATA` | katalog danych Artist; domyślnie `~/.local/share/vizrs-cg-artist`. Może być katalogiem serwera `vizrs` (ten sam układ plików) |
-| `--token T` | `VIZRS_TOKEN` | token serwera (`--connect` albo `vizrs` na katalogu danych) |
-| `--connect URL` | `VIZRS_CONNECT` | serwer zdalny; sam host → `https://` |
+| `--data KAT` | `VIZRS_ARTIST_DATA` | katalog danych Artist; domyślnie katalog danych użytkownika/vizrs-cg-artist |
+| `--token T` | `VIZRS_TOKEN` | token serwera (`--connect` albo dołączenie do serwera `vizrs` na katalogu danych) |
+| `--connect URL` | `VIZRS_CONNECT` | serwer zdalny (np. https://cg.example.pl) |
 | `--local` | – | praca lokalna mimo zapisanego łączenia przy uruchomieniu |
-| `--gpu on\|off\|auto` | `VIZRS_GPU` | akceleracja sprzętowa WebKit |
-| `--probe JS --probe-out JSON` | – | test: po wczytaniu strony wykonaj skrypt, zapisz wynik z `window.ipc.postMessage('probe:…')`, zakończ |
-| `--help`, `--version` | – | |
+| `--probe JS --probe-out JSON` | – | test: po wczytaniu strony wykonaj skrypt, zapisz wynik `probe:…`, zakończ |
+| `--help`, `-h` | – | pomoc |
+| `--version`, `-V` | – | wersja programu |
 
-Błędne argumenty: komunikat na stderr, kod wyjścia 2.
+Błędne argumenty: komunikat na stderr, kod wyjścia 1.
 
 ## 4. Menu i skróty
 
 | Menu | Pozycje |
 |---|---|
-| Plik | Nowe okno Artist · Połącz z serwerem… (Ctrl+Shift+K) · Nowa scena · Zapisz · Eksportuj scenę… · Paczka .cgpack… · Wyślij na serwer… · Importuj… · Otwórz katalog danych · Zamknij okno (Ctrl+W) · Zakończ (Ctrl+Q) |
-| Edycja | Cofnij · Ponów · Duplikuj · Usuń |
-| Widok | Dopasuj kanwę · Kanwa 100% · Kanwa do zaznaczenia · Odtwórz / zatrzymaj · Dodaj marker · Powiększ (Ctrl+=) · Pomniejsz (Ctrl+−) · Rozmiar 100% (Ctrl+0) · Odśwież (F5) · Pełny ekran (F11) · Narzędzia deweloperskie (Ctrl+Shift+I) |
-| Pomoc | Pokaż logi · Sprawdź aktualizacje · O programie |
+| Plik | Nowa scena · Zapisz (Ctrl+S) · Importuj… · Eksportuj scenę… · Paczka .cgpack… · Wyślij na serwer… · Połącz z serwerem… (CmdOrCtrl+Shift+K) · Nowe okno Artist · Zamknij okno (CmdOrCtrl+W) · Zakończ (CmdOrCtrl+Q) |
+| Edycja | Cofnij (Ctrl+Z) · Ponów (Ctrl+Y) · Duplikuj (Ctrl+D) · Usuń (Delete) |
+| Widok | Dopasuj kanwę (Shift+1) · Kanwa 100% (Shift+2) · Kanwa do zaznaczenia (Shift+3) · Odśwież (F5) · Pełny ekran (F11) · Powiększ (CmdOrCtrl+=) · Pomniejsz (CmdOrCtrl+−) · Rozmiar 100% (CmdOrCtrl+0) · Narzędzia deweloperskie (CmdOrCtrl+Shift+I) |
+| Scena | Odtwórz / zatrzymaj (Spacja) · Dodaj marker (M) |
+| Pomoc | Pokaż logi · Otwórz katalog danych · Sprawdź aktualizacje · O programie |
 
-Pozycje strony (Nowa scena…Dodaj marker, Wyślij na serwer) wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+D,
-Delete, Shift+1/2/3, Spacja, M) obsługuje strona, nie GTK – inaczej działałyby też w polach tekstowych.
-Cofnij / Ponów są nieaktywne zgodnie ze stanem zgłoszonym przez stronę.
+Na macOS pierwsze podmenu to menu aplikacji **VizRS CG Artist** (O programie VizRS CG Artist, Ukryj, Ukryj pozostałe, Zakończ), a podmenu **Tekst** dodaje standardowe akcje edycyjne (Wytnij, Kopiuj, Wklej, Zaznacz wszystko).
+
+Pozycje strony wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, Shift+1/2/3, Spacja, M) obsługuje strona, nie powłoka okna – dzięki temu działają prawidłowo także w polach tekstowych. Cofnij / Ponów w menu synchronizują się ze stanem aktywności zgłaszanym przez stronę (`sync_menu`).
 
 ## 5. Pliki
 
-- **Zapisz jako:** pobrania strony (eksport sceny, paczka) otwierają systemowe okno zapisu.
+- **Zapisz jako:** pobrania strony (eksport sceny, paczka) otwierają systemowe okno zapisu (wtyczka `tauri-plugin-dialog`).
 - **Import:** Importuj…, przeciągnięcie na okno, `PLIK` w wierszu poleceń albo otwarcie skojarzonego pliku.
   Plik (do 512 MB) trafia do strony porcjami po 3 MB (`window.__vizrsFile.begin/chunk/end`); o imporcie decyduje strona.
   Rozszerzenia: `cgpack`, `json`, `png`, `jpg`, `jpeg`, `webp`, `gif`, `svg`, `mp4`, `webm`, `ttf`, `otf`, `woff`, `woff2`.
@@ -77,98 +80,104 @@ Cofnij / Ponów są nieaktywne zgodnie ze stanem zgłoszonym przez stronę.
 - Zamknięcie okna ze zmianami pyta stronę (ona zna stan i umie zapisać); strona odpowiada `close` albo `stay`.
   Gdy strona nie odpowie w 5 s, kolejne zamknięcie nie pyta.
 - Zakończ (Ctrl+Q): okna bez zmian zamykają się od razu, ze zmianami – po kolei.
-- **Kopia robocza:** strona zapisuje niezapisaną scenę komunikatem `draft`; okno trzyma ją w `~/.local/state/vizrs/drafts/<skrót>.json`
+- **Kopia robocza:** strona zapisuje niezapisaną scenę komunikatem `draft`; okno trzyma ją w `drafts/<skrót>.json` w katalogu stanu
   (skrót z adresu serwera – w pracy lokalnej z katalogu danych – i identyfikatora sceny, do 16 MB). Po otwarciu tej sceny okno oddaje kopię stronie (`__vizrsCmd('draft', …)`).
 
 ## 7. Jedna instancja
 
-Kolejne uruchomienie na tym samym katalogu danych (bez `--connect` i `--probe`) wysyła prośbę (rodzaj okna, plik) przez gniazdo
-`$XDG_RUNTIME_DIR/vizrs-cg-artist-<skrót>.sock` i kończy pracę; działające okno wychodzi na wierzch albo importuje plik.
-Aplikacja GTK działa jako `NON_UNIQUE` – jedność pilnuje gniazdo, nie D-Bus.
+Wtyczka `tauri-plugin-single-instance` pilnuje pojedynczej instancji programu na wszystkich platformach (Linux, Windows, macOS). Kolejne uruchomienie programu (np. po otwarciu pliku lub z opcją `connect`) przekazuje argumenty wiersza poleceń do działającego procesu, który wysuwa odpowiednie okno na wierzch i importuje przekazany plik.
 
 ## 8. Połączenie z serwerem
 
-Okno „Połącz z serwerem” (Plik → Połącz…, Ctrl+Shift+K, `connect`) jest stroną wbudowaną w binarkę – tylko ona może przełączyć okna
-na inny adres. Lista do 20 serwerów w `connections.json` (prawa tylko dla właściciela); token zapisywany tylko na życzenie;
-opcja „łącz przy uruchomieniu”. Przed przełączeniem okno sprawdza `GET /api/state` z tokenem – `http://` i `https://`
-(klient `gio` z TLS systemu; zły certyfikat = błąd) – i zgłasza brak serwera, zły token albo token wyjścia (403).
+Okno „Połącz z serwerem” (Plik → Połącz z serwerem…, CmdOrCtrl+Shift+K, `connect`) jest wbudowaną stroną aplikacji `ui/connect.html` (frontendDist Tauri) z uprawnieniem `capabilities/connect.json` pozwalającym na komunikację przez komendę `ipc`. Lista do 20 serwerów w `connections.json` (prawa tylko dla właściciela); token zapisywany tylko na życzenie; opcja „łącz przy uruchomieniu”. Przed przełączeniem okno sprawdza `GET /api/state` z tokenem – `http://` i `https://` przez klienta `ureq` (TLS rustls; zły certyfikat = błąd) – i zgłasza brak serwera, zły token albo token wyjścia (403).
+
+Po przełączeniu na serwer zdalny (lub dołączeniu do serwera `vizrs` na katalogu danych) wbudowany serwer strony w procesie okna działa jako **pośrednik** (`src/local.rs`: `start_remote`, `proxy`). Zapytania `/api`, `/assets`, `/events` są przekazywane do serwera zdalnego z tokenem trzymanym w procesie okna. **Token nie trafia do strony w WebView**, a adres strony w oknie pozostaje niezmienny (`http://127.0.0.1:<port>`).
 
 Uruchomione jako `connect` (bez `--connect` i bez zapisanego łączenia przy uruchomieniu) okno nie ma jeszcze serwera:
-nagłówek pokazuje „Teraz: nie połączono”, a prośba kolejnego uruchomienia
-(także z plikiem) tylko wysuwa okno połączenia. Zamknięcie okna bez wyboru kończy program.
+nagłówek pokazuje „Teraz: nie połączono”, a prośba kolejnego uruchomienia tylko wysuwa okno połączenia. Zamknięcie okna bez wyboru kończy program.
 
 Przycisk **Praca lokalna (bez serwera)** wraca do magazynu lokalnego (albo do `vizrs` pracującego na katalogu danych).
 
 ## 9. Most strona → okno
 
-Strona wysyła `window.__vizrsPost(tekst)`, gdy okno je wstrzyknęło, inaczej `window.ipc.postMessage(tekst)` (shim na
-`webkit.messageHandlers.ipc`, jak w oknie wry; strony serwera `vizrs` używają tylko tego). W oknie Tauri `window.ipc` należy
-do Tauri i nie da się go podmienić – stąd `__vizrsPost`. Okno przyjmuje:
+Strona wysyła komunikaty przez `window.__vizrsPost(tekst)`. W Tauri obiekt `window.ipc` należy do wry/Tauri i jest niezapisywalny, więc okno wstrzykuje `IPC_SHIM`:
+```javascript
+(() => {
+  window.__vizrsPost = (m) => { window.__TAURI_INTERNALS__.invoke('ipc', { body: String(m) }).catch((e) => console.error('ipc', e)); };
+  window.__vizrsShell = { version: '__VERSION__', app: 'cg-artist' };
+})();
+```
+
+Uprawnienia dostępu do komendy Tauri `ipc` definiują pliki w `capabilities/`:
+- `capabilities/connect.json`: uprawnienie dla okna `connect` (`ui/connect.html`),
+- `capabilities/artist.json`: uprawnienie dla okien `artist-*` ograniczone do `http://127.0.0.1:*/*`.
+
+Komenda `ipc` przekazuje komunikat do białej listy w `src/bridge.rs`:
 
 | Prefiks | Od kogo | Komunikaty |
 |---|---|---|
-| `app:` | tylko strona z bieżącego adresu okna (magazyn lokalny albo wybrany serwer – to samo źródło) | `state` (tytuł ≤ 200 znaków, `dirty`, `undo`, `redo`, `scene` ≤ 128), `close`, `stay`, `draft` (`id` ≤ 128, `data` ≤ 16 MB albo `null` = usuń) |
-| `connect:` | tylko okno połączenia | wybór, zapis i usunięcie serwera |
+| `app:` | tylko strona z serwera w oknie (magazyn lokalny albo pośrednik serwera – `http://127.0.0.1:*`) | `state` (tytuł ≤ 200 znaków, `dirty`, `undo`, `redo`, `scene` ≤ 128), `close`, `stay`, `draft` (`id` ≤ 128, `data` ≤ 16 MB albo `null` = usuń) |
+| `connect:` | tylko okno połączenia (`ui/connect.html`) | wybór, zapis i usunięcie serwera |
 | `probe:` | skrypt `--probe` | wynik testu |
 
 Wszystko inne jest ignorowane. Okno → strona: `window.__vizrsCmd(akcja[, dane])`, `window.__vizrsFile`.
 
 ## 10. Pliki użytkownika
 
-| Plik | Linux |
-|---|---|
-| dane Artist | `--data`, domyślnie `~/.local/share/vizrs-cg-artist/`: `show.json`, `assets/`, `animpresets.json`, `kopie/` (§12) |
-| zapisane serwery | `~/.config/vizrs/connections.json` (`VIZRS_CONFIG` – inny katalog) |
-| wygląd okna | `~/.config/vizrs/window.json`, klucz `cg-artist` (rozmiar, położenie na X11, maksymalizacja, powiększenie, ostatnia scena) |
-| kopie robocze | `~/.local/state/vizrs/drafts/` |
-| wpis pulpitu, ikona | `~/.local/share/applications/pl.vizrs.CgArtist.desktop` (ukryty, `.cgpack`), `~/.local/share/icons/hicolor/256x256/apps/vizrs.png` – tylko gdy brak wpisu systemowego |
+| Plik | Linux | Windows | macOS |
+|---|---|---|---|
+| dane Artist | `--data`, domyślnie `~/.local/share/vizrs-cg-artist/`: `show.json`, `assets/`, `animpresets.json`, `kopie/` (§12) | `%LOCALAPPDATA%\VizRS CG Artist` | `~/Library/Application Support/VizRS CG Artist` |
+| zapisane serwery | `~/.config/vizrs/connections.json` (`VIZRS_CONFIG` – inny katalog) | `%APPDATA%\VizRS\connections.json` | `~/Library/Application Support/VizRS/connections.json` |
+| wygląd okna | `~/.config/vizrs/window.json` | `%APPDATA%\VizRS\window.json` | `~/Library/Application Support/VizRS/window.json` |
+| kopie robocze | `~/.local/state/vizrs/drafts/` | `%LOCALAPPDATA%\VizRS\drafts\` | `~/Library/Logs/VizRS/drafts/` |
+| skojarzenia plików | `packaging/pl.vizrs.CgArtist.xml`, `linux/desktop.hbs` (.deb, .rpm, AppImage) | rejestr (.msi, instalator NSIS) | `Info.plist` (.dmg) |
 
-Bez zapisanego wyglądu okno Artist otwiera się zmaksymalizowane. Zapisy są atomowe; uszkodzony plik = wartości domyślne.
+Klucz w `window.json`: `cg-artist` (rozmiar, położenie, maksymalizacja, powiększenie, ostatnia scena). Bez zapisanego wyglądu okno Artist otwiera się zmaksymalizowane. Zapisy są atomowe; uszkodzony plik = wartości domyślne.
 
 ## 11. Budowa i testy
 
+Kompilacja programu na Linuksie:
+
 ```bash
-sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev
+sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev libssl-dev
 cargo build --release
 ```
 
-Bez `libwebkitgtk-6.0-dev` (jest tylko `libwebkitgtk-6.0-4`): `eval "$(tools/webkit6-shim.sh)"` zakłada w `.dev/` pliki pkg-config
-i dowiązania `.so`, potem `cargo build`.
-
-Paczka Debian/Ubuntu (Ubuntu 24.04+ / Debian 13+ – wcześniejsze nie mają WebKitGTK 6.0):
+Budowa paczek instalacyjnych (bundler Tauri):
 
 ```bash
-packaging/deb/build.sh [ścieżka-do-vizrs-cg-artist] [wersja] [katalog]   # domyślnie: target/release, Cargo.toml, .
+npx --yes @tauri-apps/cli@2 build
 ```
 
-| W paczce | Plik |
-|---|---|
-| program | `/usr/bin/vizrs-cg-artist` |
-| skróty w menu | `pl.vizrs.CgArtist.desktop` (VizRS CG Artist, `%f`, skojarzenia `.cgpack` i `.vizrs.json`), `pl.vizrs.CgArtist.Connect.desktop` (serwer zdalny, `connect`) |
-| ikona | `/usr/share/icons/hicolor/256x256/apps/pl.vizrs.CgArtist.png` |
-| typy plików | `/usr/share/mime/packages/pl.vizrs.CgArtist.xml` (te same typy co w pakiecie `vizrs`) |
-
-Zależności: `libgtk-4-1`, `libwebkitgtk-6.0-4`. Pakiet `vizrs` (serwer, Trio) jest tylko sugerowany – Artist działa bez niego.
-Pliki nazwane po identyfikatorze aplikacji, więc paczka instaluje się obok pakietu `vizrs` bez konfliktów. Z wpisem systemowym
-okno nie zakłada ukrytego wpisu w `~/.local/share/applications`. CI buduje paczkę i sprawdza wpisy `desktop-file-validate`.
+Paczki instalacyjne generowane przez bundler:
+- **Linux:** `.deb`, `.rpm`, `AppImage` (wymaga Ubuntu 22.04+ / WebKitGTK 4.1). W paczkach zawarty jest wpis menu z szablonu `linux/desktop.hbs`, skojarzenia `.cgpack` i plik typów MIME `packaging/pl.vizrs.CgArtist.xml`.
+- **Windows:** instalator NSIS (`.exe`) oraz pakiet `.msi` (WebView2).
+- **macOS:** obraz dysku `.dmg` (wymaga macOS 11.0+, WKWebView).
 
 Strona Artist leży w `web/`. `artist.html` i `native.js` rozwija to repo; reszta (moduły rysowania, `ui.css`, fonty i `fonts.css`)
 to kopie z VizRS CG System – `tools/sync-cg.sh [katalog-CG]` kopiuje, `tools/sync-cg.sh --check` sprawdza identyczność
 (CI pobiera CG System w wersji z `web/CG_SYSTEM`). Zmiana rysowania zawsze najpierw w CG System.
 
 Bramka przed commitem: `tools/sync-cg.sh --check`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo build --release`.
-To samo robi CI (`.github/workflows/ci.yml`, Ubuntu 24.04, przy każdym wypchnięciu i PR), plus paczka `.deb` jako artefakt
-i job `e2e`: test w działaniu pod Xvfb z serwerem `vizrs` zbudowanym z CG System w wersji z `web/CG_SYSTEM`.
+Testy jednostkowe: `cargo test` (33/33).
 
-**Wydanie** (`.github/workflows/release.yml`): podnieś `version` w `Cargo.toml` i sekcję w `CHANGELOG.md`, potem
+CI (`.github/workflows/ci.yml`):
+- `gate`: Ubuntu 22.04 – sprawdzenie modułów CG System, fmt, clippy, `cargo test`,
+- `build`: macierz trzech systemów (Linux `ubuntu-22.04`, Windows `windows-latest`, macOS `macos-latest`) – kompilacja release, paczki bundlera Tauri oraz test dymny `tests/e2e/smoke.js` na wszystkich trzech platformach,
+- `e2e`: test w działaniu pod Xvfb na Linuksie z serwerem `vizrs` zbudowanym z CG System w wersji z `web/CG_SYSTEM`.
+
+**Wydanie** (`.github/workflows/release.yml`): podnieś `version` w `Cargo.toml` i `tauri.conf.json` oraz sekcję w `CHANGELOG.md`, potem
 `git tag v<wersja> && git push origin v<wersja>` – albo Actions → Release → Run workflow (bez `publish` = szkic; szkice usuwa
-Actions → Usuń szkic wydania). Wydanie zawiera `VizRS-CG-Artist-<wersja>-linux-x86_64.tar.gz`, `vizrs-cg-artist_<wersja>_amd64.deb`
-i `SHA256SUMS.txt`; wersja ze znacznika musi się zgadzać z `Cargo.toml`, łącznik (`-rc1`) = wydanie wstępne.
+Actions → Usuń szkic wydania). Workflow buduje paczki instalacyjne na trzech systemach i dołącza je do jednego wydania GitHub Release
+wraz z `SHA256SUMS.txt`. Wersja ze znacznika musi się zgadzać z `Cargo.toml`, łącznik (`-rc1`) = wydanie wstępne.
 
-Test dymny na dowolnym systemie, bez serwera: `node tests/e2e/smoke.js ŚCIEŻKA-DO-PROGRAMU` (magazyn, zapis sceny, plik od okna,
-zwolnienie blokady).
+Test dymny (bez serwera, na dowolnym z 3 systemów):
+```bash
+node tests/e2e/smoke.js ŚCIEŻKA-DO-PROGRAMU
+```
+Sprawdza uruchomienie, magazyn lokalny, zapis sceny, przekazanie pliku od okna i zwolnienie blokady.
 
-Test w działaniu (widoczne okna na kilka sekund; bez ekranu: `xvfb-run`):
+Test w działaniu (22/22, widoczne okna na kilka sekund; bez ekranu: `xvfb-run`):
 
 ```bash
 node tests/e2e/okno.js [ścieżka-do-vizrs] [ścieżka-do-vizrs-cg-artist]
@@ -176,15 +185,14 @@ node tests/e2e/okno.js [ścieżka-do-vizrs] [ścieżka-do-vizrs-cg-artist]
 
 Domyślnie `../VizRS CG System/source/target/release/vizrs` (albo `VIZRS_BIN`) i `target/release/vizrs-cg-artist`.
 Sprawdza pracę lokalną bez serwera (strona z binarki, zapis do `show.json`, zasoby, brak stron Trio), most okna (pytanie
-przy zamykaniu, plik od okna), jedną instancję, wzajemną blokadę katalogu z `vizrs`, dołączanie do `vizrs` na katalogu danych,
-okno połączenia (token, zapis, prawa pliku, „Praca lokalna”) i to, że strona serwera nie przełącza okna na inny adres.
-Bez programu `vizrs` kroki z serwerem są pomijane. Katalogi konfiguracji, stanu
-i gniazdo instancji są tymczasowe (`KEEP_TMP=1` – zostaw je do wglądu).
+przy zamykaniu, plik od okna), jedną instancję, wzajemną blokadę katalogu z `vizrs`, dołączanie do `vizrs` na katalogu danych
+przez pośrednika, okno połączenia (token, zapis, prawa pliku, „Praca lokalna”) i to, że strona serwera nie przełącza okna na inny adres.
+Bez programu `vizrs` kroki z serwerem są pomijane. Katalogi konfiguracji i stanu są tymczasowe (`KEEP_TMP=1` – zostaw je do wglądu).
 
 ## 12. Magazyn lokalny
 
-Praca bez serwera: okno uruchamia w swoim procesie serwer HTTP na `127.0.0.1:<losowy port>` (tylko `std`, `src/http.rs`),
-który podaje stronę z binarki (`web/`) i API na katalogu danych (`src/store.rs`, `src/local.rs`).
+Praca bez serwera: okno uruchamia w swoim procesie serwer HTTP na `127.0.0.1:<losowy port>` (`src/http.rs`, `src/local.rs`),
+który podaje stronę z binarki (`web/`) i API na katalogu danych (`src/store.rs`). W trybie pracy na serwerze ten sam serwer działa jako pośrednik (`src/local.rs`: `proxy`), przekazując `/api`, `/assets` i strumień `/events` do serwera zdalnego.
 
 | Adres | Działanie |
 |---|---|
@@ -200,7 +208,7 @@ który podaje stronę z binarki (`web/`) i API na katalogu danych (`src/store.rs
 | `GET /health` | `instance` blokady – bez sekretu (sprawdza go `vizrs`) |
 | `GET /api/deploy/servers`, `POST /api/deploy/check`, `POST /api/deploy` | wysyłka scen na serwer (§13) |
 
-- **Dostęp tylko z okna:** jednorazowy sekret (24 bajty z `/dev/urandom`) w adresie strony (`?token=`) zamienia się
+- **Dostęp tylko z okna:** jednorazowy sekret (24 bajty generowane przez `getrandom`) w adresie strony (`?token=`) zamienia się
   w ciasteczko `HttpOnly; SameSite=Strict`; bez niego 401. Nagłówek `Host` musi być adresem magazynu (403 – ochrona przed
   DNS rebinding), zmiany z innego `Origin` → 403. Treść do 64 MB, nagłówki do 64 KB, do 64 połączeń.
 - **Blokada katalogu:** `.vizrs.lock` w formacie serwera (`pid`, `addr`, `instance`, `app: "vizrs-cg-artist"`). Serwer `vizrs`
@@ -226,5 +234,5 @@ Praca lokalna → serwer `vizrs` (studio, VPS), z którego Trio wydaje grafikę:
   serwerze w międzyczasie, serwer odpowiada 409 – scena czeka na zaznaczenie **nadpisz** (wysyłka bez rewizji). Zasoby sceny
   (`cgpack.sceneAssets`) idą przed sceną, tylko te, których na serwerze nie ma; pliku o tej samej nazwie okno nie nadpisuje.
 - Raport: wysłane sceny i zasoby, pominięte (już na serwerze), konflikty i błędy serwera (walidacja `validate.rs`).
-- Klient: HTTP/1.1 przez `gio::SocketClient` (`src/client.rs`), `http://` i `https://`, `Content-Length` i `chunked`, odpowiedź do 64 MB, 20 s na żądanie.
+- Klient: HTTP/1.1 przez `ureq` z TLS rustls (`src/client.rs`), `http://` i `https://`, token w `Authorization: Bearer`, odpowiedź do 64 MB, 20 s na żądanie, bez przekierowań (czysty Rust, jednakowy na Linux, Windows i macOS).
 

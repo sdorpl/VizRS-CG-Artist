@@ -1,7 +1,7 @@
 # VizRS CG Artist
 
 **Samodzielny edytor grafik i animacji** pakietu VizRS (odpowiednik Viz Artist) dla systemu grafiki na żywo
-**VizRS CG System** (`../VizRS CG System`), zbudowany na **GTK 4 + WebKitGTK 6.0** (Linux). **Trio i wyjście nie są dostarczane
+**VizRS CG System** (`../VizRS CG System`), zbudowany na **Tauri 2** (Linux – WebKitGTK 4.1, Windows – WebView2, macOS – WKWebView; od 0.3.0, wcześniej GTK 4). **Trio i wyjście nie są dostarczane
 z Artist** (decyzja użytkownika 2026-11-07) – należą do VizRS CG System; okno nie otwiera ich ani nie odsyła do nich.
 Kierunek: `../VizRS CG System/docs/plany/PLAN-artist-osobny.md` (A2–A6) i etapy w [docs/STATUS.md](docs/STATUS.md).
 Strona Artist (kanwa `renderer.js`, panele) zostaje w JS, jest wkompilowana (`web/`) i domyślnie pracuje **bez serwera** na
@@ -20,13 +20,13 @@ Język pracy z użytkownikiem i dokumentacji: **polski**. Kod, komentarze i komu
 ## Niepodważalne zasady
 
 - **Artist nie jest serwerem anteny.** Nie uruchamia `vizrs`, nie podaje `/output` ani Trio. Magazyn lokalny (`src/local.rs`, `src/store.rs`) obsługuje tylko API potrzebne stronie Artist, tylko na `127.0.0.1`, tylko dla okna (sekret → ciasteczko, kontrola `Host` i `Origin`). Nowy adres API = trasa w `local::route` + limity + test w `local::tests`.
-- **Jeden zapisujący na katalog danych.** Magazyn zakłada `.vizrs.lock` w formacie serwera (`/health` z `instance`), więc `vizrs` nie wystartuje na tym katalogu; gdy `vizrs` już na nim pracuje, okno dołącza do serwera zamiast otwierać magazyn. Artist tworzy tylko sceny – strony, playlisty i rundowny Trio w `show.json` zostawia nietknięte.
-- **Strona nie ma dostępu do systemu.** Komunikaty strony → okno przechodzą przez białą listę w `src/bridge.rs` (`state`, `close`, `stay`, `draft`) z limitami długości; przyjmowane tylko z tego samego źródła co bieżący adres okna (`same_origin`). Okno połączenia (`connect:`) jest wbudowane w binarkę — strony serwera nie mogą przełączyć okna na inny adres. Nowy komunikat = wariant w `bridge::Msg` + limity + test.
+- **Jeden zapisujący na katalog danych.** Magazyn zakłada `.vizrs.lock` w formacie serwera (`/health` z `instance`), więc `vizrs` nie wystartuje na tym katalogu; gdy `vizrs` już na nim pracuje, okno dołącza do serwera (przez pośrednika) zamiast otwierać magazyn. Artist tworzy tylko sceny – strony, playlisty i rundowny Trio w `show.json` zostawia nietknięte.
+- **Strona nie ma dostępu do systemu.** Komunikaty strony → okno przechodzą przez białą listę w `src/bridge.rs` (`state`, `close`, `stay`, `draft`) z limitami długości; przyjmowane tylko od strony z serwera strony tego okna (komenda Tauri `ipc`, uprawnienie w `capabilities/artist.json` tylko dla `http://127.0.0.1:*`). Okno połączenia (`ui/connect.html`, `capabilities/connect.json`) jest wbudowane w binarkę — strona nie może przełączyć okna na inny adres. Nowy komunikat = wariant w `bridge::Msg` + limity + test.
 - **Strona Artist należy do tego repo, rysowanie – do CG System.** `web/artist.html` i `web/native.js` rozwijamy tutaj (od 2026-11-07; `/artist` w serwerze jest zamrożony). Moduły rysowania i wspólne (`renderer.js`, `motion.js`, `qr.js`, `richtext.js`, `ticker-*.js`, `color-picker.js`, `btb-io.js`, `cgpack.js`, `ui.css`, `fonts/`) to **kopie** z `../VizRS CG System/source/web` – nie edytuj ich tutaj: zmiana najpierw w CG System, potem `tools/sync-cg.sh`; `tools/sync-cg.sh --check` (bramka, CI) pilnuje identyczności, bo kanwa ma rysować dokładnie jak antena.
-- **Okno nie powiela logiki strony.** Edycja sceny i skróty edycji są w `web/artist.html`; okno tylko wywołuje `window.__vizrsCmd(akcja)` i przekazuje pliki przez `window.__vizrsFile`. Skróty edycji (Ctrl+Z, Ctrl+S…) zostają w stronie: akcelerator GTK przechwyciłby je też w polach tekstowych.
-- **Zgodność z `vizrs-shell`.** Most ma ten sam kształt co w oknie wry (`window.ipc.postMessage`, `IPC_SHIM`): po połączeniu z serwerem okno wczytuje jego `/artist` z jego `native.js`. Zmiana protokołu = zmiana też w `../VizRS CG System/source/shell/` i `source/web/native.js`.
-- **Zależności tylko te z `Cargo.toml`:** `gtk4`, `webkit6`, `serde_json`. Nowy crate — tylko po decyzji użytkownika (Windows/macOS: propozycje w `docs/plany/PLAN-platformy.md` §7).
-- **Dane z dysku i z sieci są wrogie:** limity (`MAX_FILE` 512 MB, `MAX_DRAFT` 16 MB, `MAX_SAVED` 20 serwerów, odpowiedź HTTP do 1 MB; magazyn: treść 64 MB, nagłówki 64 KB, zasoby 2 GB, nazwy zasobów jak w serwerze), uszkodzony `show.json` nie jest nadpisywany, zapis atomowy (`paths::write_atomic`), wpis `.desktop` nie powstaje dla ścieżek ze znakami specjalnymi.
+- **Okno nie powiela logiki strony.** Edycja sceny i skróty edycji są w `web/artist.html`; okno tylko wywołuje `window.__vizrsCmd(akcja)` i przekazuje pliki przez `window.__vizrsFile`. Skróty edycji (Ctrl+Z, Ctrl+S…) zostają w stronie: akcelerator menu przechwyciłby je też w polach tekstowych.
+- **Strona zawsze z binarki, token zawsze w oknie.** Praca na serwerze idzie przez pośrednika w serwerze strony okna (`local::start_remote`): `/api`, `/assets`, `/events` lecą do `vizrs` z tokenem okna, token nie trafia do strony. Most strony: `window.__vizrsPost` (fallback `window.ipc.postMessage` jak w `vizrs-shell`); zmiana protokołu = zmiana też w `../VizRS CG System/source/shell/` i `source/web/native.js`.
+- **Zależności tylko te z `Cargo.toml`:** `tauri`, `tauri-plugin-dialog`, `tauri-plugin-single-instance`, `serde_json`, `ureq` (rustls), `getrandom`, na Linuksie `webkit2gtk` (pisownia). Nowy crate albo wtyczka Tauri — tylko po decyzji użytkownika.
+- **Dane z dysku i z sieci są wrogie:** limity (`MAX_FILE` 512 MB, `MAX_DRAFT` 16 MB, `MAX_SAVED` 20 serwerów, odpowiedź HTTP do 1 MB; magazyn: treść 64 MB, nagłówki 64 KB, zasoby 2 GB, nazwy zasobów jak w serwerze), uszkodzony `show.json` nie jest nadpisywany, zapis atomowy (`paths::write_atomic`).
 - **Nie wywalaj okna:** błędy przez `Result` i okno dialogowe, nie `unwrap()`/`panic!` na danych z zewnątrz.
 - **Gdzie co opisywać:** README tylko wprowadza i odsyła; opis działania tylko w `docs/DOKUMENTACJA.md`; zmiany wydania → `CHANGELOG.md` (sekcja „Niewydane”); zamknięta luka → usuń wiersz z `docs/LUKI.md`; stan prac → `docs/STATUS.md`.
 - **Dokumentacja razem z kodem:** commit zmieniający zachowanie (menu, skróty, opcje CLI, zmienne `VIZRS_*`, most, pliki użytkownika) aktualizuje w tym samym commicie `docs/DOKUMENTACJA.md` i `CHANGELOG.md`. Zasady pracy są tylko w tym pliku; `GEMINI.md` do niego odsyła i nie powiela treści.
@@ -42,11 +42,12 @@ Szczegóły: [docs/AGENCI.md](docs/AGENCI.md). W skrócie:
 
 ## Budowa i uruchamianie
 
-Wymaga `libgtk-4-dev` i `libwebkitgtk-6.0-dev`. Bez pakietu `-dev` (jest tylko biblioteka uruchomieniowa) — shim w `.dev/`:
+Linux: `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev libssl-dev`. Windows: WebView2 (jest w 10/11). macOS: Xcode CLT.
+Paczki (`.deb`, `.rpm`, AppImage, `.msi`/NSIS, `.dmg`) robi bundler Tauri (`tauri.conf.json`):
 
 ```bash
-eval "$(tools/webkit6-shim.sh)"            # tylko gdy brak libwebkitgtk-6.0-dev
 cargo build --release
+npx --yes @tauri-apps/cli@2 build          # paczki w target/release/bundle/
 ./target/release/vizrs-cg-artist --data /tmp/artist-test   # praca lokalna na osobnym katalogu
 ./target/release/vizrs-cg-artist connect   # najpierw okno wyboru serwera
 ./target/release/vizrs-cg-artist --help
@@ -54,7 +55,7 @@ cargo build --release
 
 Do testów ręcznych używaj osobnego katalogu danych (`--data <kopia>`), żeby nie ruszać danych użytkownika.
 Przy pracy nad oknem **zobacz wynik** — zrzut ekranu (pliki PNG trzymaj poza repo). Do automatów: `--probe skrypt.js --probe-out wynik.json`
-(skrypt wykonuje się po wczytaniu strony i odsyła wynik przez `window.ipc.postMessage('probe:' + …)`).
+(skrypt wykonuje się po wczytaniu strony i odsyła wynik przez `window.__vizrsPost('probe:' + …)`).
 
 ## Testy (bramka przed commitem)
 
@@ -73,30 +74,28 @@ Przy zmianie zachowania okna (most, magazyn, serwer, okno połączenia, instancj
 
 | Ścieżka | Rola |
 |---|---|
-| `src/main.rs` | opcje CLI i `VIZRS_*`, aplikacja GTK, menu i akcje, okna WebView, „Zapisz jako” dla pobrań, przekazywanie plików, okno połączenia, `--probe` |
+| `src/main.rs` | opcje CLI i `VIZRS_*`, aplikacja Tauri, menu i akcje, okna, komenda `ipc`, „Zapisz jako” dla pobrań, przekazywanie plików, okno połączenia, jedna instancja (wtyczka), `window.json`, `--probe` |
 | `src/bridge.rs` | most strona → okno: biała lista komunikatów `app:`, limity, ścieżka kopii roboczej, base64 |
 | `src/connect.rs` | okno „Połącz z serwerem”: wbudowana strona, `connections.json`, normalizacja adresu, sprawdzenie serwera |
 | `src/local.rs` | magazyn lokalny: serwer na `127.0.0.1`, trasy API, sekret, `Host`/`Origin`, `/events`, blokada `.vizrs.lock` |
 | `src/store.rs` | `show.json` (rewizje, konflikty, kopie `kopie/`), `assets/`, `animpresets.json`; tylko sceny |
 | `src/http.rs` | minimalny serwer HTTP/1.1 (`std`): parsowanie z limitami, odpowiedzi, strumień zdarzeń |
 | `src/web.rs`, `build.rs` | strona `web/` wkompilowana w binarkę, typy plików |
-| `src/client.rs` | klient HTTP/1.1 do serwera `vizrs` przez `gio` (`http`/`https`, `chunked`, limity) |
+| `src/client.rs` | klient HTTP/1.1 do serwera `vizrs` przez `ureq` (`http`/`https` z rustls, limity, bez przekierowań) |
 | `src/deploy.rs` | wysyłka scen na zapisany serwer: stan scen, zasoby, rewizje (`deploy.json`), konflikty |
 | `src/server.rs` | właściciel `.vizrs.lock` (`vizrs` albo inne okno Artist), `GET /health` na `127.0.0.1` |
-| `src/instance.rs` | jedna instancja na katalog danych (gniazdo Unix w `XDG_RUNTIME_DIR`); Windows: jeszcze nie |
 | `src/paths.rs` | katalogi użytkownika (dane, stan, logi), `window.json`, zapis atomowy |
-| `src/desktop.rs` | ukryty wpis `pl.vizrs.CgArtist.desktop` i ikona (Wayland szuka ikony po identyfikatorze aplikacji) |
-| `assets/vizrs-256.png` | ikona okna (wkompilowana) |
-| `tests/e2e/okno.js` | test w działaniu przez `--probe` (praca lokalna; kroki z `vizrs`, gdy jest) |
-| `.github/workflows/` | `ci.yml` – bramka, `.deb`, test w działaniu pod Xvfb; `release.yml` – wydanie (znacznik `v*`); `drafts.yml` – usuwanie szkiców |
-| `packaging/deb/build.sh`, `packaging/pl.vizrs.CgArtist.xml` | paczka `.deb`, typy plików `.cgpack` / `.vizrs.json` |
+| `assets/vizrs-256.png`, `icons/` | ikona okna; ikony paczek (bundler Tauri) |
+| `tauri.conf.json`, `capabilities/`, `ui/connect.html`, `linux/desktop.hbs` | konfiguracja Tauri i paczek, uprawnienia komendy `ipc`, okno połączenia, wpis menu Linux |
+| `tests/e2e/okno.js`, `tests/e2e/smoke.js` | test w działaniu przez `--probe` (kroki z `vizrs`, gdy jest); test dymny na każdym systemie |
+| `.github/workflows/` | `ci.yml` – bramka, paczki i test dymny na Linux/Windows/macOS, test w działaniu pod Xvfb; `release.yml` – wydanie z trzech systemów (znacznik `v*`); `drafts.yml` – usuwanie szkiców |
+| `packaging/pl.vizrs.CgArtist.xml` | typy MIME `.cgpack` / `.vizrs.json` (do paczek Linux) |
 | `web/` | strona Artist: `artist.html`, `native.js` (tego repo) + kopie modułów i fontów z CG System; `CG_SYSTEM` – wersja źródła |
 | `tools/sync-cg.sh` | kopiowanie i `--check` modułów strony z CG System |
-| `tools/webkit6-shim.sh` | pliki pkg-config dla budowy bez `libwebkitgtk-6.0-dev` |
-| `.dev/` | wygenerowany shim — nie commituj |
+| `gen/`, `permissions/autogenerated/` | wygenerowane przez `tauri-build` — nie commituj |
 
 ## Commity
 
 - Jedna spójna zmiana = jeden commit, po polsku, opisowo. Tylko zielone stany.
-- Pliki dodawaj jawnie (`git add ścieżka`), nie `git add -A`. Nie commituj `target/`, `.dev/`, zrzutów i plików tymczasowych.
+- Pliki dodawaj jawnie (`git add ścieżka`), nie `git add -A`. Nie commituj `target/`, `gen/`, zrzutów i plików tymczasowych.
 - Commit i push tylko na prośbę użytkownika.

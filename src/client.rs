@@ -1,13 +1,11 @@
-//! Klient HTTP/1.1 do serwera `vizrs` (lokalnego albo na VPS): `http://` i `https://` przez `gio::SocketClient`
-//! (TLS z glib-networking, ten sam co w WebKitGTK – bez nowych zależności). Token idzie w `Authorization: Bearer`
-//! i nie trafia do strony. Odpowiedź z limitem rozmiaru; obsługa `Content-Length` i `Transfer-Encoding: chunked`
-//! (serwer za reverse proxy).
+//! Klient HTTP/1.1 do serwera `vizrs` (lokalnego albo na VPS): `http://` i `https://` przez `ureq` (TLS rustls,
+//! czysty Rust – ten sam na Linux, Windows i macOS). Token idzie w `Authorization: Bearer` i nie trafia do strony.
+//! Odpowiedzi z limitem rozmiaru; bez przekierowań (adres serwera wybiera użytkownik, nie serwer).
 
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader};
 use std::time::Duration;
 
-use gtk::gio;
-use gtk::prelude::*;
+use ureq::http;
 
 /// Adres serwera rozłożony na części: `https://cg.example.pl:8443/vizrs` → tls, `cg.example.pl:8443`, `/vizrs`.
 #[derive(Debug, Clone, PartialEq)]
@@ -45,10 +43,18 @@ pub fn target(url: &str) -> Result<Target, String> {
     })
 }
 
-/// Odpowiedź: kod i treść.
+/// Pełny adres żądania: baza serwera + ścieżka (z query).
+fn full_url(url: &str, path: &str) -> Result<String, String> {
+    let t = target(url)?;
+    let scheme = if t.tls { "https" } else { "http" };
+    Ok(format!("{scheme}://{}{}{path}", t.authority, t.prefix))
+}
+
+/// Odpowiedź: kod, typ treści i treść.
 #[derive(Debug)]
 pub struct Reply {
     pub status: u16,
+    pub ctype: Option<String>,
     pub body: Vec<u8>,
 }
 
@@ -66,86 +72,26 @@ impl Reply {
     }
 }
 
-/// Dekoduje `Transfer-Encoding: chunked`. `None` – niepełne albo złe dane.
-fn dechunk(mut b: &[u8]) -> Option<Vec<u8>> {
-    let mut out = Vec::new();
-    loop {
-        let eol = b.windows(2).position(|w| w == b"\r\n")?;
-        let size_txt = std::str::from_utf8(&b[..eol]).ok()?;
-        let size = usize::from_str_radix(size_txt.split(';').next()?.trim(), 16).ok()?;
-        b = &b[eol + 2..];
-        if size == 0 {
-            return Some(out);
-        }
-        if b.len() < size + 2 {
-            return None;
-        }
-        out.extend_from_slice(&b[..size]);
-        b = &b[size + 2..];
+fn agent(timeout: Option<Duration>) -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .http_status_as_error(false)
+        .max_redirects(0)
+        .timeout_global(timeout)
+        .timeout_connect(Some(Duration::from_secs(10)))
+        .user_agent(format!("vizrs-cg-artist/{}", env!("CARGO_PKG_VERSION")))
+        .build()
+        .into()
+}
+
+fn describe(url: &str, e: ureq::Error) -> String {
+    match e {
+        ureq::Error::Timeout(_) => format!("{url}: serwer nie odpowiedział na czas"),
+        e => format!("Brak połączenia z {url}: {e}"),
     }
 }
 
-/// Rozbiór surowej odpowiedzi. `complete` – czy treść jest pełna (wg `Content-Length` albo `chunked`).
-fn parse_reply(raw: &[u8]) -> Result<(Reply, bool), String> {
-    let end = raw
-        .windows(4)
-        .position(|w| w == b"\r\n\r\n")
-        .ok_or("niepełna odpowiedź HTTP")?;
-    let head = String::from_utf8_lossy(&raw[..end]);
-    let body = &raw[end + 4..];
-    let mut lines = head.lines();
-    let status = lines
-        .next()
-        .and_then(|l| l.split_whitespace().nth(1))
-        .and_then(|c| c.parse().ok())
-        .ok_or("to nie jest odpowiedź HTTP")?;
-    let header = |name: &str| {
-        head.lines().skip(1).find_map(|l| {
-            let (k, v) = l.split_once(':')?;
-            k.trim()
-                .eq_ignore_ascii_case(name)
-                .then(|| v.trim().to_string())
-        })
-    };
-    if header("transfer-encoding").is_some_and(|t| t.eq_ignore_ascii_case("chunked")) {
-        return Ok(match dechunk(body) {
-            Some(b) => (Reply { status, body: b }, true),
-            None => (
-                Reply {
-                    status,
-                    body: vec![],
-                },
-                false,
-            ),
-        });
-    }
-    match header("content-length").and_then(|l| l.parse::<usize>().ok()) {
-        Some(n) if body.len() >= n => Ok((
-            Reply {
-                status,
-                body: body[..n].to_vec(),
-            },
-            true,
-        )),
-        Some(_) => Ok((
-            Reply {
-                status,
-                body: body.to_vec(),
-            },
-            false,
-        )),
-        None => Ok((
-            Reply {
-                status,
-                body: body.to_vec(),
-            },
-            true,
-        )),
-    }
-}
-
-/// Żądanie do serwera. `path` względem prefiksu adresu (np. `/api/show`). `max` – największa treść odpowiedzi.
-/// Blokujące – wołać poza wątkiem GTK.
+/// Żądanie do serwera. `path` względem prefiksu adresu (np. `/api/show`), może mieć query.
+/// `body` – (typ treści, dane). `max` – największa treść odpowiedzi. Blokujące – wołać poza wątkiem okna.
 pub fn request(
     url: &str,
     method: &str,
@@ -155,67 +101,92 @@ pub fn request(
     max: usize,
     timeout: Duration,
 ) -> Result<Reply, String> {
-    let t = target(url)?;
-    let client = gio::SocketClient::new();
-    client.set_tls(t.tls);
-    client.set_timeout(timeout.as_secs().clamp(1, 600) as u32);
-    let scheme = if t.tls { "https" } else { "http" };
-    let conn = client
-        .connect_to_uri(
-            &format!("{scheme}://{}", t.authority),
-            if t.tls { 443 } else { 80 },
-            None::<&gio::Cancellable>,
-        )
-        .map_err(|e| format!("Brak połączenia z {url}: {e}"))?;
-    let mut head = format!(
-        "{method} {}{path} HTTP/1.1\r\nHost: {}\r\nUser-Agent: vizrs-cg-artist/{}\r\nAccept: application/json\r\nConnection: close\r\n",
-        t.prefix,
-        t.authority,
-        env!("CARGO_PKG_VERSION")
-    );
+    let full = full_url(url, path)?;
+    let mut b = http::Request::builder()
+        .method(method)
+        .uri(&full)
+        .header("Accept", "application/json");
     if let Some(tok) = token {
-        head.push_str(&format!("Authorization: Bearer {tok}\r\n"));
+        b = b.header("Authorization", format!("Bearer {tok}"));
     }
-    let data = body.map(|(_, d)| d).unwrap_or_default();
-    if let Some((ctype, d)) = body {
-        head.push_str(&format!(
-            "Content-Type: {ctype}\r\nContent-Length: {}\r\n",
-            d.len()
-        ));
-    } else if method != "GET" {
-        head.push_str("Content-Length: 0\r\n");
+    let data: Vec<u8> = match body {
+        Some((ctype, d)) => {
+            b = b.header("Content-Type", ctype);
+            d.to_vec()
+        }
+        None => vec![],
+    };
+    let req = b.body(data).map_err(|e| format!("{full}: {e}"))?;
+    let mut res = agent(Some(timeout))
+        .run(req)
+        .map_err(|e| describe(url, e))?;
+    let status = res.status().as_u16();
+    let ctype = res
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+    let body = res
+        .body_mut()
+        .with_config()
+        .limit(max as u64)
+        .read_to_vec()
+        .map_err(|e| match e {
+            ureq::Error::BodyExceedsLimit(_) => {
+                format!("{url}: odpowiedź większa niż {} MB", max / 1024 / 1024)
+            }
+            e => describe(url, e),
+        })?;
+    Ok(Reply {
+        status,
+        ctype,
+        body,
+    })
+}
+
+/// Strumień zdarzeń serwera (`/events`, `text/event-stream`): każda linia `data: …` trafia do `on_data`,
+/// dopóki zwraca `true` i połączenie trwa. Bez limitu czasu (strumień jest długi); błąd połączenia – `Err`.
+pub fn events(
+    url: &str,
+    path: &str,
+    token: Option<&str>,
+    mut on_data: impl FnMut(&str) -> bool,
+) -> Result<(), String> {
+    let full = full_url(url, path)?;
+    let mut b = http::Request::builder()
+        .method("GET")
+        .uri(&full)
+        .header("Accept", "text/event-stream");
+    if let Some(tok) = token {
+        b = b.header("Authorization", format!("Bearer {tok}"));
     }
-    head.push_str("\r\n");
-    let mut w = conn.output_stream().into_write();
-    w.write_all(head.as_bytes())
-        .and_then(|_| w.write_all(data))
-        .and_then(|_| w.flush())
-        .map_err(|e| format!("{url}: {e}"))?;
-    let mut raw = Vec::new();
-    let limit = (max + 64 * 1024) as u64;
-    let read = conn
-        .input_stream()
-        .into_read()
-        .take(limit)
-        .read_to_end(&mut raw);
-    if raw.len() as u64 >= limit {
-        return Err(format!(
-            "{url}: odpowiedź większa niż {} MB",
-            max / 1024 / 1024
-        ));
+    let req = b.body(()).map_err(|e| format!("{full}: {e}"))?;
+    let res = agent(None).run(req).map_err(|e| describe(url, e))?;
+    if res.status() != 200 {
+        return Err(format!("{full}: odpowiedź HTTP {}", res.status()));
     }
-    // TLS bez close_notify kończy się błędem odczytu – liczy się, czy treść jest pełna
-    match (parse_reply(&raw), read) {
-        (Ok((r, true)), _) => Ok(r),
-        (Ok((_, false)), Err(e)) | (Err(_), Err(e)) => Err(format!("{url}: {e}")),
-        (Ok((_, false)), Ok(_)) => Err(format!("{url}: niepełna odpowiedź")),
-        (Err(e), Ok(_)) => Err(format!("{url}: {e}")),
+    let mut lines = BufReader::new(res.into_body().into_reader());
+    let mut line = String::new();
+    loop {
+        line.clear();
+        match lines.read_line(&mut line) {
+            Ok(0) => return Ok(()),
+            Ok(_) => {
+                if let Some(d) = line.trim_end().strip_prefix("data:") {
+                    if !on_data(d.trim_start()) {
+                        return Ok(());
+                    }
+                }
+            }
+            Err(e) => return Err(format!("{full}: {e}")),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read, Write};
 
     #[test]
     fn targets() {
@@ -239,56 +210,51 @@ mod tests {
         assert!(target("http://user@evil/").is_err());
         assert!(target("http://a b").is_err());
         assert!(target("http:///x").is_err());
-    }
-
-    #[test]
-    fn replies() {
-        let (r, full) = parse_reply(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}").unwrap();
-        assert!(full);
-        assert_eq!((r.status, r.body.as_slice()), (200, b"{}".as_slice()));
-        let (_, full) = parse_reply(b"HTTP/1.1 200 OK\r\nContent-Length: 9\r\n\r\n{}").unwrap();
-        assert!(!full);
-        let (r, full) =
-            parse_reply(b"HTTP/1.1 409 Conflict\r\nTransfer-Encoding: chunked\r\n\r\n4\r\n{\"er\r\n9\r\nror\":\"x\"}\r\n0\r\n\r\n").unwrap();
-        assert!(full);
-        assert_eq!(r.error(), "x");
-        assert!(
-            !parse_reply(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nab")
-                .unwrap()
-                .1
-        );
-        assert!(parse_reply(b"smieci").is_err());
         assert_eq!(
-            Reply {
-                status: 502,
-                body: b"<html>".to_vec()
-            }
-            .error(),
-            "odpowiedź HTTP 502"
+            full_url("https://h/pre", "/api/x?a=1").unwrap(),
+            "https://h/pre/api/x?a=1"
         );
     }
 
-    #[test]
-    fn plain_http_round_trip() {
+    /// Serwer testowy: przyjmuje jedno żądanie (nagłówki + treść wg Content-Length), oddaje `reply`.
+    fn serve_once(reply: &'static [u8]) -> (String, std::thread::JoinHandle<String>) {
         let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = l.local_addr().unwrap();
-        let srv = std::thread::spawn(move || {
+        let h = std::thread::spawn(move || {
             let (mut s, _) = l.accept().unwrap();
-            // nagłówki i treść mogą przyjść osobno – czytaj do końca treści (2 bajty)
             let mut req = Vec::new();
             let mut buf = [0u8; 4096];
-            while !req.windows(4).any(|w| w == b"\r\n\r\n") || !req.ends_with(b"{}") {
+            loop {
                 let n = s.read(&mut buf).unwrap();
-                assert!(n > 0, "połączenie zamknięte przed końcem żądania");
                 req.extend_from_slice(&buf[..n]);
+                let text = String::from_utf8_lossy(&req).to_ascii_lowercase();
+                if let Some(i) = text.find("\r\n\r\n") {
+                    let len = text
+                        .lines()
+                        .find_map(|l| l.strip_prefix("content-length:"))
+                        .and_then(|v| v.trim().parse::<usize>().ok())
+                        .unwrap_or(0);
+                    if req.len() >= i + 4 + len {
+                        break;
+                    }
+                }
+                if n == 0 {
+                    break;
+                }
             }
-            let req = String::from_utf8_lossy(&req).to_string();
-            s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\n{\"ok\":true}")
-                .unwrap();
-            req
+            s.write_all(reply).unwrap();
+            String::from_utf8_lossy(&req).to_string()
         });
+        (format!("http://{addr}"), h)
+    }
+
+    #[test]
+    fn request_with_token_and_body() {
+        let (url, srv) = serve_once(
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 11\r\nConnection: close\r\n\r\n{\"ok\":true}",
+        );
         let r = request(
-            &format!("http://{addr}/pre"),
+            &format!("{url}/pre"),
             "PUT",
             "/api/scenes/a",
             Some("tok-1"),
@@ -298,12 +264,63 @@ mod tests {
         )
         .unwrap();
         assert_eq!(r.json().unwrap()["ok"], serde_json::json!(true));
-        let req = srv.join().unwrap();
+        assert_eq!(r.ctype.as_deref(), Some("application/json"));
+        let req = srv.join().unwrap().to_ascii_lowercase();
         assert!(
-            req.starts_with("PUT /pre/api/scenes/a HTTP/1.1\r\n"),
+            req.starts_with("put /pre/api/scenes/a http/1.1\r\n"),
             "{req}"
         );
-        assert!(req.contains("Authorization: Bearer tok-1\r\n"));
+        assert!(req.contains("authorization: bearer tok-1\r\n"));
         assert!(req.ends_with("\r\n\r\n{}"));
+    }
+
+    #[test]
+    fn errors_and_limits() {
+        let (url, srv) = serve_once(
+            b"HTTP/1.1 409 Conflict\r\nContent-Type: application/json\r\nContent-Length: 13\r\nConnection: close\r\n\r\n{\"error\":\"x\"}",
+        );
+        let r = request(
+            &url,
+            "GET",
+            "/api/show",
+            None,
+            None,
+            1024,
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        assert_eq!((r.status, r.error()), (409, "x".to_string()));
+        srv.join().unwrap();
+        let (url, srv) = serve_once(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 20\r\nConnection: close\r\n\r\n01234567890123456789",
+        );
+        let e = request(&url, "GET", "/", None, None, 8, Duration::from_secs(5)).unwrap_err();
+        assert!(e.contains("większa"), "{e}");
+        srv.join().unwrap();
+        assert!(request(
+            "http://127.0.0.1:1",
+            "GET",
+            "/",
+            None,
+            None,
+            8,
+            Duration::from_secs(2)
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn event_stream_lines() {
+        let (url, srv) = serve_once(
+            b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n: ping\n\ndata: {\"t\":\"show\"}\n\ndata: 2\n\n",
+        );
+        let mut got = vec![];
+        events(&url, "/events", None, |d| {
+            got.push(d.to_string());
+            true
+        })
+        .unwrap();
+        assert_eq!(got, ["{\"t\":\"show\"}", "2"]);
+        srv.join().unwrap();
     }
 }

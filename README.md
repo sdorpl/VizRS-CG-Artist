@@ -1,7 +1,7 @@
 # VizRS CG Artist
 
 Samodzielny edytor grafik i animacji pakietu VizRS – projektowanie scen dla [VizRS CG System](https://github.com/sdorpl/VizRS-CG-System)
-(lekki odpowiednik Viz Artist dla grafiki telewizyjnej na żywo w OBS). Linux, **GTK 4 + WebKitGTK 6.0**.
+(lekki odpowiednik Viz Artist dla grafiki telewizyjnej na żywo w OBS). Linux, Windows, macOS (**Tauri 2**: Linux – WebKitGTK 4.1 przez wry, Windows – WebView2, macOS – WKWebView).
 Trio (wydawanie na antenę) i wyjście dla OBS należą do VizRS CG System – Artist ich nie dostarcza.
 
 - Działa **bez serwera**: sceny, zasoby i presety animacji w katalogu użytkownika (`show.json`, `assets/` – ten sam
@@ -13,7 +13,8 @@ Trio (wydawanie na antenę) i wyjście dla OBS należą do VizRS CG System – A
 ## Uruchomienie
 
 ```bash
-cargo build --release                      # wymaga libgtk-4-dev i libwebkitgtk-6.0-dev
+cargo build --release                      # Linux: libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev libssl-dev
+npx @tauri-apps/cli@2 build               # paczki: .deb, .rpm, AppImage, .msi, .exe, .dmg
 ./target/release/vizrs-cg-artist           # praca lokalna, bez serwera
 ./target/release/vizrs-cg-artist connect   # najpierw wybór serwera
 ./target/release/vizrs-cg-artist --connect https://cg.example.pl --token …   # serwer zdalny

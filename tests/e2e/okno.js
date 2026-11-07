@@ -1,4 +1,4 @@
-// Test w działaniu okna VizRS CG Artist (GTK 4 + WebKitGTK 6.0):
+// Test w działaniu okna VizRS CG Artist (Tauri 2):
 //   node tests/e2e/okno.js [ścieżka-do-vizrs] [ścieżka-do-vizrs-cg-artist]
 // Sprawdza: pracę lokalną bez serwera (strona z binarki, zapis sceny do show.json, zasoby, brak stron Trio),
 // most okna (pytanie przy zamykaniu, plik od okna), jedną instancję, wzajemną blokadę katalogu z `vizrs`,
@@ -37,6 +37,7 @@ const PROBE = write('probe.js', `(async () => {
   for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
   await sleep(500);
   const r = { title: document.title, conn: document.querySelector('#conn')?.textContent, href: location.href, scenes: document.querySelectorAll('#sceneSel option').length };
+  r.mode = (await (await fetch('/api/state')).json()).mode;
   (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
 })();`);
 const health = (port = PORT) => new Promise((res) => {
@@ -107,7 +108,7 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
       try {
         for (let i = 0; i < 50 && !(await health()); i++) await sleep(100);
         const j = run(['--data', vdata], PROBE, 'join');
-        ok(j.conn === 'połączono' && j.href?.startsWith(`http://127.0.0.1:${PORT}/artist`) && j.scenes > 0, 'okno dołącza do vizrs pracującego na tym katalogu danych', j);
+        ok(j.conn === 'połączono' && j.scenes > 0 && j.mode !== 'local' && !j.href?.startsWith(`http://127.0.0.1:${PORT}/`), 'okno dołącza do vizrs pracującego na tym katalogu danych (przez pośrednika okna)', j);
       } finally {
         srv.kill();
       }
@@ -131,10 +132,11 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
   (window.__vizrsPost || window.ipc.postMessage)('connect:' + JSON.stringify({ url: 'http://127.0.0.1:1' }));
   for (let i = 0; i < 100 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
   await sleep(500);
-  (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify({ href: location.href, conn: document.querySelector('#conn')?.textContent, scenes: document.querySelectorAll('#sceneSel option').length }));
+  const mode = (await (await fetch('/api/state')).json()).mode;
+  (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify({ href: location.href, mode, conn: document.querySelector('#conn')?.textContent, scenes: document.querySelectorAll('#sceneSel option').length }));
 })();`);
         const c = run(['connect', '--data', path.join(tmp, 'local')], CPROBE, 'connect');
-        ok(c.conn === 'połączono' && c.scenes > 0 && c.href?.startsWith(`http://127.0.0.1:${RPORT}/artist`), 'okno połączenia przełącza Artist na serwer zdalny z tokenem; strona serwera nie zmienia adresu', c);
+        ok(c.conn === 'połączono' && c.scenes > 0 && c.mode !== 'local' && !c.href?.includes(TOKEN), 'okno połączenia przełącza Artist na serwer zdalny z tokenem (token nie trafia do strony); strona nie zmienia adresu', c);
         const file = path.join(ENV.VIZRS_CONFIG, 'connections.json');
         const saved = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
         ok(saved.servers?.[0]?.url === `http://127.0.0.1:${RPORT}` && saved.servers?.[0]?.token === TOKEN, 'serwer i token na liście zapisanych', saved);

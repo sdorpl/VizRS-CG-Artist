@@ -1,11 +1,12 @@
-//! Tryb lokalny: strona Artist (`web`) i API magazynu (`store`) na `127.0.0.1:<losowy port>` w procesie okna.
-//! Strona mówi tym samym API co do serwera `vizrs` (`/api/show`, `/api/scenes`, `/api/assets`, `/events`…),
-//! więc nie zna różnicy. Dostęp tylko z okna: jednorazowy sekret (`?token=` → ciasteczko, jak w `vizrs`),
+//! Serwer strony w procesie okna na `127.0.0.1:<losowy port>`: strona Artist (`web`) zawsze z binarki, a API
+//! z magazynu lokalnego (`store`, praca bez serwera) albo przez pośrednika z serwera `vizrs` (praca na serwerze:
+//! `/api`, `/assets`, `/events` idą dalej z tokenem trzymanym w oknie). Strona mówi tym samym API
+//! (`/api/show`, `/api/scenes`, `/api/assets`, `/events`…), więc nie zna różnicy. Dostęp tylko z okna: jednorazowy sekret (`?token=` → ciasteczko, jak w `vizrs`),
 //! nagłówek `Host` równy adresowi (DNS rebinding), `Origin` przy zmianach. Katalog danych dostaje blokadę
 //! `.vizrs.lock` w formacie serwera – `vizrs` nie wystartuje na katalogu otwartym w Artist.
 
 use std::fs::OpenOptions;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Sender};
@@ -41,33 +42,23 @@ impl Drop for Local {
     }
 }
 
-/// Losowy tekst szesnastkowy: `/dev/urandom` (Linux, macOS); gdzie go nie ma (Windows) – klucze `RandomState`
-/// biblioteki standardowej, losowane z generatora systemu (SipHash z losowym kluczem, osobny dla każdej porcji).
+/// Losowy tekst szesnastkowy z generatora systemu (Linux, Windows, macOS – `getrandom`).
 pub fn random_hex(bytes: usize) -> Result<String, String> {
     let mut b = vec![0u8; bytes];
-    if std::fs::File::open("/dev/urandom")
-        .and_then(|mut f| f.read_exact(&mut b))
-        .is_err()
-    {
-        use std::hash::{BuildHasher, Hasher};
-        for (i, chunk) in b.chunks_mut(8).enumerate() {
-            let mut h = std::collections::hash_map::RandomState::new().build_hasher();
-            h.write_usize(i);
-            h.write_u128(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_nanos())
-                    .unwrap_or(0),
-            );
-            let v = h.finish().to_le_bytes();
-            chunk.copy_from_slice(&v[..chunk.len()]);
-        }
-    }
+    getrandom::fill(&mut b).map_err(|e| format!("losowanie sekretu: {e}"))?;
     Ok(b.iter().map(|x| format!("{x:02x}")).collect())
 }
 
+/// Serwer zdalny dla pośrednika: adres i token (tylko w oknie).
+struct Remote {
+    url: String,
+    token: Option<String>,
+}
+
 struct State {
-    store: Mutex<Store>,
+    /// magazyn lokalny albo `None` (pośrednik do serwera)
+    store: Option<Mutex<Store>>,
+    remote: Option<Remote>,
     subs: Mutex<Vec<Sender<String>>>,
     secret: String,
     instance: String,
@@ -127,7 +118,103 @@ fn handle(st: &State, req: Request) -> Response {
     }
 }
 
+/// Plik strony z binarki (wspólne dla magazynu i pośrednika).
+fn page(req: &Request) -> Response {
+    match crate::web::get(&req.path) {
+        Some((d, t)) => Response {
+            status: 200,
+            ctype: t,
+            headers: vec![],
+            body: Body::Static(d),
+        },
+        None => Response::err(404, "nie znaleziono"),
+    }
+}
+
+/// Query z powrotem w adresie (bez sekretu okna).
+fn query_string(req: &Request) -> String {
+    let enc = |s: &str| crate::url_escape(s);
+    let q: Vec<String> = req
+        .query
+        .iter()
+        .filter(|(k, _)| k != "token")
+        .map(|(k, v)| format!("{}={}", enc(k), enc(v)))
+        .collect();
+    if q.is_empty() {
+        String::new()
+    } else {
+        format!("?{}", q.join("&"))
+    }
+}
+
+/// Pośrednik do serwera `vizrs`: strona z binarki, reszta do serwera z tokenem okna.
+fn proxy(r: &Remote, req: &Request) -> Response {
+    let m = req.method.as_str();
+    let s = req.segs();
+    let api = matches!(s.first(), Some(&"api") | Some(&"assets"));
+    if m == "GET" && req.path == "/events" {
+        let (tx, rx) = channel::<String>();
+        let (url, token) = (r.url.clone(), r.token.clone());
+        std::thread::spawn(move || {
+            // koniec strumienia serwera = koniec strumienia strony; EventSource połączy się ponownie
+            let _ = crate::client::events(&url, "/events", token.as_deref(), |d| {
+                tx.send(d.to_string()).is_ok()
+            });
+        });
+        return Response {
+            status: 200,
+            ctype: "text/event-stream",
+            headers: vec![],
+            body: Body::Events(rx),
+        };
+    }
+    if m == "GET" && !api {
+        return page(req);
+    }
+    if !api {
+        return Response::err(405, "niedozwolona metoda");
+    }
+    let path = s
+        .iter()
+        .map(|seg| crate::url_escape(seg))
+        .collect::<Vec<_>>()
+        .join("/");
+    let target = format!("/{path}{}", query_string(req));
+    let ctype = req
+        .header("content-type")
+        .unwrap_or("application/octet-stream");
+    let body = (!matches!(m, "GET" | "HEAD")).then_some((ctype, req.body.as_slice()));
+    match crate::client::request(
+        &r.url,
+        m,
+        &target,
+        r.token.as_deref(),
+        body,
+        crate::http::MAX_BODY,
+        std::time::Duration::from_secs(60),
+    ) {
+        Ok(rep) => {
+            let json = rep.ctype.as_deref().is_some_and(|t| t.contains("json"));
+            let ctype = if json {
+                "application/json; charset=utf-8"
+            } else if s.first() == Some(&"assets") {
+                crate::web::mime(s.last().unwrap_or(&""))
+            } else {
+                "text/plain; charset=utf-8"
+            };
+            Response::new(rep.status, ctype, rep.body)
+        }
+        Err(e) => Response::err(502, &e),
+    }
+}
+
 fn route(st: &State, req: &Request) -> Response {
+    if let Some(r) = &st.remote {
+        return proxy(r, req);
+    }
+    let Some(store_m) = &st.store else {
+        return Response::err(500, "magazyn niedostępny");
+    };
     let m = req.method.as_str();
     let s = req.segs();
     if m == "GET" {
@@ -144,28 +231,20 @@ fn route(st: &State, req: &Request) -> Response {
             };
         }
         if let ["assets", name] = s.as_slice() {
-            let data = st.store.lock().ok().and_then(|g| g.asset(name));
+            let data = store_m.lock().ok().and_then(|g| g.asset(name));
             return match data {
                 Some(d) => Response::new(200, crate::web::mime(name), d),
                 None => Response::err(404, "nie znaleziono"),
             };
         }
         if s.first() != Some(&"api") {
-            return match crate::web::get(&req.path) {
-                Some((d, t)) => Response {
-                    status: 200,
-                    ctype: t,
-                    headers: vec![],
-                    body: Body::Static(d),
-                },
-                None => Response::err(404, "nie znaleziono"),
-            };
+            return page(req);
         }
     }
     if s.first() != Some(&"api") {
         return Response::err(405, "niedozwolona metoda");
     }
-    let Ok(mut store) = st.store.lock() else {
+    let Ok(mut store) = store_m.lock() else {
         return Response::err(500, "magazyn niedostępny");
     };
     let body = || -> Result<Value, String> {
@@ -212,7 +291,7 @@ fn route(st: &State, req: &Request) -> Response {
                 Err(e) => return Response::err(400, &e),
             };
             drop(store);
-            deploy(st, &b)
+            deploy(store_m, &b)
         }
         // jedno okno na katalog danych (instancja) – blokady scen zawsze przyznane
         ("POST" | "PUT", ["lock", _, _]) => Response::json(&json!({ "ok": true })),
@@ -274,7 +353,7 @@ fn ids(v: &Value) -> Vec<String> {
 
 /// Wysyłka scen: `{server, scenes: [{id, assets: [nazwy], overwrite}]}` → wynik dla każdej sceny.
 /// Wysyłana jest scena zapisana na dysku; zasoby z `assets/`; magazyn zablokowany tylko na odczyt danych.
-fn deploy(st: &State, b: &Value) -> Response {
+fn deploy(store_m: &Mutex<Store>, b: &Value) -> Response {
     let srv = match crate::deploy::server(b["server"].as_str().unwrap_or("")) {
         Ok(s) => s,
         Err(e) => return Response::err(400, &e),
@@ -294,7 +373,7 @@ fn deploy(st: &State, b: &Value) -> Response {
             .take(1000)
             .collect();
         let (scene, assets, expect) = {
-            let Ok(store) = st.store.lock() else {
+            let Ok(store) = store_m.lock() else {
                 return Response::err(500, "magazyn niedostępny");
             };
             let assets: Vec<(String, Vec<u8>)> = names
@@ -314,8 +393,7 @@ fn deploy(st: &State, b: &Value) -> Response {
         let overwrite = item["overwrite"].as_bool().unwrap_or(false);
         match crate::deploy::send(&srv, &scene, &assets, &remote_assets, expect, overwrite) {
             Ok(sent) => {
-                let saved = st
-                    .store
+                let saved = store_m
                     .lock()
                     .map_err(|_| "magazyn niedostępny".to_string())
                     .and_then(|s| s.set_deployed(&srv.url, &id, sent.rev));
@@ -365,21 +443,46 @@ fn take_lock(data: &Path, addr: &str, instance: &str) -> Result<Option<PathBuf>,
     Ok(None)
 }
 
-/// Otwiera magazyn na `data` i uruchamia serwer lokalny strony.
+/// Otwiera magazyn na `data` i uruchamia serwer strony.
 pub fn start(data: &Path) -> Result<Local, String> {
     let store = Store::open(data)?;
-    let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("serwer lokalny: {e}"))?;
+    serve(Some(store), None, Some(data))
+}
+
+/// Pośrednik do serwera `vizrs` pod `url` (token tylko w oknie) – strona z binarki, API z serwera.
+pub fn start_remote(url: &str, token: Option<String>) -> Result<Local, String> {
+    crate::client::target(url)?;
+    serve(
+        None,
+        Some(Remote {
+            url: url.trim_end_matches('/').to_string(),
+            token,
+        }),
+        None,
+    )
+}
+
+fn serve(
+    store: Option<Store>,
+    remote: Option<Remote>,
+    data: Option<&Path>,
+) -> Result<Local, String> {
+    let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("serwer strony: {e}"))?;
     let port = listener
         .local_addr()
-        .map_err(|e| format!("serwer lokalny: {e}"))?
+        .map_err(|e| format!("serwer strony: {e}"))?
         .port();
     let addr = format!("127.0.0.1:{port}");
     let secret = random_hex(24)?;
     let instance = random_hex(12)?;
-    let lock = take_lock(data, &addr, &instance)?;
+    let lock = match data {
+        Some(d) => take_lock(d, &addr, &instance)?,
+        None => None,
+    };
     let base = format!("http://{addr}");
     let st = Arc::new(State {
-        store: Mutex::new(store),
+        store: store.map(Mutex::new),
+        remote,
         subs: Mutex::new(vec![]),
         secret: secret.clone(),
         instance: instance.clone(),
@@ -398,7 +501,7 @@ pub fn start(data: &Path) -> Result<Local, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::BufRead;
+    use std::io::{BufRead, Read};
     use std::net::TcpStream;
 
     fn call(addr: &str, raw: &str) -> (u16, String, String) {
@@ -529,5 +632,50 @@ mod tests {
         drop(l);
         assert!(!d.join(".vizrs.lock").exists(), "blokada zwolniona");
         std::fs::remove_dir_all(d).ok();
+    }
+
+    #[test]
+    fn remote_proxy_forwards_with_token() {
+        // serwer „vizrs”: zapamiętuje żądanie, oddaje JSON
+        let up = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let up_addr = up.local_addr().unwrap();
+        let srv = std::thread::spawn(move || {
+            let (mut s, _) = up.accept().unwrap();
+            let mut buf = vec![0u8; 8192];
+            let n = s.read(&mut buf).unwrap();
+            s.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 15\r\nConnection: close\r\n\r\n{\"scenes\":[11]}")
+                .unwrap();
+            String::from_utf8_lossy(&buf[..n]).to_ascii_lowercase()
+        });
+        let l = start_remote(&format!("http://{up_addr}"), Some("tok-zdalny".into())).unwrap();
+        let addr = l.base.trim_start_matches("http://").to_string();
+        let ck = format!("Cookie: vizrs_local={}\r\n", l.secret);
+        let (c, _, html) = call(
+            &addr,
+            &format!("GET /artist HTTP/1.1\r\nHost: {addr}\r\n{ck}\r\n"),
+        );
+        assert_eq!(c, 200);
+        assert!(html.contains("<title>"), "strona z binarki, nie z serwera");
+        let (c, head, body) = call(
+            &addr,
+            &format!("GET /api/show?x=a%20b&token=sekret HTTP/1.1\r\nHost: {addr}\r\n{ck}\r\n"),
+        );
+        assert_eq!((c, body.as_str()), (200, "{\"scenes\":[11]}"));
+        assert!(head.contains("application/json"));
+        let up_req = srv.join().unwrap();
+        assert!(
+            up_req.starts_with("get /api/show?x=a%20b http/1.1"),
+            "{up_req}"
+        );
+        assert!(up_req.contains("authorization: bearer tok-zdalny"));
+        // bez sekretu okna – nic nie idzie do serwera
+        assert_eq!(
+            call(
+                &addr,
+                &format!("GET /api/show HTTP/1.1\r\nHost: {addr}\r\n\r\n")
+            )
+            .0,
+            401
+        );
     }
 }

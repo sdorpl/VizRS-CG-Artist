@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "artist",
+  "description": "Okna Artist: most strony (komenda ipc). Strona zawsze z serwera strony w oknie (127.0.0.1, losowy port, sekret).",
+  "windows": ["artist-*"],
+  "remote": { "urls": ["http://127.0.0.1:*/*"] },
+  "permissions": ["allow-ipc"]
+}

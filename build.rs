@@ -1,5 +1,5 @@
-//! Wkompilowuje stronę Artist (`web/`) w binarkę: tabela (ścieżka względem `web/`, treść).
-//! Bez zależności – tylko `std`; `CG_SYSTEM` (wersja źródła modułów) też trafia do tabeli.
+//! `tauri_build` (konfiguracja, ikony, uprawnienia komendy `ipc`) i strona Artist (`web/`) wkompilowana w binarkę:
+//! tabela (ścieżka względem `web/`, treść) w `OUT_DIR/web_files.rs`. Tylko `std` + tauri-build.
 
 use std::path::{Path, PathBuf};
 
@@ -7,13 +7,13 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(rd) = std::fs::read_dir(dir) else {
         return;
     };
-    let mut entries: Vec<_> = rd.flatten().map(|e| e.path()).collect();
-    entries.sort();
-    for p in entries {
+    let mut e: Vec<_> = rd.flatten().map(|e| e.path()).collect();
+    e.sort();
+    for p in e {
         if p.is_dir() {
-            walk(&p, out);
+            walk(&p, out)
         } else if p.is_file() {
-            out.push(p);
+            out.push(p)
         }
     }
 }
@@ -21,8 +21,9 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
 fn main() {
     let root = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
     let web = root.join("web");
+    assert!(web.join("artist.html").is_file(), "brak web/artist.html");
     println!("cargo:rerun-if-changed=web");
-    let mut files = Vec::new();
+    let mut files = vec![];
     walk(&web, &mut files);
     let mut src = String::from("pub static FILES: &[(&str, &[u8])] = &[\n");
     for f in &files {
@@ -44,4 +45,9 @@ fn main() {
     src.push_str("];\n");
     let out = PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR")).join("web_files.rs");
     std::fs::write(out, src).expect("zapis web_files.rs");
+    tauri_build::try_build(
+        tauri_build::Attributes::new()
+            .app_manifest(tauri_build::AppManifest::new().commands(&["ipc"])),
+    )
+    .expect("tauri_build");
 }

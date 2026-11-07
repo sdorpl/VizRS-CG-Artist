@@ -2,10 +2,10 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "VizRS CG Artist",
   "mainBinaryName": "vizrs-cg-artist",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "identifier": "pl.vizrs.CgArtist",
   "build": {
-    "frontendDist": "dist"
+    "frontendDist": "ui"
   },
   "app": {
     "windows": [],
@@ -42,12 +42,18 @@
       "deb": {
         "desktopTemplate": "linux/desktop.hbs",
         "files": {
-          "/usr/share/mime/packages/pl.vizrs.CgArtist.xml": "../../packaging/pl.vizrs.CgArtist.xml"
+          "/usr/share/mime/packages/pl.vizrs.CgArtist.xml": "packaging/pl.vizrs.CgArtist.xml"
         }
       },
       "appimage": {
         "files": {
-          "/usr/share/mime/packages/pl.vizrs.CgArtist.xml": "../../packaging/pl.vizrs.CgArtist.xml"
+          "/usr/share/mime/packages/pl.vizrs.CgArtist.xml": "packaging/pl.vizrs.CgArtist.xml"
+        }
+      },
+      "rpm": {
+        "desktopTemplate": "linux/desktop.hbs",
+        "files": {
+          "/usr/share/mime/packages/pl.vizrs.CgArtist.xml": "packaging/pl.vizrs.CgArtist.xml"
         }
       }
     },
@@ -58,6 +64,9 @@
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       }
-    }
+    },
+    "copyright": "VizRS",
+    "publisher": "VizRS",
+    "homepage": "https://github.com/sdorpl/VizRS-CG-Artist"
   }
 }

@@ -21,7 +21,7 @@ Kodem jest wszystko, co wpływa na działanie albo budowanie, w tym:
 
 - `src/**` (`*.rs`, w tym wbudowana strona okna połączenia i `IPC_SHIM`), `Cargo.toml`, `Cargo.lock`,
 - **`src/bridge.rs`** – biała lista komunikatów strony to granica bezpieczeństwa,
-- `tools/**` (`webkit6-shim.sh`), `assets/**`, `.gitignore`,
+- `tools/**`, `assets/**`, `.gitignore`,
 - reguły pracy agentów: `CLAUDE.md`, `GEMINI.md`, ten plik,
 - cokolwiek w `../VizRS CG System` – to osobne repozytorium, tu tylko do czytania.
 
@@ -97,7 +97,7 @@ Ustalone w próbach (VizRS Live, 2026-11-07):
 - **Stdin jest ignorowany.** Log przekazuj jako plik do przeczytania (wzór 1, katalog spoza repo przez `--add-dir`) albo wklej do treści promptu, gdy jest krótki.
 - **Kolejność przełączników:** `-p` bierze następny argument jako prompt, więc stawiaj go na końcu (albo `-p='…'`).
 - **Powłoka w trybie `-p` jest domyślnie zablokowana.** Zezwolenie daje `--settings` z regułą `command(<polecenie>)`; działa przy **dokładnie** tym samym tekście polecenia (bez `cd … &&`, bez `eval`). Zezwolenia nie zapisuj na stałe w ustawieniach `agy`.
-- **Budowa bez `libwebkitgtk-6.0-dev`:** shim (`eval "$(tools/webkit6-shim.sh)"`) ustawia `PKG_CONFIG_PATH` – Claude robi to w swojej powłoce przed wywołaniem `agy` (zmienna przechodzi do procesu), a Gemini dostaje samo polecenie `cargo …`.
+- **Budowa na Linuksie:** wymaga bibliotek deweloperskich (`libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev libssl-dev`); shimu `webkit6-shim.sh` już nie ma.
 - **`--dangerously-skip-permissions` nie używamy.**
 - Odmowa zmiany kodu to zachowanie modelu, nie blokada narzędzia – dlatego przegląd z §7 jest obowiązkowy.
 
