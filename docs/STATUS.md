@@ -19,12 +19,13 @@ Plan źródłowy: `../VizRS CG System/docs/plany/PLAN-artist-osobny.md` (A2–A6
 | S6 | Import BTB i `.cgpack` w Ruście | do zrobienia |
 | S7 | Repo na GitHubie, CI z testem w działaniu, wydania (`release.yml`) | zrobione (czeka na pierwszy przebieg CI) |
 | S8 | AppImage; w CG System usunięcie Artist z `vizrs-shell` i pakietu `vizrs` (A7) | do zrobienia (A7 – decyzja użytkownika) |
-| S9 | Windows i macOS: rdzeń bez GUI, okno na wry, instalatory, wydania – [plany/PLAN-platformy.md](plany/PLAN-platformy.md) P0–P5 | zaplanowane, czeka na decyzje §7 |
+| S9 | Windows i macOS – okno na Tauri 2 zamiast GTK: prototyp `proto/tauri` ([plany/RAPORT-tauri.md](plany/RAPORT-tauri.md)) | Linux: lepiej niż GTK (ostrość ×1,4–1,8, start, pamięć); Windows/macOS: CI gotowe, czeka na `git push` |
 | S10 | Android (opcja, tablet) – PLAN-platformy P6 | zaplanowane na później |
 
 ## Następne zadanie
-Do decyzji użytkownika: A7 w CG System (usunięcie Artist z `vizrs-shell` i pakietu `vizrs`); decyzje §7 w [plany/PLAN-platformy.md](plany/PLAN-platformy.md) (zależności okna wry i klienta HTTPS, podpisy, instalator, Android).
-Potem: pierwszy przebieg CI na GitHubie (LUKI #1), okno połączenia „zapisz bez łączenia” (LUKI #12).
+Wypchnąć `main` (`git push origin main`) – ruszy `proto-tauri.yml` (Windows, macOS). Zielone → plan przejścia z RAPORT-tauri §6
+(rdzeń `artist-core`, okno Tauri jako program główny, okno połączenia, klient HTTPS, usunięcie GTK).
+Nadal do decyzji: A7 w CG System.
 
 ## Blokery
-Brak. Repozytorium: https://github.com/sdorpl/VizRS-CG-Artist (`origin`).
+`git push` wymaga zgody użytkownika (repozytorium publiczne). Repozytorium: https://github.com/sdorpl/VizRS-CG-Artist (`origin`).
