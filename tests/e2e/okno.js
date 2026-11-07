@@ -140,6 +140,52 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
         ok(saved.servers?.[0]?.url === `http://127.0.0.1:${RPORT}` && saved.servers?.[0]?.token === TOKEN, 'serwer i token na liście zapisanych', saved);
         if (fs.existsSync(file)) ok((fs.statSync(file).mode & 0o077) === 0, 'lista zapisanych tylko dla właściciela');
         ok(!fs.existsSync(path.join(tmp, 'local', 'show.json')), 'połączenie zdalne nie zakłada magazynu lokalnego');
+
+        // 6. wysyłka z pracy lokalnej na serwer (zapisany z tokenem w kroku 4): nowa → bez zmian → konflikt → nadpisz
+        const SRV = `http://127.0.0.1:${RPORT}`, ddata = path.join(tmp, 'deploy');
+        const dep = (name, js) => run(['--data', ddata], write(name + '.js', `(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
+  const j = async (m, u, b) => { const r = await fetch(u, { method: m, headers: { 'Content-Type': 'application/json' }, body: b === undefined ? undefined : JSON.stringify(b) }); return { status: r.status, ...(await r.json().catch(() => ({}))) }; };
+  const check = async () => (await j('POST', '/api/deploy/check', { server: '${SRV}', scenes: ['dep1'] })).scenes?.[0]?.status;
+  const r = {};
+  ${js}
+  window.ipc.postMessage('probe:' + JSON.stringify(r));
+})();`), name);
+        const d1 = dep('deploy1', `
+  r.servers = await (await fetch('/api/deploy/servers')).json();
+  r.btn = !document.querySelector('#bDeploy').hidden;
+  await fetch('/api/assets?name=logo-wysylka.png', { method: 'POST', body: 'PNG' });
+  await j('PUT', '/api/scenes/dep1', { name: 'Wysyłka', layer: 'main', nodes: [] });
+  r.before = await check();
+  r.send = await j('POST', '/api/deploy', { server: '${SRV}', scenes: [{ id: 'dep1', assets: ['logo-wysylka.png'] }] });
+  r.after = await check();
+  r.foreign = (await j('POST', '/api/deploy/check', { server: 'http://127.0.0.1:1', scenes: [] })).status;`);
+        ok(Array.isArray(d1.servers) && d1.servers.some((x) => x.url === SRV && x.hasToken && !('token' in x)) && d1.btn, 'wysyłka: lista zapisanych serwerów bez tokenów, przycisk „Wyślij” w pracy lokalnej', d1);
+        ok(d1.before === 'new' && d1.send?.results?.[0]?.ok && d1.send.results[0].uploaded?.[0] === 'logo-wysylka.png' && d1.after === 'same', 'wysyłka: nowa scena z zasobem trafia na serwer; potem „bez zmian”', d1);
+        ok(d1.foreign === 400, 'wysyłka tylko na serwery z listy zapisanych', d1.foreign);
+        const remoteShow = await new Promise((res) => http.get(`${SRV}/api/show`, { headers: { Authorization: `Bearer ${TOKEN}` } }, (r) => { let b = ''; r.on('data', (c) => (b += c)); r.on('end', () => res(JSON.parse(b))); }));
+        const rs = remoteShow.scenes.find((x) => x.id === 'dep1');
+        ok(rs?.name === 'Wysyłka', 'scena jest w show serwera', rs);
+        // ktoś zmienia scenę na serwerze
+        await new Promise((res) => {
+          const body = JSON.stringify({ ...rs, name: 'Zmiana w studiu' });
+          const req = http.request(`${SRV}/api/scenes/dep1`, { method: 'PUT', headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } }, (r) => { r.resume(); r.on('end', res); });
+          req.end(body);
+        });
+        const d2 = dep('deploy2', `
+  r.status = await check();
+  r.plain = (await j('POST', '/api/deploy', { server: '${SRV}', scenes: [{ id: 'dep1' }] })).results?.[0];
+  r.over = (await j('POST', '/api/deploy', { server: '${SRV}', scenes: [{ id: 'dep1', overwrite: true }] })).results?.[0];
+  r.after = await check();
+  window.__vizrsCmd('deploy');
+  for (let i = 0; i < 50 && !document.querySelector('#deployDlg [data-row="dep1"]'); i++) await sleep(100);
+  const box = document.querySelector('#deployDlg [data-row="dep1"] input');
+  box.checked = true; box.dispatchEvent(new Event('change', { bubbles: true }));
+  for (let i = 0; i < 50 && !document.querySelector('#deployDlg [data-row="dep1"] .dpSt')?.textContent; i++) await sleep(100);
+  r.dialog = document.querySelector('#deployDlg [data-row="dep1"] .dpSt')?.textContent;`);
+        ok(d2.status === 'changed' && d2.plain?.conflict === true && d2.over?.ok && d2.after === 'same', 'wysyłka: zmiana na serwerze = konflikt; „nadpisz” zastępuje', d2);
+        ok(/bez zmian na serwerze/.test(d2.dialog || ''), 'okno „Wyślij na serwer” (menu) pokazuje stan sceny', d2.dialog);
       } finally {
         remote.kill();
       }

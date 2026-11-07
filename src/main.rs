@@ -7,7 +7,9 @@
 //! z białej listy (`bridge`). Trio i wyjście należą do VizRS CG System i nie są tu dostarczane.
 
 mod bridge;
+mod client;
 mod connect;
+mod deploy;
 mod desktop;
 mod http;
 mod instance;
@@ -43,6 +45,7 @@ const PAGE_CMDS: &[(&str, &str)] = &[
     ("save", "Zapisz (Ctrl+S)"),
     ("export", "Eksportuj scenę…"),
     ("pack", "Paczka .cgpack…"),
+    ("deploy", "Wyślij na serwer…"),
     ("undo", "Cofnij (Ctrl+Z)"),
     ("redo", "Ponów (Ctrl+Y)"),
     ("dup", "Duplikuj (Ctrl+D)"),
@@ -398,7 +401,7 @@ fn build_menu() -> gio::Menu {
             ("connect", "Połącz z serwerem…"),
         ]),
     );
-    let s2 = section(&PAGE_CMDS[..4]);
+    let s2 = section(&PAGE_CMDS[..5]);
     s2.append(Some("Importuj…"), Some("app.import"));
     file.append_section(None, &s2);
     file.append_section(None, &section(&[("data-dir", "Otwórz katalog danych")]));
@@ -407,9 +410,9 @@ fn build_menu() -> gio::Menu {
         &section(&[("close", "Zamknij okno"), ("quit", "Zakończ")]),
     );
     menu.append_submenu(Some("Plik"), &file);
-    menu.append_submenu(Some("Edycja"), &section(&PAGE_CMDS[4..8]));
+    menu.append_submenu(Some("Edycja"), &section(&PAGE_CMDS[5..9]));
     let view = gio::Menu::new();
-    view.append_section(None, &section(&PAGE_CMDS[8..]));
+    view.append_section(None, &section(&PAGE_CMDS[9..]));
     view.append_section(
         None,
         &section(&[
@@ -1174,22 +1177,27 @@ fn local_work(data: &Path, user_token: Option<String>) -> Result<LocalWork, Stri
     })
 }
 
-/// Przed przełączeniem: `/api/state` serwera `http://` (token, dostępność). `https://` sprawdza strona (wskaźnik połączenia).
+/// Przed przełączeniem: `GET /api/state` z tokenem (`http://` i `https://`) – dostępność, token, czy to VizRS.
 fn check_server(url: &str, token: Option<&str>) -> Result<(), String> {
-    let Some((addr, path)) = connect::check_target(url) else {
-        return Ok(());
-    };
-    match server::http_get(&addr, &path, token, Duration::from_secs(3)) {
-        Ok((200, body)) if body.trim_start().starts_with('{') => Ok(()),
-        Ok((200, _)) => Err(format!("{url} odpowiada, ale to nie jest serwer VizRS")),
-        Ok((401, _)) => Err(if token.is_some() {
+    let r = client::request(
+        url,
+        "GET",
+        "/api/state",
+        token,
+        None,
+        1024 * 1024,
+        Duration::from_secs(5),
+    )?;
+    match r.status {
+        200 if r.json().is_ok_and(|v| v.is_object()) => Ok(()),
+        200 => Err(format!("{url} odpowiada, ale to nie jest serwer VizRS")),
+        401 => Err(if token.is_some() {
             "Serwer odrzucił token.".into()
         } else {
             "Serwer wymaga tokenu.".into()
         }),
-        Ok((403, _)) => Err("Ten token nie pozwala edytować (to token wyjścia OBS?).".into()),
-        Ok((code, _)) => Err(format!("{url}: odpowiedź HTTP {code}")),
-        Err(e) => Err(format!("Brak połączenia z serwerem: {e}")),
+        403 => Err("Ten token nie pozwala edytować (to token wyjścia OBS?).".into()),
+        code => Err(format!("{url}: odpowiedź HTTP {code}")),
     }
 }
 

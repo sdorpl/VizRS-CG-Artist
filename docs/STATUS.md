@@ -14,14 +14,14 @@ Plan źródłowy: `../VizRS CG System/docs/plany/PLAN-artist-osobny.md` (A2–A6
 | S1 | Okno bez Trio i wyjścia (menu, dokumentacja) | zrobione |
 | S2 | Własna strona Artist w repo (`web/`); moduły rysowania pilnowane jako kopie z CG System (`tools/sync-cg.sh --check`, CI) | zrobione (kopia z v2.0.19); serwowanie z binarki – S3 |
 | S3 | Lokalny magazyn w procesie okna (show, zasoby, fonty, presety) – Artist działa bez `vizrs` | zrobione (`local`, `store`, `http`, `web`; test w działaniu 16/16) |
-| S4 | Serwer zdalny jako cel wysyłki scen (deploy, `rev`/409), nie miejsce edycji | do zrobienia |
+| S4 | Serwer zdalny jako cel wysyłki scen (deploy, `rev`/409), nie miejsce edycji | zrobione (`client`, `deploy`, okno „Wyślij na serwer”; test w działaniu 22/22) |
 | S5 | Walidacja show przez `vizrs-model` (najpierw A1 w CG System) | czeka na A1 |
 | S6 | Import BTB i `.cgpack` w Ruście | do zrobienia |
 | S7 | AppImage, wydania na GitHubie; w CG System usunięcie Artist z `vizrs-shell` i pakietu `vizrs` (A7) | do zrobienia |
 
 ## Następne zadanie
-S4: wysyłka scen z pracy lokalnej na serwer `vizrs` (wybór serwera z listy zapisanych, `PUT /api/scenes` z `rev`, okno konfliktu, zasoby sceny) – LUKI #9.
-Potem test w działaniu w CI (LUKI #1 – praca lokalna nie potrzebuje już `vizrs`).
+Do decyzji użytkownika: A7 w CG System (usunięcie Artist z `vizrs-shell` i pakietu `vizrs`).
+Potem: test w działaniu w CI (LUKI #1 – praca lokalna nie potrzebuje `vizrs`), okno połączenia „zapisz bez łączenia” (LUKI #12).
 
 ## Blokery
 Brak. Repozytorium nie ma jeszcze zdalnego (`git remote`) – CI nie było uruchomione.

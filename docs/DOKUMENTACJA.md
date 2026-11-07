@@ -56,12 +56,12 @@ Błędne argumenty: komunikat na stderr, kod wyjścia 2.
 
 | Menu | Pozycje |
 |---|---|
-| Plik | Nowe okno Artist · Połącz z serwerem… (Ctrl+Shift+K) · Nowa scena · Zapisz · Eksportuj scenę… · Paczka .cgpack… · Importuj… · Otwórz katalog danych · Zamknij okno (Ctrl+W) · Zakończ (Ctrl+Q) |
+| Plik | Nowe okno Artist · Połącz z serwerem… (Ctrl+Shift+K) · Nowa scena · Zapisz · Eksportuj scenę… · Paczka .cgpack… · Wyślij na serwer… · Importuj… · Otwórz katalog danych · Zamknij okno (Ctrl+W) · Zakończ (Ctrl+Q) |
 | Edycja | Cofnij · Ponów · Duplikuj · Usuń |
 | Widok | Dopasuj kanwę · Kanwa 100% · Kanwa do zaznaczenia · Odtwórz / zatrzymaj · Dodaj marker · Powiększ (Ctrl+=) · Pomniejsz (Ctrl+−) · Rozmiar 100% (Ctrl+0) · Odśwież (F5) · Pełny ekran (F11) · Narzędzia deweloperskie (Ctrl+Shift+I) |
 | Pomoc | Pokaż logi · Sprawdź aktualizacje · O programie |
 
-Pozycje strony (Nowa scena…Dodaj marker) wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+D,
+Pozycje strony (Nowa scena…Dodaj marker, Wyślij na serwer) wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+D,
 Delete, Shift+1/2/3, Spacja, M) obsługuje strona, nie GTK – inaczej działałyby też w polach tekstowych.
 Cofnij / Ponów są nieaktywne zgodnie ze stanem zgłoszonym przez stronę.
 
@@ -90,7 +90,8 @@ Aplikacja GTK działa jako `NON_UNIQUE` – jedność pilnuje gniazdo, nie D-Bus
 
 Okno „Połącz z serwerem” (Plik → Połącz…, Ctrl+Shift+K, `connect`) jest stroną wbudowaną w binarkę – tylko ona może przełączyć okna
 na inny adres. Lista do 20 serwerów w `connections.json` (prawa tylko dla właściciela); token zapisywany tylko na życzenie;
-opcja „łącz przy uruchomieniu”. Dla `http://` okno sprawdza `GET /api/state` z tokenem przed przełączeniem (token wyjścia → 403).
+opcja „łącz przy uruchomieniu”. Przed przełączeniem okno sprawdza `GET /api/state` z tokenem – `http://` i `https://`
+(klient `gio` z TLS systemu; zły certyfikat = błąd) – i zgłasza brak serwera, zły token albo token wyjścia (403).
 
 Uruchomione jako `connect` (bez `--connect` i bez zapisanego łączenia przy uruchomieniu) okno nie ma jeszcze serwera:
 nagłówek pokazuje „Teraz: nie połączono”, a prośba kolejnego uruchomienia
@@ -186,6 +187,7 @@ który podaje stronę z binarki (`web/`) i API na katalogu danych (`src/store.rs
 | `/api/lock/…`, `/api/unlock/…` | zawsze przyznane (jeden program na katalog) |
 | `GET /events` | zdarzenia zmian (`text/event-stream`) dla wszystkich okien Artist |
 | `GET /health` | `instance` blokady – bez sekretu (sprawdza go `vizrs`) |
+| `GET /api/deploy/servers`, `POST /api/deploy/check`, `POST /api/deploy` | wysyłka scen na serwer (§13) |
 
 - **Dostęp tylko z okna:** jednorazowy sekret (24 bajty z `/dev/urandom`) w adresie strony (`?token=`) zamienia się
   w ciasteczko `HttpOnly; SameSite=Strict`; bez niego 401. Nagłówek `Host` musi być adresem magazynu (403 – ochrona przed
@@ -196,4 +198,22 @@ który podaje stronę z binarki (`web/`) i API na katalogu danych (`src/store.rs
   Uszkodzony `show.json` = komunikat przy starcie, plik nie jest nadpisywany.
 - **Walidacja:** podstawowa (typy, długości identyfikatorów i nazw, rozmiar sceny); pełna walidacja jak w serwerze – po
   wydzieleniu `vizrs-model` w CG System (LUKI).
+
+## 13. Wysyłka na serwer
+
+Praca lokalna → serwer `vizrs` (studio, VPS), z którego Trio wydaje grafikę: **⇧ Wyślij** na pasku albo Plik → Wyślij na serwer…
+(przy pracy na serwerze przycisku nie ma – zapis od razu zmienia scenę na serwerze).
+
+- **Serwery:** tylko z listy zapisanych w oknie „Połącz z serwerem”; token bierze okno z `connections.json` („zapamiętaj token”),
+  strona widzi tylko adresy. Dodanie serwera: Połącz z serwerem → adres, token, „zapamiętaj token” → Połącz, potem w tym samym
+  oknie **Praca lokalna**. Ostatnio wybrany serwer strona pamięta (`localStorage`).
+- **Sprawdzenie** (`/api/deploy/check`, przy każdej zmianie wyboru): stan każdej sceny na serwerze – *nowa*, *bez zmian od ostatniej
+  wysyłki*, *zmieniona na serwerze od ostatniej wysyłki*, *na serwerze jest scena o tym id, niewysłana stąd* – oraz warstwy,
+  na których scena jest **na antenie** (pytanie przed wysłaniem), i liczba zasobów do wysłania.
+- **Wysyłka** (`/api/deploy`): scena zapisana na dysku (niezapisane zmiany strona najpierw zapisuje), `PUT /api/scenes/<id>`
+  z rewizją zapamiętaną po poprzedniej wysyłce (`deploy.json` w katalogu danych, osobno dla każdego serwera). Gdy scenę zmieniono na
+  serwerze w międzyczasie, serwer odpowiada 409 – scena czeka na zaznaczenie **nadpisz** (wysyłka bez rewizji). Zasoby sceny
+  (`cgpack.sceneAssets`) idą przed sceną, tylko te, których na serwerze nie ma; pliku o tej samej nazwie okno nie nadpisuje.
+- Raport: wysłane sceny i zasoby, pominięte (już na serwerze), konflikty i błędy serwera (walidacja `validate.rs`).
+- Klient: HTTP/1.1 przez `gio::SocketClient` (`src/client.rs`), `http://` i `https://`, `Content-Length` i `chunked`, odpowiedź do 64 MB, 20 s na żądanie.
 

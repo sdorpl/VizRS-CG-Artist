@@ -170,25 +170,6 @@ pub fn valid_token(t: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c))
 }
 
-/// Dla `http://`: `host:port` i ścieżka `/api/state` (token operatora – token wyjścia dostaje 403; do sprawdzenia przed przełączeniem). `https://` – None (bez TLS w powłoce).
-pub fn check_target(url: &str) -> Option<(String, String)> {
-    let rest = url.strip_prefix("http://")?;
-    let (host, prefix) = match rest.find('/') {
-        Some(i) => (&rest[..i], &rest[i..]),
-        None => (rest, ""),
-    };
-    let addr = if host
-        .rsplit_once(':')
-        .is_some_and(|(_, p)| p.parse::<u16>().is_ok())
-        && !host.ends_with(']')
-    {
-        host.to_string()
-    } else {
-        format!("{host}:80")
-    };
-    Some((addr, format!("{prefix}/api/state")))
-}
-
 /// Żądanie połączenia z serwerem.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Request {
@@ -363,19 +344,6 @@ mod tests {
         assert!(normalize_url("ftp://x").is_err());
         assert!(normalize_url("https://a b").is_err());
         assert!(normalize_url("https://x/'><script>").is_err());
-    }
-
-    #[test]
-    fn health() {
-        assert_eq!(
-            check_target("http://10.0.0.5:8088"),
-            Some(("10.0.0.5:8088".into(), "/api/state".into()))
-        );
-        assert_eq!(
-            check_target("http://cg.lan/vizrs"),
-            Some(("cg.lan:80".into(), "/vizrs/api/state".into()))
-        );
-        assert_eq!(check_target("https://cg.example.pl"), None);
     }
 
     #[test]

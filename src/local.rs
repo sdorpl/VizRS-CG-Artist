@@ -170,6 +170,34 @@ fn route(st: &State, req: &Request) -> Response {
         ("GET", ["state"]) => Response::json(&json!({
             "mode": "local", "rev": store.show()["rev"], "layers": [], "preview": [],
         })),
+        ("GET", ["deploy", "servers"]) => Response::json(&crate::deploy::servers()),
+        ("POST", ["deploy", "check"]) => {
+            let b = match body() {
+                Ok(b) => b,
+                Err(e) => return Response::err(400, &e),
+            };
+            let srv = match crate::deploy::server(b["server"].as_str().unwrap_or("")) {
+                Ok(s) => s,
+                Err(e) => return Response::err(400, &e),
+            };
+            let scenes: Vec<Value> = ids(&b["scenes"])
+                .iter()
+                .filter_map(|id| store.scene(id))
+                .collect();
+            let recorded = store.deployed(&srv.url);
+            drop(store); // sieć bez blokady magazynu
+            res(crate::deploy::check(&srv, &scenes, &recorded), |j| {
+                Response::json(&j)
+            })
+        }
+        ("POST", ["deploy"]) => {
+            let b = match body() {
+                Ok(b) => b,
+                Err(e) => return Response::err(400, &e),
+            };
+            drop(store);
+            deploy(st, &b)
+        }
         // jedno okno na katalog danych (instancja) – blokady scen zawsze przyznane
         ("POST" | "PUT", ["lock", _, _]) => Response::json(&json!({ "ok": true })),
         ("POST" | "DELETE", ["unlock", _, _]) => {
@@ -214,6 +242,78 @@ fn route(st: &State, req: &Request) -> Response {
         }),
         _ => Response::err(404, "nie znaleziono"),
     }
+}
+
+/// Identyfikatory scen z listy (do 500, bez pustych).
+fn ids(v: &Value) -> Vec<String> {
+    v.as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|x| x.as_str().or_else(|| x["id"].as_str()))
+        .filter(|s| !s.is_empty() && s.len() <= 100)
+        .take(500)
+        .map(String::from)
+        .collect()
+}
+
+/// Wysyłka scen: `{server, scenes: [{id, assets: [nazwy], overwrite}]}` → wynik dla każdej sceny.
+/// Wysyłana jest scena zapisana na dysku; zasoby z `assets/`; magazyn zablokowany tylko na odczyt danych.
+fn deploy(st: &State, b: &Value) -> Response {
+    let srv = match crate::deploy::server(b["server"].as_str().unwrap_or("")) {
+        Ok(s) => s,
+        Err(e) => return Response::err(400, &e),
+    };
+    let remote_assets = match crate::deploy::remote_assets(&srv) {
+        Ok(a) => a,
+        Err(e) => return Response::err(502, &e),
+    };
+    let mut results = vec![];
+    for item in b["scenes"].as_array().into_iter().flatten().take(500) {
+        let id = item["id"].as_str().unwrap_or_default().to_string();
+        let names: Vec<String> = item["assets"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|n| n.as_str().map(String::from))
+            .take(1000)
+            .collect();
+        let (scene, assets, expect) = {
+            let Ok(store) = st.store.lock() else {
+                return Response::err(500, "magazyn niedostępny");
+            };
+            let assets: Vec<(String, Vec<u8>)> = names
+                .iter()
+                .filter_map(|n| store.asset(n).map(|d| (n.clone(), d)))
+                .collect();
+            (
+                store.scene(&id),
+                assets,
+                store.deployed(&srv.url)[&id].as_f64(),
+            )
+        };
+        let Some(scene) = scene else {
+            results.push(json!({ "id": id, "ok": false, "error": "scena niezapisana – zapisz ją przed wysyłką" }));
+            continue;
+        };
+        let overwrite = item["overwrite"].as_bool().unwrap_or(false);
+        match crate::deploy::send(&srv, &scene, &assets, &remote_assets, expect, overwrite) {
+            Ok(sent) => {
+                let saved = st
+                    .store
+                    .lock()
+                    .map_err(|_| "magazyn niedostępny".to_string())
+                    .and_then(|s| s.set_deployed(&srv.url, &id, sent.rev));
+                results.push(json!({
+                    "id": id, "ok": true, "rev": sent.rev, "uploaded": sent.uploaded, "skipped": sent.skipped,
+                    "warning": saved.err(),
+                }));
+            }
+            Err(e) => results.push(
+                json!({ "id": id, "ok": false, "conflict": e.starts_with("konflikt"), "error": e }),
+            ),
+        }
+    }
+    Response::json(&json!({ "server": srv.url, "results": results }))
 }
 
 /// Zakłada blokadę `.vizrs.lock` (format serwera). Błąd = katalog trzyma działający program.

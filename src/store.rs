@@ -285,6 +285,43 @@ impl Store {
         self.save()
     }
 
+    /// Zapisana scena (do wysyłki na serwer – wysyłamy to, co jest na dysku, nie stan edytora).
+    pub fn scene(&self, id: &str) -> Option<Value> {
+        self.show["scenes"]
+            .as_array()?
+            .iter()
+            .find(|s| s["id"].as_str() == Some(id))
+            .cloned()
+    }
+
+    fn deploy_file(&self) -> PathBuf {
+        self.dir.join("deploy.json")
+    }
+
+    /// Rewizje scen na serwerze `url` po ostatniej udanej wysyłce: `{id: rev}`.
+    pub fn deployed(&self, url: &str) -> Value {
+        std::fs::read_to_string(self.deploy_file())
+            .ok()
+            .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+            .map(|v| v[url].clone())
+            .filter(Value::is_object)
+            .unwrap_or_else(|| json!({}))
+    }
+
+    pub fn set_deployed(&self, url: &str, id: &str, rev: f64) -> Result<(), String> {
+        let mut all = std::fs::read_to_string(self.deploy_file())
+            .ok()
+            .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+            .filter(Value::is_object)
+            .unwrap_or_else(|| json!({}));
+        if !all[url].is_object() {
+            all[url] = json!({});
+        }
+        all[url][id] = json!(rev);
+        crate::paths::write_atomic(&self.deploy_file(), &all.to_string())
+            .map_err(|e| format!("zapis na dysk nieudany: {e}"))
+    }
+
     pub fn anim_presets(&self) -> Value {
         std::fs::read_to_string(self.dir.join("animpresets.json"))
             .ok()
@@ -471,6 +508,22 @@ mod tests {
         assert_eq!(s.assets().as_array().unwrap().len(), 2);
         s.delete_asset("Logo.PNG");
         assert!(s.asset("Logo.PNG").is_none());
+        std::fs::remove_dir_all(d).ok();
+    }
+
+    #[test]
+    fn deploy_revisions_per_server() {
+        let d = tmp("deploy");
+        let mut s = Store::open(&d).unwrap();
+        s.upsert("scenes", json!({ "id": "a", "name": "A" }))
+            .unwrap();
+        assert_eq!(s.scene("a").unwrap()["name"], json!("A"));
+        assert!(s.scene("b").is_none());
+        assert_eq!(s.deployed("https://x"), json!({}));
+        s.set_deployed("https://x", "a", 4.0).unwrap();
+        s.set_deployed("https://y", "a", 1.0).unwrap();
+        assert_eq!(s.deployed("https://x"), json!({ "a": 4.0 }));
+        assert_eq!(s.deployed("https://y")["a"], json!(1.0));
         std::fs::remove_dir_all(d).ok();
     }
 

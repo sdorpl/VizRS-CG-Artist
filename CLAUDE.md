@@ -80,7 +80,9 @@ Przy zmianie zachowania okna (most, magazyn, serwer, okno połączenia, instancj
 | `src/store.rs` | `show.json` (rewizje, konflikty, kopie `kopie/`), `assets/`, `animpresets.json`; tylko sceny |
 | `src/http.rs` | minimalny serwer HTTP/1.1 (`std`): parsowanie z limitami, odpowiedzi, strumień zdarzeń |
 | `src/web.rs`, `build.rs` | strona `web/` wkompilowana w binarkę, typy plików |
-| `src/server.rs` | właściciel `.vizrs.lock` (`vizrs` albo inne okno Artist), `GET` do sprawdzenia serwera |
+| `src/client.rs` | klient HTTP/1.1 do serwera `vizrs` przez `gio` (`http`/`https`, `chunked`, limity) |
+| `src/deploy.rs` | wysyłka scen na zapisany serwer: stan scen, zasoby, rewizje (`deploy.json`), konflikty |
+| `src/server.rs` | właściciel `.vizrs.lock` (`vizrs` albo inne okno Artist), `GET /health` na `127.0.0.1` |
 | `src/instance.rs` | jedna instancja na katalog danych (gniazdo Unix w `XDG_RUNTIME_DIR`); Windows: jeszcze nie |
 | `src/paths.rs` | katalogi użytkownika (dane, stan, logi), `window.json`, zapis atomowy |
 | `src/desktop.rs` | ukryty wpis `pl.vizrs.CgArtist.desktop` i ikona (Wayland szuka ikony po identyfikatorze aplikacji) |
