@@ -6,7 +6,7 @@ Zamykając pozycję, usuń wiersz i dopisz wersję w `CHANGELOG.md`. Nowe braki 
 | # | Luka | Uwagi |
 |---|---|---|
 | 1 | Test w działaniu w CI (job `e2e`, Xvfb) jeszcze nie sprawdzony na runnerze | lokalnie brak Xvfb; po pierwszym przebiegu na GitHubie – usunąć wiersz albo poprawić job |
-| 3 | Jedna instancja tylko na Unix (gniazdo); Windows: brak | okno i tak jest tylko na Linux |
+| 3 | Jedna instancja tylko na Unix (gniazdo); Windows: brak | PLAN-platformy P3: nazwany potok |
 | 7 | Magazyn lokalny sprawdza scenę tylko podstawowo (typy, długości, rozmiar) – nie jak `validate.rs` serwera | S5: crate `vizrs-model` (A1 w CG System); serwer i tak waliduje przy wysyłce/imporcie |
 
 ## G2 – wierność
@@ -18,6 +18,7 @@ Zamykając pozycję, usuń wiersz i dopisz wersję w `CHANGELOG.md`. Nowe braki 
 ## G3 – funkcje
 | # | Luka | Uwagi |
 |---|---|---|
+| 13 | Tylko Linux – brak wydań Windows i macOS; Android – kiedyś | [plany/PLAN-platformy.md](plany/PLAN-platformy.md) (S9, S10) |
 | 5 | Brak AppImage i Flatpak | `.deb` i archiwum w wydaniach (`release.yml`); paczki nie instalowano jeszcze na czystym systemie |
 | 11 | Wysyłka nie nadpisuje zasobu o tej samej nazwie, który na serwerze jest inny (zmienione logo) | serwer nie podaje skrótu pliku; dziś: nowa nazwa pliku albo usunięcie zasobu na serwerze |
 | 12 | Zapisanie serwera do wysyłki wymaga połączenia okna z nim i powrotu do pracy lokalnej | okno połączenia: „zapisz bez łączenia” |

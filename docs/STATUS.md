@@ -19,9 +19,11 @@ Plan źródłowy: `../VizRS CG System/docs/plany/PLAN-artist-osobny.md` (A2–A6
 | S6 | Import BTB i `.cgpack` w Ruście | do zrobienia |
 | S7 | Repo na GitHubie, CI z testem w działaniu, wydania (`release.yml`) | zrobione (czeka na pierwszy przebieg CI) |
 | S8 | AppImage; w CG System usunięcie Artist z `vizrs-shell` i pakietu `vizrs` (A7) | do zrobienia (A7 – decyzja użytkownika) |
+| S9 | Windows i macOS: rdzeń bez GUI, okno na wry, instalatory, wydania – [plany/PLAN-platformy.md](plany/PLAN-platformy.md) P0–P5 | zaplanowane, czeka na decyzje §7 |
+| S10 | Android (opcja, tablet) – PLAN-platformy P6 | zaplanowane na później |
 
 ## Następne zadanie
-Do decyzji użytkownika: A7 w CG System (usunięcie Artist z `vizrs-shell` i pakietu `vizrs`).
+Do decyzji użytkownika: A7 w CG System (usunięcie Artist z `vizrs-shell` i pakietu `vizrs`); decyzje §7 w [plany/PLAN-platformy.md](plany/PLAN-platformy.md) (zależności okna wry i klienta HTTPS, podpisy, instalator, Android).
 Potem: pierwszy przebieg CI na GitHubie (LUKI #1), okno połączenia „zapisz bez łączenia” (LUKI #12).
 
 ## Blokery
