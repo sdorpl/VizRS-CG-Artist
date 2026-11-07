@@ -2,6 +2,8 @@
 
 ## Niewydane
 
+- **Strona Artist w repo** (`web/`): `artist.html` i `native.js` rozwijane tutaj; moduły rysowania i fonty to kopie z VizRS CG System v2.0.19 pilnowane przez `tools/sync-cg.sh --check` (też w CI).
+
 - **Artist bez Trio:** Artist staje się samodzielnym edytorem grafik i animacji. Z menu znikają Plik → Trio w przeglądarce, Wyjście (podgląd) w przeglądarce i Pomoc → Strona startowa i API; Trio i wyjście należą do VizRS CG System.
 
 - **Paczka `.deb`** (`packaging/deb/build.sh`, też w CI): program, skróty „VizRS CG Artist” i „VizRS CG Artist – serwer zdalny”, ikona, skojarzenia `.cgpack` / `.vizrs.json`; instaluje się obok pakietu `vizrs`.

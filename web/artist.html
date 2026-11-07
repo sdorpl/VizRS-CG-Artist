@@ -1,0 +1,2268 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>VizRS Artist</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script>if (window.__vizrsShell) document.documentElement.classList.add('native');</script>
+<link rel="stylesheet" href="/ui.css">
+<style>
+  body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  #main { flex: 1; display: grid; grid-template-columns: var(--l, 270px) 4px minmax(240px, 1fr) 4px var(--r, 350px); grid-template-rows: minmax(160px, 1fr) 4px var(--t, 260px); min-height: 0; background: #0b0c0e; }
+  #treeP { grid-area: 1 / 1 / 2 / 2; }
+  #gL { grid-area: 1 / 2 / 2 / 3; cursor: col-resize; }
+  #canvasP { grid-area: 1 / 3 / 2 / 4; }
+  #gR { grid-area: 1 / 4 / 4 / 5; cursor: col-resize; }
+  #propsP { grid-area: 1 / 5 / 4 / 6; }
+  #gT { grid-area: 2 / 1 / 3 / 4; cursor: row-resize; }
+  #timeP { grid-area: 3 / 1 / 4 / 4; }
+  /* panele zadokowane jak w programie desktopowym: bez zaokrągleń i odstępów, rozdzielacze do przeciągania */
+  #main > .panel { border-radius: 0; border: none; }
+  #main > .panel > header { min-height: 30px; padding: 3px 6px; }
+  .gutter { background: #0b0c0e; touch-action: none; }
+  .gutter:hover, .gutter.drag { background: var(--acc-d); }
+  .topbar { padding: 4px 8px; gap: 6px; }
+  #box { position: relative; flex: 1; overflow: hidden; }
+  #stage { position: absolute; left: 0; top: 0; outline: 1px solid #3a3f48; }
+  #stage .vz-node { cursor: move; }
+  #stage .vz-node[data-over] { outline: 2px dashed #ff4d4d; outline-offset: 2px; }
+  .sqinfo { padding: 0 10px 4px 110px; font: 11px ui-monospace, monospace; color: #8b93a1; display: flex; flex-wrap: wrap; gap: 8px; }
+  .sqinfo .warn { color: #ffb020; } .sqinfo .bad { color: #ff4d4d; }
+  #sel { position: absolute; border: 1px solid var(--acc); pointer-events: none; box-shadow: 0 0 0 1px rgba(0,0,0,.6); display: none; z-index: 5; }
+  #sel .h { position: absolute; right: -6px; bottom: -6px; width: 11px; height: 11px; background: var(--acc); border: 1px solid #000; pointer-events: auto; cursor: nwse-resize; }
+  #sel .lbl { position: absolute; left: -1px; top: -18px; font-size: 10px; background: var(--acc); color: #000; padding: 1px 4px; white-space: nowrap; }
+  #safe { position: absolute; pointer-events: none; display: none; z-index: 4; }
+  #safe div { position: absolute; border: 1px dashed rgba(255,255,255,.3); }
+  #vTools { position: absolute; right: 8px; top: 6px; z-index: 7; display: flex; align-items: center; gap: 3px; }
+  #vZoom { font: 11px ui-monospace, monospace; color: var(--dim); min-width: 44px; text-align: center; }
+  #info { position: absolute; left: 8px; bottom: 6px; font-size: 11px; color: var(--dim); z-index: 6; pointer-events: none; }
+  #tree .item { padding-top: 4px; padding-bottom: 4px; }
+  #tree .ic { width: 16px; text-align: center; color: var(--acc); }
+  #tree .item.hid span:not(.eye) { opacity: .4; }
+  #tree .eye { opacity: .5; font-size: 11px; padding: 0 3px; }
+  #tree .eye:hover { opacity: 1; }
+  #tree .lock { opacity: .35; font-size: 11px; padding: 0 3px; }
+  #tree .lock.on { opacity: 1; color: var(--acc); }
+  #tree .lock:hover { opacity: 1; }
+  #tree .item.lockd .grow { font-style: italic; }
+  .pill.fld { background: #1b3157; border-color: var(--blue); color: #a9c8ff; }
+  #props .phead { display: flex; gap: 6px; align-items: center; padding: 8px; border-bottom: 1px solid var(--line); }
+  #props .phead .ic { color: var(--acc); font-size: 16px; }
+  .pgroup { padding: 8px 8px 3px; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--acc); opacity: .8; }
+  #propsP { display: flex; flex-direction: column; }
+  .ptools { padding: 4px 6px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
+  .ptools[hidden] { display: none; }
+  .ptabs { display: flex; gap: 2px; }
+  .ptabs button { flex: 1; padding: 3px 4px; font-size: 12px; position: relative; }
+  .ptabs button.on { background: var(--acc); color: #1a1100; border-color: var(--acc); }
+  .ptabs button.dot::after { content: '•'; position: absolute; right: 4px; top: -1px; color: var(--blue); font-size: 14px; }
+  #pall.on { border-color: var(--acc); color: var(--acc); }
+  button.pgroup { display: flex; width: 100%; gap: 4px; align-items: center; background: none; border: none; border-top: 1px solid var(--line); border-radius: 0; text-align: left; cursor: pointer; }
+  button.pgroup:hover { opacity: 1; }
+  .pgroup .car { display: inline-block; transition: transform .12s; }
+  .pgroup .cnt { margin-left: auto; text-transform: none; letter-spacing: 0; color: var(--dim); font-size: 10px; }
+  .pgsec.fold .pgbody { display: none; }
+  .pgsec.fold .car { transform: rotate(-90deg); }
+  .searching .pgsec.fold .pgbody { display: block; }
+  .pgsec[hidden], #props [data-q][hidden] { display: none; }
+  .pmulti { padding: 2px 8px; }
+  .pmlbl { font-size: 11px; color: var(--dim); }
+  .pmgrid { display: grid; gap: 4px; align-items: end; }
+  .pmgrid .cell { min-width: 0; display: flex; flex-direction: column; gap: 1px; border-left: 2px solid transparent; padding-left: 3px; }
+  .pmgrid .cell > input, .pmgrid .cell > select, .pmgrid .cell > .row { width: 100%; min-width: 0; }
+  .pmgrid .cell .row input:not([type=color]) { min-width: 0; }
+  .cell .ch { display: flex; align-items: center; gap: 1px; min-width: 0; }
+  .cell .ch label { font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cell .ch label[data-scrub]:not([data-scrub=""]) { cursor: ew-resize; }
+  .cell .kbtn, .cell .fbtn { padding: 0 3px; min-width: 0; height: 16px; line-height: 14px; font-size: 9px; }
+  .ratio { align-self: end; height: 24px; }
+  .ratio.on { color: var(--acc); border-color: var(--acc); }
+  .pr, .pmgrid .cell { border-left: 2px solid transparent; }
+  #props .mod > label, #props .mod > .ch label { color: var(--text); font-weight: 600; }
+  #props .mod > label::after, #props .mod > .ch label::after { content: ' •'; color: var(--acc); }
+  #props .anim { border-left-color: var(--acc); }
+  #props .fld { border-left-color: var(--blue); }
+  #props .fld > label, #props .fld > .ch label { color: #a9c8ff; }
+  #props .inert { opacity: .55; }
+  #props .kbtn:not(.has):not(.on), #props .fbtn:not(.on) { opacity: .35; }
+  #props .pr:hover .kbtn, #props .pr:hover .fbtn, #props .cell:hover .kbtn, #props .cell:hover .fbtn { opacity: 1; }
+  .anchor-row, .seg-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .anchor-row { flex-wrap: nowrap; }
+  .anchor-row .cell, .seg-row .cell { display: inline-flex; align-items: center; gap: 1px; }
+  .agrid { display: grid; grid-template-columns: repeat(3, 12px); gap: 2px; }
+  .agrid button { width: 12px; height: 12px; min-width: 0; padding: 0; border-radius: 2px; }
+  .agrid button.on { background: var(--acc); border-color: var(--acc); }
+  .segb { display: inline-flex; }
+  .segb button { border-radius: 0; padding: 0 7px; height: 22px; min-width: 24px; font-size: 13px; line-height: 20px; }
+  .segb button:first-child { border-radius: 4px 0 0 4px; } .segb button:last-child { border-radius: 0 4px 4px 0; }
+  .segb button.on { background: var(--acc); color: #1a1100; border-color: var(--acc); }
+  .chk { font-size: 12px; display: inline-flex; align-items: center; gap: 3px; }
+  .pmore { padding: 6px 8px; } .pmore button { width: 100%; font-size: 12px; }
+  .pnote { padding: 2px 10px; font-size: 12px; line-height: 1.5; }
+  .pnone { padding: 10px; font-size: 12px; }
+  .plist { padding: 2px 8px; }
+  .pr { display: grid; grid-template-columns: 100px 1fr 24px 24px; gap: 4px; align-items: center; padding: 2px 8px; }
+  .pr label { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pr label[data-scrub]:not([data-scrub=""]) { cursor: ew-resize; }
+  .pr .pin input:not([type=checkbox]):not([type=color]), .pr .pin select, .pr .pin textarea { width: 100%; }
+  .kbtn { color: #555b66; font-size: 11px; }
+  .kbtn.has { color: var(--acc); }
+  .kbtn.on { background: var(--acc); color: #1a1100; border-color: var(--acc); }
+  .fbtn { color: #555b66; font-size: 11px; }
+  .fbtn.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .sp { display: grid; grid-template-columns: 110px 1fr; gap: 6px; align-items: center; padding: 3px 10px; }
+  .sp input, .sp select { width: 100%; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { background: #3a1716; border: 1px solid var(--red); color: #ffb0ad; border-radius: 10px; padding: 0 4px 0 8px; font-size: 12px; display: inline-flex; gap: 4px; align-items: center; }
+  .chip button { padding: 0 4px; border: none; background: none; color: inherit; }
+  .mo { display: grid; grid-template-columns: 62px 1fr 1fr; gap: 4px; align-items: center; padding: 2px 8px; }
+  .mo .sub { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; grid-column: 2 / 4; }
+  .mo .sub label { font-size: 10px; color: var(--dim); display: flex; flex-direction: column; gap: 1px; }
+  .mo .sub input, .mo .sub select { width: 100%; min-width: 0; }
+  .mohint { padding: 2px 10px 4px; font-size: 11px; color: var(--warn, #e8b04b); }
+  .help { padding: 10px; color: var(--dim); font-size: 12px; line-height: 1.5; border-top: 1px solid var(--line); margin-top: 8px; }
+  .ftable { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .ftable td { padding: 3px 6px; border-bottom: 1px solid #23262c; }
+  .ftable input { width: 100%; }
+  .rules { display: grid; grid-template-columns: 150px 1fr; gap: 4px 8px; padding: 6px 4px 8px; background: #17191d; border-radius: 4px; align-items: center; }
+  .rules .rchks { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .rules .rchk { display: flex; align-items: center; gap: 4px; color: var(--text); }
+  .rules input[type=checkbox] { width: auto; }
+  /* timeline */
+  #tl { position: relative; overflow: auto; flex: 1; user-select: none; }
+  .tl-in { position: relative; min-height: 100%; }
+  .tl-row { display: flex; height: 22px; border-bottom: 1px solid #22252a; }
+  .tl-row.sel { background: #1c2533; }
+  .tl-row.ruler { position: sticky; top: 0; z-index: 3; background: #1d2024; height: 24px; border-bottom: 1px solid var(--line); }
+  .tl-lbl { position: sticky; left: 0; z-index: 2; width: 190px; min-width: 190px; padding: 0 8px; display: flex; align-items: center; gap: 4px; background: var(--panel); border-right: 1px solid var(--line); font-size: 12px; overflow: hidden; white-space: nowrap; cursor: pointer; }
+  .tl-row.sel .tl-lbl { background: #1c2533; }
+  .tl-row.ruler .tl-lbl { background: #1d2024; cursor: default; z-index: 4; }
+  .tl-area { position: relative; flex: none; cursor: text; }
+  .tick { position: absolute; top: 14px; bottom: 0; border-left: 1px solid #3a3f48; font-size: 10px; color: var(--dim); }
+  .tick.maj { top: 4px; border-color: #59606d; padding-left: 3px; }
+  .mkm { position: absolute; top: 12px; transform: translateX(-4px); color: #5fd4a0; font-size: 9px; cursor: pointer; line-height: 1; white-space: nowrap; z-index: 2; }
+  .mkm span { font-size: 10px; margin-left: 2px; color: #9bdcc0; }
+  #band { position: absolute; border: 1px dashed var(--acc); background: rgba(240,160,32,.12); z-index: 6; pointer-events: none; }
+  #tree .item.dropinto { outline: 2px solid var(--acc); outline-offset: -2px; }
+  #tree .item.dropafter { box-shadow: 0 2px 0 var(--acc); }
+  .stopm { position: absolute; top: 2px; transform: translateX(-6px); color: var(--red); font-size: 12px; cursor: ew-resize; line-height: 1; }
+  .endm { position: absolute; top: 0; bottom: 0; border-left: 2px solid #59606d; }
+  .stopline { position: absolute; top: 24px; bottom: 0; border-left: 1px dashed rgba(229,50,45,.55); pointer-events: none; z-index: 1; }
+  .endline { position: absolute; top: 24px; bottom: 0; border-left: 1px solid #59606d; pointer-events: none; }
+  #playhead { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--acc); pointer-events: none; z-index: 5; }
+  .kf { position: absolute; top: 5px; width: 11px; height: 11px; margin-left: -5px; background: #c9ced8; transform: rotate(45deg); cursor: ew-resize; border: 1px solid #000; z-index: 2; }
+  .kf.sel { background: var(--acc); }
+  .seg { position: absolute; top: 9px; height: 3px; background: #4b5a74; border-radius: 2px; }
+  .seg.hold { background: #2f343c; }
+  .tl-row.seq { height: 26px; }
+  .mb { position: absolute; top: 3px; height: 12px; border-radius: 3px; background: #2f6fd6; color: #fff; font-size: 9px; line-height: 12px; padding: 0 4px; overflow: hidden; white-space: nowrap; cursor: grab; z-index: 2; box-sizing: border-box; min-width: 4px; }
+  .mb.out { background: #b4532a; }
+  .mb.tin, .mb.tout { top: 16px; height: 7px; font-size: 0; background: #6d8fd8; }
+  .mb.tout { background: #d08a5f; }
+  .mb.loop { top: 3px; height: 20px; background: repeating-linear-gradient(135deg, rgba(232,176,75,.22) 0 6px, transparent 6px 12px); color: #e8b04b; cursor: default; z-index: 1; line-height: 20px; }
+  .mb .mbh { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,.35); }
+  .mb.sel { outline: 1px solid #fff; }
+  #seqMode.on { background: var(--acc); color: #000; }
+  /* narzędzia trybu sekwencji – pasek kontekstowy pod paskiem osi czasu */
+  #seqTools { display: none; gap: 4px; align-items: center; padding: 3px 8px; background: #1d2024; border-bottom: 1px solid var(--line); flex: none; }
+  #timeP header > input, #timeP header > button { flex: none; }
+  #timeP > header { flex-wrap: wrap; row-gap: 3px; gap: 4px; }
+  #timeP > header label { font-size: 12px; }
+  body.seq #seqTools { display: flex; }
+  body.seq #keyed, body.seq #keyCopy, body.seq #keyPaste { display: none; }
+  /* pasek zaznaczonego klucza – stały (bez przeskakiwania osi czasu); w trybie sekwencji w tym miejscu są narzędzia sekwencji */
+  #keyed, #seqTools { min-height: 30px; }
+  #keyed { display: flex; gap: 6px; align-items: center; padding: 3px 8px; background: #1d2024; border-bottom: 1px solid var(--line); flex: none; }
+  #keyed input { width: 72px; }
+  #keyed select { width: 90px; }
+  #tc { width: 76px; font-family: var(--mono); text-align: right; }
+  .sep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
+  .dirty::after { content: ' ●'; color: var(--acc); }
+  .empty { padding: 30px; text-align: center; color: var(--dim); }
+  .prtk { padding: 4px 8px; }
+  .prtk .prtk-h { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 3px; }
+  .prtk .tkx-row { grid-template-columns: 18px 18px minmax(52px, 80px) 1fr auto auto auto auto; gap: 3px; }
+  .prtk .tkx-txt { font-size: 13px; padding: 2px 4px; }
+</style>
+</head>
+<body>
+<div class="topbar tb">
+  <span class="brand">Viz<b>RS</b> Artist</span>
+  <nav><a href="/artist" class="on">Artist</a><a href="/trio">Trio</a><a href="/output?checker=1&status=1" target="_blank">Wyjście ↗</a></nav>
+  <span class="sep navsep"></span>
+  <label>Scena</label>
+  <select id="sceneSel" style="min-width:180px"></select>
+  <button id="bNew" title="Nowa scena">＋ Nowa</button>
+  <button id="bDup" title="Duplikuj scenę">⧉</button>
+  <button id="bDel" class="icon danger" title="Usuń scenę"><i class="ico del"></i></button>
+  <button id="bExp" title="Eksport sceny do pliku JSON">⇩ Eksport</button>
+  <button id="bPack" title="Paczka belek .cgpack: wybrane sceny + strony + grafiki + czcionki w jednym pliku">⇩ Paczka</button>
+  <button id="bImp" title="Import sceny (.json) albo paczki belek (.cgpack)">⇧ Import</button>
+    <button id="bImpBtb" title="Importuj element zewnętrzny (.json eksport v3 lub paczka elementu .cgpack) jako scenę + stronę">⇧ Element</button>
+  <span class="grow"></span>
+  <button id="bUndo" title="Cofnij (Ctrl+Z)">↶</button>
+  <button id="bRedo" title="Ponów (Ctrl+Y)">↷</button>
+  <button id="bSafe" title="Pokaż obszary bezpieczne">▢ Safe</button>
+  <button id="bSave" class="acc" title="Zapisz (Ctrl+S)">Zapisz</button>
+</div>
+
+<div id="main">
+  <section class="panel" id="treeP" data-hint="Drzewo sceny: niżej na liście = wyżej na ekranie · przeciągnij, aby zmienić kolejność lub rodzica · Ctrl+D duplikuj · Del usuń">
+    <header>
+      <h3>Drzewo sceny</h3>
+      <select id="addSel" title="Dodaj kontener"><option value="">＋ Dodaj…</option></select>
+    </header>
+    <div class="row tb" style="padding:3px 4px;gap:2px;border-bottom:1px solid var(--line)">
+      <button class="icon" id="tUp" title="W górę (pod spód)">↑</button>
+      <button class="icon" id="tDown" title="W dół (na wierzch)">↓</button>
+      <button class="icon" id="tOut" title="Wyjmij z grupy">⇤</button>
+      <button class="icon" id="tIn" title="Włóż do poprzedniej grupy">⇥</button>
+      <button class="icon" id="tDupN" title="Duplikuj (Ctrl+D)">⧉</button>
+      <button class="icon" id="tFit" title="Dopasuj wymiar grupy do zawartości">⤢</button>
+      <span class="grow"></span>
+      <button class="icon danger" id="tDel" title="Usuń (Del)"><i class="ico del"></i></button>
+    </div>
+    <div class="scroll list" id="tree"></div>
+  </section>
+  <div class="gutter" id="gL" data-k="l" title="Przeciągnij, aby zmienić szerokość (dwuklik = domyślna)"></div>
+
+  <section class="panel" id="canvasP" data-hint="Kanwa: przeciągnij element · róg = rozmiar · strzałki = 1 px (Shift = 10 px) · klik w puste miejsce = ustawienia sceny (przeciągnięcie = przesuń całą scenę) · kółko = zoom · środkowy przycisk = przesuwanie widoku · Shift+1 / 2 / 3 = dopasuj / 100% / zaznaczony">
+    <div id="box" class="checker">
+      <div id="stage"></div>
+      <div id="safe"><div style="inset:5%"></div><div style="inset:10%"></div></div>
+      <div id="sel"><span class="lbl"></span><div class="h"></div></div>
+      <div id="info"></div>
+      <div id="vTools"><span id="vZoom" title="Powiększenie podglądu">100%</span>
+        <button id="vOut" class="icon" title="Pomniejsz podgląd">−</button><button id="vIn" class="icon" title="Powiększ podgląd">＋</button>
+        <button id="vFit" class="icon" title="Dopasuj całą scenę (Shift+1)">⤢</button><button id="v100" class="icon" title="Skala 100% (Shift+2)">1:1</button><button id="vSel" class="icon" title="Kadr na zaznaczony element (Shift+3)">⌖</button></div>
+    </div>
+  </section>
+
+  <div class="gutter" id="gR" data-k="r" title="Przeciągnij, aby zmienić szerokość (dwuklik = domyślna)"></div>
+  <section class="panel" id="propsP" data-hint="Właściwości: przeciągnij nazwę w poziomie = zmiana wartości · ◆ = klucz animacji w bieżącym czasie · łańcuch = pole kontrolne w Trio">
+    <header><h3 id="propsTitle">Właściwości</h3></header>
+    <div class="ptools" id="ptools" hidden>
+      <div class="ptabs"><button data-ptab="wl" title="Wygląd, położenie, tekst">Właściwości</button><button data-ptab="ruch" title="Presety wejścia/wyjścia, efekty tekstu, pętle, presety kluczy">Ruch</button><button data-ptab="dane" title="Pola kontrolne i wariant widoczności">Dane</button></div>
+      <div class="row"><input id="psearch" class="grow" type="search" placeholder="Szukaj właściwości… (/)"><button id="pall" title="Podstawowe: rzadkie właściwości ukryte, o ile nie są użyte · Wszystko: pełna lista">Podstawowe</button></div>
+    </div>
+    <div class="scroll" id="props"></div>
+  </section>
+
+  <div class="gutter" id="gT" data-k="t" title="Przeciągnij, aby zmienić wysokość osi czasu (dwuklik = domyślna)"></div>
+  <section class="panel" id="timeP" data-hint="Oś czasu: dwuklik na ścieżce = nowy klucz · ramka = zaznaczenie kluczy · M = marker · Spacja = odtwórz · Home/End = początek/koniec">
+    <header class="tb">
+      <input id="tc" title="Czas (s)">
+      <button class="icon" id="pHome" title="Na początek (Home)">⏮</button>
+      <button id="pTake" title="Odtwórz IN: 0 → pierwszy stop">▶ Take</button>
+      <button id="pCont" title="Do następnego stopu">⏭ Continue</button>
+      <button id="pOut" title="Od ostatniego stopu do końca">⏏ Out</button>
+      <button class="icon" id="pPlay" title="Odtwórz całość (Spacja)">▶</button>
+      <button class="icon" id="pStop" title="Pauza">⏸</button>
+      <span class="sep"></span>
+      <button id="addStop" title="Dodaj stop point w bieżącym czasie">＋ Stop</button>
+      <label title="Długość sceny (s)">Dł.</label><input id="dur" type="number" step="0.1" min="0.1" style="width:60px" title="Długość sceny (s)">
+      <span class="grow"></span>
+      <button id="seqMode" title="Prosty tryb sekwencji: paski wejścia, efektu tekstu, pętli i wyjścia każdego elementu – przeciągnij, aby zmienić opóźnienie, krawędź – czas">≣ Sekwencja</button>
+      <button id="markAdd" class="icon" title="Dodaj marker w bieżącym czasie (M)">▾</button>
+      <button id="keyCopy" class="icon" title="Kopiuj zaznaczone klucze (Ctrl+C na osi czasu)">⧉</button>
+      <button id="keyPaste" class="icon" title="Wklej klucze w bieżącym czasie na zaznaczony węzeł (Ctrl+V)">⎘</button>
+      <input id="zoom" type="range" min="40" max="1200" value="320" style="width:80px" title="Powiększenie osi czasu"><button id="zoomFit" class="icon" title="Dopasuj oś czasu do szerokości">↔</button>
+    </header>
+    <div id="seqTools" class="tb"><span class="dim" style="font-size:11px">SEKWENCJA</span>
+      <label title="Odstęp kaskady">krok</label><input id="seqStep" type="number" step="0.05" min="0" value="0.1" style="width:52px">
+      <button data-seq="stagger" title="Kaskada: wejścia elementów jedno po drugim co „krok” (wyjścia w odwrotnej kolejności). Dotyczy dzieci zaznaczonej grupy, rodzeństwa zaznaczonego elementu albo całej sceny">⇶ Kaskada</button>
+      <button data-seq="chain" title="Po kolei: każdy element wchodzi po zakończeniu wejścia poprzedniego (powiązanie „po węźle”)">↳ Po kolei</button>
+      <button data-seq="copy" title="Kopiuj ruch zaznaczonego elementu na jego rodzeństwo">⧉ Kopiuj ruch</button>
+      <button data-seq="keys" title="Zamień presety wejścia/wyjścia zaznaczonego elementu na klucze (pętle i efekty tekstu zostają)">◆ Na klucze</button>
+      <button data-seq="fromkeys" title="Zamień klucze wejścia/wyjścia zaznaczonego elementu (położenie, krycie, skala, skos, rozmycie, przycięcie) na presety ruchu – odwrotność „Na klucze”">◇ Z kluczy</button>
+      <button data-seq="clear" class="danger" title="Usuń ruch (presety) z zaznaczonego elementu albo całej grupy">✕ Usuń ruch</button>
+      <button data-seq="fit" title="Stop point po wejściu, długość = stop + wyjście">⟲ Dopasuj</button>
+    </div>
+    <div id="keyed" class="tb" title="Zaznaczony klucz animacji"></div>
+    <div id="tl"></div>
+  </section>
+</div>
+<footer class="statusbar" id="statusbar"><span class="hint" id="hint"></span><span class="grow"></span><span id="conn" class="pill" title="Połączenie z serwerem VizRS">łączenie…</span></footer>
+<datalist id="fontlist"></datalist>
+<datalist id="nodelist"></datalist>
+<datalist id="layerlist"><option>back</option><option>main</option><option>front</option></datalist>
+<input type="file" id="fileIn" hidden>
+
+<script type="module">
+import * as BTB from '/btb-io.js';
+import * as PACK from '/cgpack.js';
+import * as MO from '/motion.js';
+import { PROPS, TYPES, FONTS, OFFLINE_FONTS, EASES, ScenePlayer, propAt, trackValue, walk, listFields, variantFields, uid, fitStage, parseColor, connectEvents } from '/renderer.js';
+import { mountTickerEditor } from '/ticker-items.js';
+import { nativeBridge } from '/native.js';
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+async function api(method, url, body) {
+  const r = await fetch(url, { method, headers: body !== undefined ? { 'Content-Type': 'application/json' } : {}, body: body !== undefined ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+let toastT;
+function toast(msg, err) {
+  let el = $('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; document.body.appendChild(el); }
+  el.textContent = msg; el.classList.toggle('err', !!err); el.style.opacity = 1;
+  clearTimeout(toastT); toastT = setTimeout(() => (el.style.opacity = 0), 2600);
+}
+
+// ------------------------------------------------------------ stan
+let scenes = [], scene = null, selId = null, t = 0, player = null, dirty = false;
+let undo = [], redo = [], selKey = null, selKeys = [], clipKeys = null, pps = 320, assets = [], scale = 1, lastArea = 'canvas', pendingCP = false;
+const LBL = 190;
+const stage = $('#stage'), box = $('#box');
+
+$('#fontlist').innerHTML = FONTS.map((f) => `<option>${f}</option>`).join('');
+$('#addSel').innerHTML += Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v.icon} ${v.label}</option>`).join('');
+
+function setDirty(d) { dirty = d; $('#bSave').classList.toggle('dirty', d); native.sync(); }
+function checkpoint() {
+  undo.push(JSON.stringify(scene)); if (undo.length > 150) undo.shift();
+  redo = []; setDirty(true);
+}
+function restore(json) {
+  scene = JSON.parse(json);
+  if (selId && !locate(selId)) selId = null;
+  selKey = null; selKeys = [];
+  player.setScene(scene); player.seek(t);
+  renderAll(); setDirty(true);
+}
+function doUndo() { if (!undo.length) return; redo.push(JSON.stringify(scene)); restore(undo.pop()); }
+function doRedo() { if (!redo.length) return; undo.push(JSON.stringify(scene)); restore(redo.pop()); }
+
+function locate(id, nodes = scene.nodes, parent = null) {
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (n.id === id) return { node: n, list: nodes, index: i, parent };
+    if (n.children) { const r = locate(id, n.children, n); if (r) return r; }
+  }
+  return null;
+}
+const selNode = () => (selId ? locate(selId)?.node : null);
+/** Zablokowany węzeł (sam albo przez zablokowanego przodka) – nie da się go chwycić na kanwie ani przesunąć. */
+function isLocked(id) { let cur = locate(id); while (cur) { if (cur.node.locked) return true; cur = cur.parent ? locate(cur.parent.id) : null; } return false; }
+/** Położenie całej sceny (scene.x / scene.y): przesuwa wszystko naraz, bez zmiany kluczy animacji i props węzłów. */
+function setSceneOffset(x, y) {
+  x = Math.max(-16384, Math.min(16384, Math.round(x) || 0)); y = Math.max(-16384, Math.min(16384, Math.round(y) || 0));
+  if (x) scene.x = x; else delete scene.x;
+  if (y) scene.y = y; else delete scene.y;
+  player.placeRoot();
+  const ix = document.querySelector('[data-sp="x"]'), iy = document.querySelector('[data-sp="y"]');
+  if (ix && document.activeElement !== ix) ix.value = x; if (iy && document.activeElement !== iy) iy.value = y;
+  const pl = document.querySelector('#tree .item[data-id=""] .off'); if (pl) pl.textContent = x || y ? `${x}, ${y}` : '';
+}
+/** Wymiar grupy = zasięg zawartości (największy element razem z przesunięciem), jak obrys w Viz Artist. */
+function fitGroup(g) {
+  if (!g || g.type !== 'group' || !g.children?.length) return false;
+  let w = 0, h = 0;
+  for (const c of g.children) { const p = c.props || {}; w = Math.max(w, (+p.x || 0) + (+p.w || 0)); h = Math.max(h, (+p.y || 0) + (+p.h || 0)); }
+  if (!(w > 0 && h > 0)) return false;
+  g.props ||= {}; g.props.w = Math.round(w); g.props.h = Math.round(h); return true;
+}
+
+// ------------------------------------------------------------ ładowanie
+async function loadAssets() { assets = await api('GET', '/api/assets').catch(() => []); updateFontList(); }
+function updateFontList() {
+  const af = assets.filter((a) => /\.(ttf|otf|woff2?)$/i.test(a.name)).map((a) => a.name);
+  $('#fontlist').innerHTML = [...FONTS, ...af].map((f) => `<option>${esc(f)}</option>`).join('');
+}
+async function load() {
+  const show = await api('GET', '/api/show');
+  scenes = show.scenes;
+  await loadAssets();
+  const want = new URLSearchParams(location.search).get('scene');
+  const s = scenes.find((s) => s.id === want) || scenes[0];
+  if (s) openScene(s); else newScene('Nowa scena');
+}
+function renderSceneSel() {
+  $('#sceneSel').innerHTML = scenes.map((s) => `<option value="${s.id}" ${scene && s.id === scene.id ? 'selected' : ''}>${esc(s.name)}  ·  ${esc(s.layer || 'main')}</option>`).join('');
+}
+let who = '';
+try { who = localStorage.getItem('vizrs.who') || ''; } catch { /* brak localStorage */ }
+if (!who) { who = 'Operator ' + Math.floor(10 + Math.random() * 90); try { localStorage.setItem('vizrs.who', who); } catch { /* ignoruj */ } }
+let lockedScene = null, lockedByOther = null;
+async function lockScene(id) {
+  if (lockedScene && lockedScene !== id) fetch(`/api/unlock/scenes/${encodeURIComponent(lockedScene)}?who=${encodeURIComponent(who)}`, { method: 'POST' }).catch(() => {});
+  lockedScene = id; lockedByOther = null;
+  try { await api('POST', `/api/lock/scenes/${encodeURIComponent(id)}?who=${encodeURIComponent(who)}`); }
+  catch (e) { if (/^konflikt/.test(e.message)) { lockedByOther = e.message.replace(/^konflikt: edytuje /, '').replace(/ \(.*$/, ''); toast(`Scena jest edytowana przez ${lockedByOther} – zapis może zostać odrzucony`, true); } }
+}
+setInterval(() => { if (lockedScene && !lockedByOther) api('POST', `/api/lock/scenes/${encodeURIComponent(lockedScene)}?who=${encodeURIComponent(who)}`).catch(() => {}); }, 15000);
+addEventListener('pagehide', () => { if (lockedScene && !lockedByOther) navigator.sendBeacon(`/api/unlock/scenes/${encodeURIComponent(lockedScene)}?who=${encodeURIComponent(who)}`); });
+function openScene(s) {
+  lockScene(s.id);
+  scene = structuredClone(s);
+  scene.nodes ||= []; scene.stops ||= []; scene.width ||= 1920; scene.height ||= 1080;
+  if (!(scene.duration > 0)) scene.duration = 1;
+  selId = null; selKey = null; t = 0; undo = []; redo = [];
+  setDirty(false);
+  player?.destroy();
+  player = new ScenePlayer(stage, scene, {}, { editor: true });
+  history.replaceState(null, '', '?scene=' + encodeURIComponent(s.id));
+  resetView(); renderAll();
+  // jak w Viz: edycja zaczyna się w pierwszym stop poincie (grafika widoczna)
+  setTime([...scene.stops].sort((a, b) => a - b)[0] ?? 0);
+}
+async function confirmLeave() {
+  if (!dirty) return true;
+  if (confirm('Scena ma niezapisane zmiany. Zapisać przed przejściem?')) { await save(); return true; }
+  return confirm('Porzucić zmiany?');
+}
+// ostrzeżenie: zapis szablonu, który właśnie jest na antenie (brak odpowiedzi serwera nie blokuje zapisu)
+async function confirmOnAir() {
+  const st = await api('GET', '/api/state').catch(() => null);
+  const air = st?.layers?.filter((l) => l.page?.scene === scene.id).map((l) => l.layer) || [];
+  return !air.length || confirm(`Scena „${scene.name}” jest teraz na antenie (warstwa: ${air.join(', ')}).\n\nZapisać zmiany szablonu?`);
+}
+async function save(force) {
+  try {
+    if (force !== true && !(await confirmOnAir())) return false;
+    const body = force === true ? (({ rev, ...r }) => r)(scene) : scene; // bez rev = świadome nadpisanie
+    const saved = await api('PUT', '/api/scenes/' + encodeURIComponent(scene.id), body);
+    scene.rev = saved.rev;
+    const i = scenes.findIndex((s) => s.id === saved.id);
+    if (i >= 0) scenes[i] = saved; else scenes.push(saved);
+    setDirty(false); renderSceneSel(); toast('Zapisano scenę „' + scene.name + '”');
+    native.clearDraft(); native.sync();
+    return true;
+  } catch (e) {
+    if (/^konflikt/.test(e.message)) {
+      if (confirm('Ta scena została zmieniona przez kogoś innego (lub w innym oknie).\n\nOK = nadpisz moją wersją, Anuluj = nie zapisuj.')) return save(true);
+      toast('Konflikt zapisu – scena nie zapisana', true);
+    } else toast('Błąd zapisu: ' + e.message, true);
+    return false;
+  }
+}
+async function newScene(name, base) {
+  const s = base || { name, layer: 'main', width: 1920, height: 1080, duration: 1, stops: [], nodes: [] };
+  s.id = '';
+  try {
+    const saved = await api('POST', '/api/scenes', s);
+    scenes.push(saved); renderSceneSel(); openScene(saved);
+  } catch (e) { toast(e.message, true); }
+}
+
+// ------------------------------------------------------------ renderowanie UI
+function renderAll() { renderSceneSel(); renderTree(); renderProps(); renderTimeline(); }
+
+function renderTree() {
+  let h = `<div class="item ${selId ? '' : 'sel'}" data-id=""><span class="ic"><i class="ico scene"></i></span><b class="grow">${esc(scene.name)}</b><span class="dim off" title="położenie sceny (X, Y)">${+scene.x || +scene.y ? `${+scene.x || 0}, ${+scene.y || 0}` : ''}</span><span class="pill">${esc(scene.layer || 'main')}</span></div>`;
+  const rec = (nodes, d) => {
+    for (const n of nodes) {
+      const fl = Object.values(n.fields || {}).filter(Boolean);
+      const lk = isLocked(n.id);
+      h += `<div class="item ${n.id === selId ? 'sel' : ''} ${n.hidden ? 'hid' : ''} ${lk ? 'lockd' : ''}" data-id="${n.id}" draggable="${!lk}" style="padding-left:${10 + d * 16}px">
+        <span class="ic">${TYPES[n.type]?.icon || '?'}</span><span class="grow">${esc(n.name || n.type)}</span>
+        ${fl.map((f) => `<span class="pill fld" title="pole kontrolne">${esc(f)}</span>`).join('')}
+        ${Object.values(n.anim || {}).some((a) => a?.length) ? '<span class="dim" title="animowany">◆</span>' : ''}
+        <span class="lock ${n.locked ? 'on' : ''}" data-lock="${n.id}" title="${n.locked ? 'odblokuj' : lk ? 'zablokowany przez grupę' : 'zablokuj na kanwie'}">${n.locked ? '🔒' : lk ? '·' : '🔓'}</span>
+        <span class="eye" data-eye="${n.id}" title="pokaż/ukryj">${n.hidden ? '○' : '◉'}</span></div>`;
+      if (n.children) rec(n.children, d + 1);
+    }
+  };
+  rec(scene.nodes, 0);
+  if (!scene.nodes.length) h += `<div class="empty">Pusta scena.<br>Dodaj kontener: „＋ Dodaj…”</div>`;
+  $('#tree').innerHTML = h;
+  const names = []; walk(scene.nodes, (n) => { if (n.name) names.push(n.name); });
+  $('#nodelist').innerHTML = names.map((n) => `<option>${esc(n)}</option>`).join('');
+}
+
+function inputFor(p, d) {
+  switch (d.t) {
+    case 'num': return `<input type="number" data-p="${p}" step="${d.step || 1}" ${d.min != null ? `min="${d.min}"` : ''} ${d.max != null ? `max="${d.max}"` : ''}>`;
+    case 'color': return `<div class="row"><input type="color" data-pc="${p}"><input data-p="${p}" class="grow mono" placeholder="#rrggbbaa"></div>`;
+    case 'text': return `<textarea data-p="${p}" rows="2"></textarea>`;
+    case 'string': return `<input data-p="${p}">`;
+    case 'font': return `<div class="row"><input data-p="${p}" class="grow" list="fontlist"><button class="icon" data-upload="${p}" data-accept=".ttf,.otf,.woff,.woff2" title="Wgraj własną czcionkę (TTF/OTF/WOFF/WOFF2) i użyj jej w tym elemencie; trafi do paczki sceny">⤒</button></div>`;
+    case 'node': return `<input data-p="${p}" list="nodelist" placeholder="nazwa węzła (kilka: a,b)">`;
+    case 'select': return `<select data-p="${p}">${d.opts.map((o) => `<option>${o}</option>`).join('')}</select>`;
+    case 'bool': return `<input type="checkbox" data-p="${p}">`;
+    case 'image': return `<div class="row"><select data-p="${p}" class="grow"><option value="">— brak —</option>${assets.filter((a) => !/\.(ttf|otf|woff2?)$/i.test(a.name)).map((a) => `<option>${esc(a.name)}</option>`).join('')}</select><button class="icon" data-upload="${p}" title="Wgraj plik (PNG/JPG/SVG/WEBM/MP4)">⤒</button></div>`;
+  }
+  return '';
+}
+
+// ------------------------------------------------------------ panel Właściwości (plan PLAN-panel-wlasciwosci.md)
+/** Stan panelu (per przeglądarka): zwinięte grupy, tryb „Wszystko”, zakładka, blokada proporcji. */
+const pui = (() => { try { return { fold: {}, all: false, tab: 'wl', ratio: false, ...JSON.parse(localStorage.getItem('vizrs.propsUI')) }; } catch { return { fold: {}, all: false, tab: 'wl', ratio: false }; } })();
+const savePui = () => { try { localStorage.setItem('vizrs.propsUI', JSON.stringify(pui)); } catch { /* ignoruj */ } };
+/** Grupy domyślnie zwinięte (rzadko używane). */
+const FOLD0 = new Set(['Maska / efekty', 'Autofollow']);
+const folded = (g) => pui.fold[g] ?? FOLD0.has(g);
+/** Właściwości zaawansowane: w trybie „Podstawowe” widoczne tylko, gdy są użyte (wartość, klucz, pole kontrolne). */
+const ADV = new Set(['skewX', 'blink', 'blur', 'clipL', 'clipR', 'clipT', 'clipB', 'followMin', 'fillSqueeze', 'squeezeMin', 'lineBreak', 'hlColor', 'hlText',
+  'cycle', 'gleam', 'labelSize', 'labelWeight', 'sepColor', 'sepStyle', 'crawlFrom', 'tz', 'shadow']);
+/** Widoczność warunkowa: właściwość nie działa przy obecnych ustawieniach węzła (nadal widoczna, gdy jest użyta). */
+const VIDEO_RE = /\.(mp4|webm|mov|m4v)$/i;
+const WHEN = {
+  squeezeMin: (v) => /^squeeze/.test(v('textFit') || ''),
+  fillSqueeze: (v) => v('lineBreak') === 'fill',
+  gradAngle: (v) => !!v('color2'),
+  borderColor: (v) => +v('borderWidth') > 0,
+  followAxis: (v) => !!v('follow'), followPad: (v) => !!v('follow'), followMin: (v) => !!v('follow'),
+  seconds: (v) => ['up', 'down'].includes(v('mode')),
+  target: (v) => v('mode') === 'target',
+  loop: (v) => VIDEO_RE.test(v('src') || ''),
+};
+/** Właściwości, od których zależy widoczność innych – po zmianie panel układa się od nowa. */
+const WHEN_SRC = new Set(['textFit', 'lineBreak', 'color2', 'borderWidth', 'follow', 'mode', 'src', 'tickerMode']);
+/** Wiersze złożone: kilka właściwości w jednej linii (krótkie etykiety). */
+const COMBOS = [
+  { props: ['x', 'y'], short: ['X', 'Y'] },
+  { props: ['w', 'h'], short: ['szer.', 'wys.'], ratio: true },
+  { props: ['anchorX', 'anchorY'], kind: 'anchor', label: 'punkt' },
+  { props: ['rotation', 'scale', 'opacity'], short: ['obrót°', 'skala', 'krycie'] },
+  { props: ['clipL', 'clipR', 'clipT', 'clipB'], short: ['L', 'P', 'G', 'D'], label: 'maska %' },
+  { props: ['blur', 'skewX'], short: ['rozmycie', 'pochyl.°'] },
+  { props: ['followAxis', 'followPad', 'followMin'], short: ['oś', 'margines', 'min.'] },
+  { props: ['color', 'color2', 'gradAngle'], short: ['kolor', 'kolor 2', 'kąt'], kind: 'fill' },
+  { props: ['borderWidth', 'borderColor'], short: ['ramka px', 'kolor ramki'] },
+  { props: ['radius', 'shadow'], short: ['zaokr.', 'cień'] },
+  { props: ['font', 'weight'], short: ['font', 'grubość'], kind: 'wide1' },
+  { props: ['size', 'spacing', 'lineHeight'], short: ['rozmiar', 'odstęp', 'interl.'] },
+  { props: ['italic', 'upper'], kind: 'bools', label: 'styl' },
+  { props: ['align', 'valign'], kind: 'seg', label: 'wyrównanie' },
+  { props: ['hlColor', 'hlText'], short: ['tło [[ ]]', 'tekst [[ ]]'] },
+  { props: ['catBg', 'catFg'], short: ['tło kat.', 'tekst kat.'] },
+  { props: ['labelSize', 'labelWeight'], short: ['rozm. etyk.', 'grub. etyk.'] },
+];
+const SEG = { align: [['left', '⇤'], ['center', '↔'], ['right', '⇥']], valign: [['top', '⤒'], ['middle', '↕'], ['bottom', '⤓']] };
+const SEG_T = { left: 'do lewej', center: 'do środka', right: 'do prawej', top: 'do góry', middle: 'w pionie do środka', bottom: 'do dołu' };
+
+/** Czy właściwość jest „użyta”: wartość różna od domyślnej, klucze albo pole kontrolne. */
+function propState(n, p) {
+  const d = PROPS[p], has = n.props && p in n.props;
+  const mod = has && String(n.props[p] ?? '') !== String(d.d ?? '');
+  const anim = !!n.anim?.[p]?.length, fld = n.fields?.[p] || '';
+  return { mod, anim, fld, used: mod || anim || !!fld };
+}
+const btns = (p, d) => `${d.anim ? `<button class="icon kbtn" data-key="${p}" title="Klucz animacji w bieżącym czasie (dodaj/usuń)">◆</button>` : ''}<button class="icon fbtn" data-field="${p}" title="Pole kontrolne (Control Object) – edytowalne w Trio"><i class="ico link"></i></button>`;
+const scrubLbl = (p, d, txt) => `<label data-scrub="${d.t === 'num' ? p : ''}" title="${esc(d.label || p)} (${p})${d.t === 'num' ? ' – przeciągnij, aby zmienić' : ''} · prawy klik = wartość domyślna">${esc(txt)}</label>`;
+
+function renderProps() {
+  const el = $('#props');
+  const n = selNode();
+  $('#ptools').hidden = !n;
+  if (!n) { $('#propsTitle').textContent = 'Scena'; renderSceneProps(); return; }
+  const def = TYPES[n.type];
+  $('#propsTitle').textContent = 'Właściwości – ' + def.label;
+  for (const b of $$('[data-ptab]')) b.classList.toggle('on', b.dataset.ptab === pui.tab);
+  $('#pall').classList.toggle('on', pui.all);
+  $('#pall').textContent = pui.all ? 'Wszystko' : 'Podstawowe';
+  const ruchOn = !!n.motion || Object.values(n.anim || {}).some((a) => a?.length);
+  const daneOn = !!n.showIf || Object.keys(n.fields || {}).length > 0;
+  $('[data-ptab="ruch"]').classList.toggle('dot', ruchOn);
+  $('[data-ptab="dane"]').classList.toggle('dot', daneOn);
+
+  const val = (k) => propAt(n, k, t, null);
+  const tkMode = n.type === 'ticker' ? val('tickerMode') : null;
+  const TK_HIDE = { crawl: ['hold'], roll: ['speed', 'crawlFrom', 'sep', 'sepStyle', 'sepColor'], wipe: ['speed', 'crawlFrom', 'sep', 'sepStyle', 'sepColor'], whip: ['speed', 'crawlFrom', 'sep', 'sepStyle', 'sepColor'] };
+  const own = new Set(def.props);
+  const shown = (p) => {
+    if (!own.has(p) || (tkMode && TK_HIDE[tkMode]?.includes(p))) return false;
+    const s = propState(n, p);
+    if (s.used) return true;
+    if (WHEN[p] && !WHEN[p](val)) return false;
+    return pui.all || !ADV.has(p);
+  };
+  const inert = (p) => WHEN[p] && !WHEN[p](val);
+  const comboOf = new Map(); for (const c of COMBOS) for (const p of c.props) comboOf.set(p, c);
+
+  let wl = `<div class="phead"><span class="ic">${def.icon}</span><input id="pname" class="grow" value="${esc(n.name)}" title="Nazwa kontenera"></div>`;
+  const groups = []; // [nazwa, html]
+  const add = (g, html) => { let e = groups.find((x) => x[0] === g); if (!e) groups.push(e = [g, '']); e[1] += html; };
+  const done = new Set();
+  let hidden = 0;
+  for (const p of def.props) {
+    if (done.has(p)) continue;
+    const d = PROPS[p];
+    if (tkMode && p === 'text') {
+      done.add(p);
+      add(d.g, `<div class="prtk" data-prop="text"><div class="prtk-h"><span class="grow">wiadomości próbne <span class="dim">(w Trio: pole strony)</span></span><button class="icon fbtn" data-field="text" title="Pole kontrolne (Control Object) – edytowalne w Trio"><i class="ico link"></i></button></div><div data-tkhost></div><textarea data-p="text" hidden></textarea></div>`);
+      continue;
+    }
+    const c = comboOf.get(p);
+    const members = c ? c.props.filter((x) => own.has(x) && !done.has(x)) : [p];
+    for (const x of members) done.add(x);
+    const vis = members.filter(shown);
+    hidden += members.length - vis.length;
+    if (!vis.length) continue;
+    if (!c || vis.length === 1) { for (const x of vis) add(PROPS[x].g, rowOne(x)); }
+    else add(d.g, rowCombo(c, vis));
+    if (p === 'textFit' || (vis.includes('textFit'))) add(d.g, `<div class="sqinfo" id="sqInfo"></div>`);
+  }
+  for (const [g, body] of groups) {
+    wl += `<div class="pgsec ${folded(g) ? 'fold' : ''}" data-sec="${esc(g)}"><button class="pgroup" data-fold="${esc(g)}"><span class="car">▾</span> ${esc(g)}<span class="cnt"></span></button><div class="pgbody">${body}</div></div>`;
+  }
+  if (hidden && !pui.all) wl += `<div class="pmore"><button data-pall>＋ ${hidden} rzadziej używanych – pokaż wszystkie</button></div>`;
+  wl += `<div class="pnone dim" hidden>Brak właściwości pasujących do szukanej frazy.</div>`;
+
+  function rowOne(p) {
+    const d = PROPS[p];
+    if (comboOf.get(p)?.kind === 'seg' || comboOf.get(p)?.kind === 'anchor') return rowCombo(comboOf.get(p), [p]);
+    return `<div class="pr ${inert(p) ? 'inert' : ''}" data-prop="${p}" data-q="${esc(p + ' ' + (d.label || ''))}" ${inert(p) ? 'title="Nie działa przy obecnych ustawieniach węzła"' : ''}>
+      ${scrubLbl(p, d, d.label || p)}<div class="pin">${inputFor(p, d)}</div>${d.anim ? `<button class="icon kbtn" data-key="${p}" title="Klucz animacji w bieżącym czasie (dodaj/usuń)">◆</button>` : '<span></span>'}
+      <button class="icon fbtn" data-field="${p}" title="Pole kontrolne (Control Object) – edytowalne w Trio"><i class="ico link"></i></button></div>`;
+  }
+  function rowCombo(c, vis) {
+    const q = esc(vis.map((x) => x + ' ' + (PROPS[x].label || '')).join(' ') + ' ' + (c.label || ''));
+    if (c.kind === 'anchor') {
+      const cells = [];
+      for (const yv of ['top', 'middle', 'bottom']) for (const xv of ['left', 'center', 'right']) cells.push(`<button class="icon" data-anchor="${xv},${yv}" title="punkt: ${xv} / ${yv}"></button>`);
+      return `<div class="pr pcombo" data-q="${q}"><label title="Punkt zaczepienia (anchorX / anchorY): right/bottom = element rośnie w lewo/w górę">${esc(c.label)}</label>
+        <div class="pin anchor-row"><div class="agrid">${cells.join('')}</div><span class="dim mono" data-anchorlbl></span>
+        ${vis.map((x) => `<span class="cell" data-prop="${x}"><select data-p="${x}" hidden>${PROPS[x].opts.map((o) => `<option>${o}</option>`).join('')}</select>${btns(x, PROPS[x])}</span>`).join('')}</div><span></span><span></span></div>`;
+    }
+    if (c.kind === 'seg') {
+      return `<div class="pr pcombo" data-q="${q}"><label>${esc(c.label)}</label><div class="pin seg-row">${vis.map((x) => `<span class="cell" data-prop="${x}"><span class="segb">${SEG[x].map(([v, ic]) => `<button class="icon" data-seg="${x}" data-v="${v}" title="${SEG_T[v]}">${ic}</button>`).join('')}</span><select data-p="${x}" hidden>${PROPS[x].opts.map((o) => `<option>${o}</option>`).join('')}</select>${btns(x, PROPS[x])}</span>`).join('')}</div><span></span><span></span></div>`;
+    }
+    if (c.kind === 'bools') {
+      return `<div class="pr pcombo" data-q="${q}"><label>${esc(c.label)}</label><div class="pin seg-row">${vis.map((x) => `<span class="cell" data-prop="${x}"><label class="chk"><input type="checkbox" data-p="${x}"> ${esc(PROPS[x].label)}</label>${btns(x, PROPS[x])}</span>`).join('')}</div><span></span><span></span></div>`;
+    }
+    const cols = c.kind === 'wide1' && vis.length === 2 ? '2fr 1fr' : `repeat(${vis.length}, minmax(0, 1fr))`;
+    const lockBtn = c.ratio && vis.length === 2 ? `<button class="icon ratio ${pui.ratio ? 'on' : ''}" data-ratio title="Zachowaj proporcje szerokości i wysokości">⛓</button>` : '';
+    return `<div class="pmulti" data-q="${q}">${c.label ? `<div class="pmlbl">${esc(c.label)}</div>` : ''}<div class="pmgrid" style="grid-template-columns:${cols}${lockBtn ? ' 22px' : ''}">
+      ${vis.map((x) => { const d = PROPS[x], i = c.props.indexOf(x); return `<div class="cell ${inert(x) ? 'inert' : ''}" data-prop="${x}"><div class="ch">${scrubLbl(x, d, c.short?.[i] || d.label || x)}<span class="grow"></span>${btns(x, d)}</div>${inputFor(x, d)}</div>`; }).join('')}${lockBtn}</div></div>`;
+  }
+
+  let ruch = motionForm(n);
+  ruch += `<div class="pgroup">Presety animacji (klucze)</div>
+  <div class="pr" style="grid-template-columns:1fr auto auto"><select id="apSel"><option value="">— wybierz —</option>${animPresets.map((x) => `<option value="${esc(x.id)}">${esc(x.name)} (${x.duration}s)</option>`).join('')}</select><button data-ap="apply" title="Wstaw klucze presetu od bieżącego czasu">Zastosuj</button><button data-ap="save" title="Zapisz klucze tego węzła jako preset">＋ zapisz</button></div>
+  <div class="pr" style="grid-template-columns:1fr auto auto auto"><span class="dim" style="font-size:11px">preset = zestaw kluczy (czasy względne)</span><button data-ap="export" title="Pobierz preset do pliku">⇩</button><button data-ap="import" title="Wczytaj preset z pliku">⇧</button><button data-ap="del" class="icon danger" title="Usuń preset"><i class="ico del"></i></button></div>`;
+  const keyed = Object.keys(n.anim || {}).filter((p) => n.anim[p]?.length);
+  ruch += `<div class="pgroup">Klucze węzła</div>` + (keyed.length
+    ? `<div class="chips plist">${keyed.map((p) => `<span class="pill" title="${n.anim[p].length} kluczy">◆ ${esc(PROPS[p]?.label || p)} · ${n.anim[p].length}</span>`).join('')}</div>`
+    : `<div class="dim pnote">Brak kluczy. ◆ przy właściwości dodaje klucz w bieżącym czasie; gdy właściwość ma już klucze, zmiana wartości tworzy/aktualizuje klucz.</div>`);
+
+  const vf = variantFields(scene);
+  let dane = `<div class="pgroup">Wariant – widoczność</div>`;
+  if (vf.length) {
+    const si = n.showIf || {};
+    dane += `<div class="pr" style="grid-template-columns:100px 1fr 1fr"><label>widoczny gdy</label>
+      <select data-si="field"><option value="">— zawsze —</option>${vf.map((f) => `<option value="${esc(f.id)}" ${si.field === f.id ? 'selected' : ''}>${esc(f.label)}</option>`).join('')}</select>
+      <input data-si="value" list="si_vals" value="${esc(si.value || '')}" placeholder="wartość (a,b)" ${si.field ? '' : 'disabled'}>
+      <datalist id="si_vals">${(vf.find((f) => f.id === si.field)?.opts || []).map((o) => `<option>${esc(o)}</option>`).join('')}</datalist></div>`;
+  } else dane += `<div class="dim pnote">Zdefiniuj warianty w ustawieniach sceny (kliknij puste tło), aby pokazywać ten węzeł tylko w wybranym wariancie.</div>`;
+  const fl = Object.entries(n.fields || {});
+  dane += `<div class="pgroup">Pola kontrolne węzła</div>` + (fl.length
+    ? fl.map(([p, f]) => `<div class="pr" style="grid-template-columns:1fr 1fr 24px"><span>${esc(PROPS[p]?.label || p)}</span><span class="pill fld">${esc(f)}</span><button class="icon fbtn on" data-field="${p}" title="Zmień lub usuń pole kontrolne"><i class="ico link"></i></button></div>`).join('')
+    : `<div class="dim pnote"><i class="ico link"></i> przy właściwości wystawia ją jako pole kontrolne: operator Trio wpisze tu wartość na stronie. <b>[[tekst]]</b> w tekście = wyróżnienie.</div>`);
+
+  el.innerHTML = `<div class="ptab" data-tab="wl" ${pui.tab === 'wl' ? '' : 'hidden'}>${wl}</div><div class="ptab" data-tab="ruch" ${pui.tab === 'ruch' ? '' : 'hidden'}>${ruch}</div><div class="ptab" data-tab="dane" ${pui.tab === 'dane' ? '' : 'hidden'}>${dane}</div>`;
+  syncProps(true);
+  applySearch();
+  showSqueeze();
+  const host = $('[data-tkhost]', el);
+  if (host) {
+    const ta = $('textarea[data-p="text"]', el);
+    mountTickerEditor(host, {
+      value: ta.value, catColors: val('catColors'), catBg: val('catBg'), catFg: val('catFg'), label: val('label'), rules: scene.fieldMeta?.[n.fields?.text] || {},
+      onChange: (v) => { ta.value = v; ta.dispatchEvent(new Event('input', { bubbles: true })); },
+      onHover: (i) => player.tickerPin(n.id, i),
+    });
+  }
+}
+/** Szukanie właściwości: filtruje wiersze zakładki Właściwości i rozwija pasujące grupy. */
+function applySearch() {
+  const q = ($('#psearch')?.value || '').trim().toLowerCase();
+  const tab = $('#props .ptab[data-tab="wl"]'); if (!tab) return;
+  tab.classList.toggle('searching', !!q);
+  let any = false;
+  for (const sec of $$('.pgsec', tab)) {
+    let n = 0;
+    for (const r of $$('[data-q]', sec)) { const m = !q || r.dataset.q.toLowerCase().includes(q) || sec.dataset.sec.toLowerCase().includes(q); r.hidden = !m; if (m) n++; }
+    for (const r of $$('.sqinfo, .prtk', sec)) if (q) r.hidden = !sec.dataset.sec.toLowerCase().includes(q) && !(r.classList.contains('prtk') && 'tekst text'.includes(q)); else r.hidden = false;
+    sec.hidden = q && !n; any ||= n > 0;
+  }
+  $('.pnone', tab).hidden = !q || any;
+  const more = $('.pmore', tab); if (more) more.hidden = !!q;
+  if (q && pui.tab !== 'wl') { pui.tab = 'wl'; savePui(); renderProps(); }
+}
+/** Stany wierszy: zmieniona / animowana / pole kontrolne + liczniki na nagłówkach grup. */
+function markProps(n) {
+  for (const r of $$('#props [data-prop]')) {
+    const p = r.dataset.prop; if (!PROPS[p]) continue;
+    const s = propState(n, p);
+    r.classList.toggle('mod', s.mod); r.classList.toggle('anim', s.anim); r.classList.toggle('fld', !!s.fld);
+  }
+  for (const sec of $$('#props .pgsec')) {
+    const c = (k) => $$(`[data-prop].${k}`, sec).length;
+    const m = c('mod'), a = c('anim'), f = c('fld');
+    $('.cnt', sec).textContent = [m && `${m} zm.`, a && `◆${a}`, f && `⛓${f}`].filter(Boolean).join(' · ');
+  }
+  const ax = propAt(n, 'anchorX', t, null), ay = propAt(n, 'anchorY', t, null);
+  for (const b of $$('#props [data-anchor]')) b.classList.toggle('on', b.dataset.anchor === `${ax},${ay}`);
+  const al = $('#props [data-anchorlbl]'); if (al) al.textContent = `${ax} / ${ay}`;
+  for (const b of $$('#props [data-seg]')) b.classList.toggle('on', propAt(n, b.dataset.seg, t, null) === b.dataset.v);
+}
+
+/** Ruch jak w BTB CG (node.motion): presety IN/OUT, efekt tekstu, pętla uwagi – bez kluczy, liczone przez renderer. */
+function motionForm(n) {
+  const m = n.motion || {};
+  const opt = (list, v, lab) => list.map((x) => `<option value="${x}" ${x === (v || 'none') ? 'selected' : ''}>${esc(lab ? lab(x) : x)}</option>`).join('');
+  const numIn = (k, v, ph, step = 0.05) => `<input type="number" min="0" step="${step}" data-mo="${k}" value="${v ?? ''}" placeholder="${ph}">`;
+  const phase = (k, label) => {
+    const s = m[k] || {}, on = s.type && s.type !== '';
+    let r = `<div class="mo"><label>${label}</label><select data-mo="${k}.type" style="grid-column:2/4"><option value="" ${on ? '' : 'selected'}>— bez presetu —</option>${opt(MO.ANIM_TYPES, on ? s.type : '-', (x) => MO.ANIM_LABELS[x] || x)}</select>`;
+    if (on) {
+      r += `<div class="sub"><label>czas s${numIn(k + '.dur', s.dur, '0.5')}</label><label>opóźnienie s${numIn(k + '.delay', s.delay, '0')}</label>
+        <label>kierunek<select data-mo="${k}.dir" ${MO.DIR_TYPES.has(s.type) ? '' : 'disabled'}>${opt(MO.DIRECTIONS, s.dir || 'left', (x) => MO.DIR_LABELS[x])}</select></label></div>
+        <div class="sub"><label style="grid-column:1/4">krzywa<select data-mo="${k}.ease">${opt(MO.MOTION_EASES, s.ease || 'power2.out')}</select></label></div>`;
+    }
+    return r + '</div>';
+  };
+  const textPhase = (k, label, list) => {
+    const s = m[k] || {}, on = s.type && s.type !== 'none';
+    let r = `<div class="mo"><label>${label}</label><select data-mo="${k}.type" style="grid-column:2/4">${opt(list, s.type || 'none', MO.textLabel)}</select>`;
+    if (on) {
+      r += `<div class="sub"><label>czas s${numIn(k + '.dur', s.dur, '0.5')}</label><label>opóźnienie s${numIn(k + '.delay', s.delay, '0')}</label>
+        <label>odstęp s${numIn(k + '.stagger', s.stagger, 'auto', 0.01)}</label></div>
+        <div class="sub"><label style="grid-column:1/4">kolejność<select data-mo="${k}.from">${opt(MO.STAGGER_FROM, s.from || 'start', (x) => ({ start: 'od początku', end: 'od końca', center: 'od środka', edges: 'od krawędzi' })[x])}</select></label></div>`;
+    }
+    return r + '</div>';
+  };
+  const lp = m.loop || {}, lpOn = lp.type && lp.type !== 'none';
+  let h = `<div class="pgroup">Ruch – bez kluczy</div>` + phase('in', 'wejście') + phase('out', 'wyjście');
+  if (n.type === 'text' || n.type === 'clock') h += textPhase('textIn', 'tekst IN', MO.TEXT_IN) + textPhase('textOut', 'tekst OUT', MO.TEXT_OUT);
+  h += `<div class="mo"><label>pętla</label><select data-mo="loop.type" style="grid-column:2/4">${opt(MO.LOOP_TYPES, lp.type || 'none', (x) => MO.LOOP_LABELS[x])}</select>`;
+  if (lpOn) h += `<div class="sub"><label>okres s${numIn('loop.dur', lp.dur, 'auto')}</label><label>siła${numIn('loop.amp', lp.amp, 'auto', 0.5)}</label>
+    <label>kolor<input data-mo="loop.color" value="${esc(lp.color || '')}" placeholder="auto" ${['glow', 'shine', 'underline-sweep'].includes(lp.type) ? '' : 'disabled'}></label></div>`;
+  h += '</div>';
+  if (n.type === 'rect' || n.type === 'ellipse') h += `<div class="mo"><label title="Stały efekt tła – gra cały czas, także w trakcie wejścia">efekt tła</label><select data-mobg style="grid-column:2/4">${opt(MO.BG_TYPES, m.bg || 'none', (x) => MO.BG_LABELS[x])}</select></div>`;
+  const ORG = { '': 'środek', '0,0': 'lewy górny róg', '0.5,0': 'góra', '1,0': 'prawy górny róg', '0,0.5': 'lewa krawędź', '1,0.5': 'prawa krawędź', '0,1': 'lewy dolny róg', '0.5,1': 'dół', '1,1': 'prawy dolny róg' };
+  const org = Array.isArray(m.origin) ? m.origin.join(',') : '';
+  h += `<div class="mo"><label title="Punkt odniesienia skali i obrotu ruchu (presety przesłon, obrotu i odwróceń mają własny)">punkt ruchu</label><select data-moorg style="grid-column:2/4">${Object.entries(ORG).map(([k, v]) => `<option value="${k}" ${k === org ? 'selected' : ''}>${v}</option>`).join('')}${org && !ORG[org] ? `<option value="${org}" selected>${org}</option>` : ''}</select></div>`;
+  const others = []; walk(scene.nodes, (x) => { if (x.id !== n.id) others.push(x); });
+  h += `<div class="mo"><label title="Sekwencja: wejście zaczyna się, gdy skończy się wejście wskazanego węzła">po węźle</label><select data-moafter style="grid-column:2/4"><option value="">— od początku sceny —</option>${others.map((x) => `<option value="${esc(x.id)}" ${m.after === x.id ? 'selected' : ''}>${esc(x.name || x.id)}</option>`).join('')}</select></div>`;
+  const hasOut = m.out?.type || (m.textOut?.type && m.textOut.type !== 'none');
+  const st = sortedStops();
+  if ((m.in?.type || hasOut || lpOn || (m.textIn?.type && m.textIn.type !== 'none')) && (!st.length || (hasOut && scene.duration < st[st.length - 1] + MO.outLen(m, n.props?.text) - 1e-3))) {
+    h += `<div class="mohint">${!st.length ? 'Brak stop pointu: wyjście (OUT) zagra od ostatniego stopu, a pętla gra, gdy grafika stoi.' : 'Wyjście nie mieści się w długości sceny.'} <button data-mofit title="Stop point po wejściu i długość sceny = stop + wyjście">⟲ Dopasuj stop i długość</button></div>`;
+  }
+  return h;
+}
+/** Stop point po najdłuższym wejściu i długość sceny = stop + najdłuższe wyjście (ruch presetów i klucze). */
+function fitMotionTiming() {
+  const sh = MO.sequenceShifts(scene.nodes);
+  let inE = 0, outL = 0, keyEnd = 0;
+  walk(scene.nodes, (x) => {
+    if (x.motion) { const tx = x.props?.text; inE = Math.max(inE, MO.inEnd(x.motion, sh.get(x.id) || 0, tx)); outL = Math.max(outL, MO.outLen(x.motion, tx)); }
+    for (const tr of Object.values(x.anim || {})) for (const k of tr) keyEnd = Math.max(keyEnd, k.t);
+  });
+  checkpoint();
+  const st = sortedStops();
+  if (!st.length) scene.stops = [Math.round(Math.max(inE, 0.04) * 100) / 100];
+  else if (st[st.length - 1] < inE) scene.stops = [...st.slice(0, -1), Math.round(inE * 100) / 100];
+  const last = Math.max(...scene.stops);
+  scene.duration = Math.round(Math.max(last + outL, last + 0.04, outL > 0 ? 0 : keyEnd) * 100) / 100;
+  $('#dur').value = scene.duration;
+  renderProps(); renderTimeline(); refresh();
+}
+
+const hex6 = (c) => { const p = parseColor(c); if (!p) return '#000000'; return '#' + p.slice(0, 3).map((x) => Math.round(x).toString(16).padStart(2, '0')).join(''); };
+
+function syncProps(force) {
+  const n = selNode(); if (!n) return;
+  for (const inp of $$('[data-p]', $('#props'))) {
+    const p = inp.dataset.p;
+    if (!force && document.activeElement === inp) continue;
+    let v = propAt(n, p, t, null);
+    const d = PROPS[p];
+    if (inp.type === 'checkbox') inp.checked = !!v;
+    else if (d.t === 'num') inp.value = Math.round(v * 1000) / 1000;
+    else {
+      if (inp.tagName === 'SELECT' && v && ![...inp.options].some((o) => o.value === v)) inp.add(new Option(v, v));
+      inp.value = v ?? '';
+    }
+  }
+  for (const inp of $$('[data-pc]', $('#props'))) { const v = propAt(n, inp.dataset.pc, t, null); inp.value = hex6(v); }
+  for (const b of $$('[data-key]', $('#props'))) {
+    const tr = n.anim?.[b.dataset.key];
+    b.classList.toggle('has', !!tr?.length);
+    b.classList.toggle('on', !!tr?.some((k) => Math.abs(k.t - t) < 0.0005));
+  }
+  for (const b of $$('[data-field]', $('#props'))) {
+    const f = n.fields?.[b.dataset.field];
+    b.classList.toggle('on', !!f); b.title = f ? `Pole kontrolne: ${f} (kliknij, aby zmienić)` : 'Wystaw jako pole kontrolne (Control Object)';
+  }
+  markProps(n);
+}
+
+const openRules = new Set();
+/** Formularz reguł pola kontrolnego (Control Text): egzekwowane w Trio przy wpisywaniu. */
+function rulesForm(f) {
+  const m = scene.fieldMeta?.[f.id] || {};
+  const id = esc(f.id);
+  const num = (k, label, ph) => `<label>${label}</label><input type="number" min="0" data-fr="${id}::${k}" value="${m[k] ?? ''}" placeholder="${ph || '—'}">`;
+  const chk = (k, label, def) => `<label class="rchk"><input type="checkbox" data-fr="${id}::${k}" ${(def ? m[k] !== false : !!m[k]) ? 'checked' : ''}> ${label}</label>`;
+  const isText = f.type === 'text';
+  if (f.nodeType === 'ticker' && f.prop === 'text') {
+    return `<div class="rules">
+    ${num('maxItems', 'maks. wiadomości', '200')}${num('maxChars', 'maks. znaków wiadomości', '500')}
+    <label>kategorie (lista)</label><input data-fr="${id}::cats" value="${esc((m.cats || []).join(', '))}" placeholder="dowolne; np. PILNE, SPORT">
+    ${num('tab', 'kolejność Tab')}
+    <label>podpowiedź</label><input data-fr="${id}::help" value="${esc(m.help || '')}" placeholder="widoczna pod etykietą w Trio">
+    <div class="rchks">${chk('upper', 'WERSALIKI') + chk('typo', 'polska typografia') + chk('readonly', 'tylko do odczytu')}</div>
+  </div>`;
+  }
+  return `<div class="rules">
+    ${isText ? num('maxChars', 'maks. znaków (twardy)') + num('softMax', 'próg ostrzeżenia (żółty)', 'domyślnie 85%') + num('maxLines', 'maks. linii', 'z węzła') : ''}
+    ${num('tab', 'kolejność Tab')}
+    <label>podpowiedź</label><input data-fr="${id}::help" value="${esc(m.help || '')}" placeholder="widoczna pod etykietą w Trio">
+    <div class="rchks">${isText ? chk('oneLine', 'jedna linia') + chk('upper', 'WERSALIKI') + chk('typo', 'polska typografia') + chk('rich', 'pasek formatowania', true) + chk('spell', 'sprawdzanie pisowni', true) : ''}${chk('readonly', 'tylko do odczytu')}</div>
+  </div>`;
+}
+
+function renderSceneProps() {
+  const fields = listFields(scene);
+  let h = `<div class="pgroup">Scena</div>
+  <div class="sp"><label>Nazwa</label><input data-sp="name" value="${esc(scene.name)}"></div>
+  <div class="sp"><label>Warstwa (layer)</label><input data-sp="layer" list="layerlist" value="${esc(scene.layer || 'main')}"></div>
+  <div class="sp"><label>Rozdzielczość</label><div class="row"><input data-sp="width" type="number" value="${scene.width}"> × <input data-sp="height" type="number" value="${scene.height}"></div></div>
+  <div class="sp"><label>Położenie sceny</label><div class="row"><input data-sp="x" type="number" value="${+scene.x || 0}" title="X – przesunięcie całej sceny (nie zmienia animacji)"> × <input data-sp="y" type="number" value="${+scene.y || 0}" title="Y – przesunięcie całej sceny (nie zmienia animacji)"><button class="icon" data-scene0 title="Wyzeruj położenie">⟲</button></div></div>
+  <div class="sp"><label>Długość (s)</label><input data-sp="duration" type="number" step="0.1" value="${scene.duration}"></div>
+  <div class="sp"><label>Stop pointy</label><div class="chips">${scene.stops.map((s, i) => `<span class="chip">${(+s).toFixed(2)}s<button data-rmstop="${i}" title="usuń">×</button></span>`).join('') || '<span class="dim">brak – grafika gra do końca</span>'}</div></div>
+  <div class="sp"><label>Markery</label><div class="chips">${(scene.markers || []).map((m, i) => `<span class="chip mk">${esc(m.name)} ${(+m.t).toFixed(2)}s<button data-mkstop="${i}" title="Utwórz stop point z markera">⏹</button><button data-rmmk="${i}" title="usuń">×</button></span>`).join('') || '<span class="dim">M lub dwuklik na linijce = marker</span>'}</div></div>
+  <div class="pgroup">Powiązania (dock) – przesunięcie tej sceny, gdy inna grafika jest na wizji</div>
+  ${(scene.dock || []).length ? `<table class="ftable"><tr class="dim"><td>gdy na antenie</td><td>Δx</td><td>Δy</td><td>czas s</td><td></td></tr>${scene.dock.map((d, i) => `<tr><td><input data-dk="${i}::target" list="dklist" value="${esc(d.target || '')}" placeholder="layer:back · page:3001 · scene:Ticker"></td><td><input type="number" data-dk="${i}::dx" value="${d.dx ?? 0}"></td><td><input type="number" data-dk="${i}::dy" value="${d.dy ?? 0}"></td><td><input type="number" step="0.1" min="0" data-dk="${i}::dur" value="${d.dur ?? 0.6}"></td><td><button class="icon danger" data-dkdel="${i}">×</button></td></tr>`).join('')}</table>` : ''}
+  <datalist id="dklist">${[...new Set(scenes.map((x) => x.layer || 'main'))].map((l) => `<option value="layer:${esc(l)}">`).join('')}${scenes.map((x) => `<option value="scene:${esc(x.name)}">`).join('')}</datalist>
+  <div style="padding:4px 10px"><button id="dkAdd">＋ Powiązanie</button> <span class="dim" style="font-size:12px">np. belka unosi się o 90 px, gdy jest ticker (layer:back)</span></div>
+  <div class="pgroup">Warianty (pola wyboru, jak Variants/Concepts w Viz)</div>`;
+  const vfs = variantFields(scene);
+  h += vfs.length ? `<table class="ftable"><tr class="dim"><td>pole</td><td>opcje (po przecinku)</td><td>domyślna</td><td></td></tr>` + vfs.map((f) => `<tr><td class="mono">${esc(f.id)}</td><td><input data-vopt="${esc(f.id)}" value="${esc(f.opts.join(', '))}"></td><td><select data-vdef="${esc(f.id)}">${f.opts.map((o) => `<option ${o === f.default ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></td><td><button class="icon danger" data-vdel="${esc(f.id)}">×</button></td></tr>`).join('') + '</table>' : '';
+  h += `<div style="padding:4px 10px"><button id="addVar">＋ Wariant</button> <span class="dim" style="font-size:12px">np. styl = info, pilne</span></div>
+  <div class="pgroup">Pola kontrolne (Control Object)</div>`;
+  const pfields = fields.filter((f) => f.nodeType !== 'variant');
+  if (pfields.length) {
+    h += `<table class="ftable"><tr class="dim"><td>pole</td><td>etykieta w Trio</td><td>kontener</td><td></td></tr>` +
+      pfields.map((f) => {
+        const m = scene.fieldMeta?.[f.id] || {};
+        const has = ['maxChars', 'softMax', 'maxLines', 'maxItems', 'cats', 'tab', 'help', 'oneLine', 'upper', 'typo', 'readonly'].some((k) => m[k]) || m.rich === false || m.spell === false;
+        return `<tr><td class="mono">${esc(f.id)}</td><td><input data-fm="${esc(f.id)}" value="${esc(m.label || '')}" placeholder="${esc(f.id)}"></td><td class="dim">${esc(f.node)}.${esc(f.prop)}</td><td><button class="icon ${has ? 'acc' : ''}" data-frtoggle="${esc(f.id)}" title="Reguły pola (limity znaków, wersaliki, typografia, Tab…)"><i class="ico gear"></i></button></td></tr>` +
+          (openRules.has(f.id) ? `<tr><td colspan="4">${rulesForm(f)}</td></tr>` : '');
+      }).join('') + '</table>';
+  } else h += `<div class="dim" style="padding:4px 10px">Brak. Zaznacz kontener i kliknij <i class="ico link"></i> przy właściwości.</div>`;
+  const known = assets.map((a) => a.name), used = PACK.sceneAssets({ ...scene, packAssets: undefined }, known), att = scene.packAssets || [];
+  const chip = (n, rm) => `<span class="chip" title="${PACK.FONT_RE.test(n) ? 'czcionka – na /output ładowana z serwera' : 'grafika'}"><i class="ico ${PACK.FONT_RE.test(n) ? 'font' : 'img'}"></i> ${esc(n)}${known.includes(n) ? '' : ' <b style="color:#e55">brak!</b>'}${rm ? `<button data-pkrm="${esc(n)}" title="odłącz od paczki">×</button>` : ''}</span>`;
+  h += `<div class="pgroup">Zasoby paczki (.cgpack) – grafiki i czcionki</div>
+  <div class="sp"><label>Używane</label><div class="chips">${used.map((n) => chip(n, false)).join('') || '<span class="dim">brak</span>'}</div></div>
+  <div class="sp"><label>Dołączone</label><div class="chips">${att.map((n) => chip(n, true)).join('') || '<span class="dim">np. czcionka używana w znacznikach tekstu albo grafika podmieniana przez operatora</span>'}</div></div>
+  <div style="padding:4px 10px" class="row"><button id="pkAdd" title="Wgraj plik (grafika, wideo, czcionka TTF/OTF/WOFF) i dołącz do paczki tej sceny">＋ Wgraj i dołącz</button><select id="pkPick" class="grow"><option value="">dołącz z assets…</option>${known.filter((n) => !att.includes(n) && !used.includes(n)).map((n) => `<option>${esc(n)}</option>`).join('')}</select></div>`;
+  h += `<div style="padding:10px" class="row"><button id="mkPage">＋ Utwórz stronę w Trio</button></div>
+  <div class="help"><b>Jak to działa (jak w Viz):</b><br>
+  • <b>Warstwa</b> – sceny na tej samej warstwie zastępują się (back / main / front lub dowolna nazwa).<br>
+  • <b>Stop pointy</b> – TAKE gra animację do pierwszego stopu, CONTINUE do kolejnego, OUT gra od ostatniego stopu do końca i zdejmuje grafikę.<br>
+  • Bez stopów: TAKE gra całość i grafika zostaje, OUT ją wycina.<br>
+  • Kliknij puste miejsce na podglądzie, aby wrócić do ustawień sceny.</div>`;
+  $('#props').innerHTML = h;
+}
+
+let seqMode = false;
+try { seqMode = localStorage.getItem('vizrs.seq') === '1'; } catch { /* brak localStorage */ }
+document.body.classList.toggle('seq', seqMode);
+const outStartOf = () => { const st = sortedStops(); const ls = st.length ? st[st.length - 1] : null; return ls !== null && scene.duration > ls + 1e-3 ? ls : Infinity; };
+function renderTimeline() {
+  $('#seqMode').classList.toggle('on', seqMode);
+  document.body.classList.toggle('seq', seqMode);
+  if (seqMode) return renderSeqTimeline();
+  const dur = scene.duration || 1;
+  const W = Math.max(dur * pps + 80, $('#tl').clientWidth - LBL);
+  const rows = [];
+  walk(scene.nodes, (n) => { for (const p of Object.keys(n.anim || {})) if (n.anim[p]?.length) rows.push({ n, p }); });
+  rows.sort((a, b) => (a.n.id === selId) === (b.n.id === selId) ? 0 : a.n.id === selId ? -1 : 1);
+  let h = `<div class="tl-in" style="width:${LBL + W}px">`;
+  h += `<div class="tl-row ruler"><div class="tl-lbl">${rows.length ? '<span class="dim">ścieżki animacji</span>' : '<span class="dim">brak animacji – użyj ◆</span>'}</div><div class="tl-area" data-area="ruler" style="width:${W}px">`;
+  const step = pps > 500 ? 0.05 : pps > 160 ? 0.1 : 0.25;
+  const lab = pps > 500 ? 0.25 : 0.5;
+  for (let i = 0; i * step <= dur + 1e-9 + 2; i++) {
+    const s = i * step;
+    const major = Math.abs(s / lab - Math.round(s / lab)) < 1e-6;
+    h += `<div class="tick ${major ? 'maj' : ''}" style="left:${s * pps}px">${major ? s.toFixed(2).replace(/0$/, '') : ''}</div>`;
+  }
+ (scene.markers || []).forEach((m, i) => { h += `<div class="mkm" data-mk="${i}" style="left:${m.t * pps}px" title="Marker „${esc(m.name || '')}” ${(+m.t).toFixed(2)}s – klik: skocz, dwuklik: zmień nazwę / usuń">◆<span>${esc(m.name || '')}</span></div>`; });
+  scene.stops.forEach((s, i) => { h += `<div class="stopm" data-stop="${i}" style="left:${s * pps}px" title="Stop ${(+s).toFixed(2)}s – przeciągnij; dwuklik usuwa">▼</div>`; });
+  h += `<div class="endm" style="left:${dur * pps}px" title="koniec sceny"></div></div></div>`;
+  for (const r of rows) {
+    const tr = r.n.anim[r.p];
+    h += `<div class="tl-row ${r.n.id === selId ? 'sel' : ''}"><div class="tl-lbl" data-sel="${r.n.id}" title="${esc(r.n.name)}.${r.p}"><span class="dim">${esc(r.n.name)}</span>·${esc(PROPS[r.p]?.label || r.p)}</div><div class="tl-area" data-row="${r.n.id}|${r.p}" style="width:${W}px">`;
+    for (let i = 0; i < tr.length - 1; i++) {
+      const a = tr[i], b = tr[i + 1];
+      h += `<div class="seg ${a.v === b.v || a.e === 'hold' ? 'hold' : ''}" style="left:${a.t * pps}px;width:${(b.t - a.t) * pps}px"></div>`;
+    }
+    tr.forEach((k, i) => {
+      const sel = selKeys.some((x) => x.key === k) || (selKey && selKey.node === r.n && selKey.prop === r.p && selKey.key === k);
+      h += `<div class="kf ${sel ? 'sel' : ''}" data-k="${r.n.id}|${r.p}|${i}" style="left:${k.t * pps}px" title="${k.t.toFixed(2)}s = ${esc(k.v)} (${k.e || 'inout'})"></div>`;
+    });
+    h += `</div></div>`;
+  }
+  scene.stops.forEach((s) => { h += `<div class="stopline" style="left:${LBL + s * pps}px"></div>`; });
+  h += `<div class="endline" style="left:${LBL + dur * pps}px"></div>`;
+  h += `<div id="playhead" style="left:${LBL + t * pps}px"></div></div>`;
+  const sl = $('#tl').scrollLeft;
+  $('#tl').innerHTML = h;
+  $('#tl').scrollLeft = sl;
+  $('#dur').value = scene.duration;
+  renderKeyEd();
+}
+
+/** Oś w trybie sekwencji: wiersz na element, paski ruchu (presety) zamiast kluczy. */
+function renderSeqTimeline() {
+  const dur = scene.duration || 1;
+  const W = Math.max(dur * pps + 80, $('#tl').clientWidth - LBL);
+  const sh = MO.sequenceShifts(scene.nodes), oS = outStartOf();
+  const rows = [];
+  const visit = (list, depth) => { for (const n of list || []) { rows.push({ n, depth }); visit(n.children, depth + 1); } };
+  visit(scene.nodes, 0);
+  let h = `<div class="tl-in" style="width:${LBL + W}px">`;
+  h += `<div class="tl-row ruler"><div class="tl-lbl"><span class="dim">sekwencja – ruch bez kluczy</span></div><div class="tl-area" data-area="ruler" style="width:${W}px">`;
+  const step = pps > 500 ? 0.05 : pps > 160 ? 0.1 : 0.25, lab = pps > 500 ? 0.25 : 0.5;
+  for (let i = 0; i * step <= dur + 1e-9 + 2; i++) {
+    const s = i * step, major = Math.abs(s / lab - Math.round(s / lab)) < 1e-6;
+    h += `<div class="tick ${major ? 'maj' : ''}" style="left:${s * pps}px">${major ? s.toFixed(2).replace(/0$/, '') : ''}</div>`;
+  }
+  scene.stops.forEach((s, i) => { h += `<div class="stopm" data-stop="${i}" style="left:${s * pps}px" title="Stop ${(+s).toFixed(2)}s – przeciągnij; dwuklik usuwa">▼</div>`; });
+  h += `<div class="endm" style="left:${dur * pps}px" title="koniec sceny"></div></div></div>`;
+  const bar = (id, sec, cls, a, b, label, title, handle = true) => `<div class="mb ${cls}" data-mb="${id}|${sec}" style="left:${a * pps}px;width:${Math.max(4, (b - a) * pps)}px" title="${esc(title)}">${esc(label)}${handle ? `<i class="mbh" data-mbh="${id}|${sec}"></i>` : ''}</div>`;
+  for (const { n, depth } of rows) {
+    const m = n.motion || {}, s0 = sh.get(n.id) || 0, tx = n.props?.text;
+    const after = m.after && locate(m.after)?.node;
+    const nk = Object.values(n.anim || {}).filter((tr) => tr?.length).length;
+    h += `<div class="tl-row seq ${n.id === selId ? 'sel' : ''}"><div class="tl-lbl" data-sel="${n.id}" style="padding-left:${8 + depth * 12}px" title="${esc(n.name)}${after ? ` – wchodzi po „${esc(after.name)}”` : ''}">${TYPES[n.type]?.icon || ''} ${esc(n.name)}${after ? ` <span class="dim">↳ ${esc(after.name)}</span>` : ''}${nk ? ` <span class="dim" title="węzeł ma też klucze">◆${nk}</span>` : ''}</div><div class="tl-area" data-seqrow="${n.id}" style="width:${W}px">`;
+    if (m.loop?.type && m.loop.type !== 'none') {
+      const a = MO.inEnd(m, s0, tx), b = Number.isFinite(oS) ? oS : dur;
+      if (b > a) h += bar(n.id, 'loop', 'loop', a, b, 'pętla: ' + (MO.LOOP_LABELS[m.loop.type] || m.loop.type), 'pętla uwagi – gra, gdy grafika stoi', false);
+    }
+    if (m.in?.type) {
+      const a = s0 + MO.specDelay(m.in), d = m.in.type === 'none' ? 0 : MO.specDur(m.in);
+      h += bar(n.id, 'in', 'in', a, a + d, MO.ANIM_LABELS[m.in.type] || m.in.type, `wejście: ${MO.ANIM_LABELS[m.in.type] || m.in.type} · start ${a.toFixed(2)} s · czas ${d.toFixed(2)} s – przeciągnij: opóźnienie, krawędź: czas`);
+    }
+    if (m.textIn?.type && m.textIn.type !== 'none') {
+      const a = s0 + MO.specDelay(m.textIn), d = MO.specDur(m.textIn) + MO.textSpread(m.textIn, tx);
+      h += bar(n.id, 'textIn', 'tin', a, a + d, '', `tekst IN: ${MO.textLabel(m.textIn.type)} · ${a.toFixed(2)}–${(a + d).toFixed(2)} s`);
+    }
+    if (Number.isFinite(oS)) {
+      if (m.out?.type) {
+        const a = oS + MO.specDelay(m.out), d = m.out.type === 'none' ? 0 : MO.specDur(m.out);
+        h += bar(n.id, 'out', 'out', a, a + d, MO.ANIM_LABELS[m.out.type] || m.out.type, `wyjście: ${MO.ANIM_LABELS[m.out.type] || m.out.type} · start ${a.toFixed(2)} s · czas ${d.toFixed(2)} s`);
+      }
+      if (m.textOut?.type && m.textOut.type !== 'none') {
+        const a = oS + MO.specDelay(m.textOut), d = MO.specDur(m.textOut) + MO.textSpread(m.textOut, tx);
+        h += bar(n.id, 'textOut', 'tout', a, a + d, '', `tekst OUT: ${MO.textLabel(m.textOut.type)} · ${a.toFixed(2)}–${(a + d).toFixed(2)} s`);
+      }
+    }
+    h += `</div></div>`;
+  }
+  scene.stops.forEach((s) => { h += `<div class="stopline" style="left:${LBL + s * pps}px"></div>`; });
+  h += `<div class="endline" style="left:${LBL + dur * pps}px"></div>`;
+  h += `<div id="playhead" style="left:${LBL + t * pps}px"></div></div>`;
+  const sl = $('#tl').scrollLeft;
+  $('#tl').innerHTML = h;
+  $('#tl').scrollLeft = sl;
+  $('#dur').value = scene.duration;
+}
+
+/** Elementy, których dotyczą narzędzia sekwencji: dzieci zaznaczonej grupy, rodzeństwo zaznaczonego elementu albo scena. */
+function seqTargets() {
+  const n = selNode();
+  if (n?.children?.length) return n.children;
+  if (n) return locate(n.id).list;
+  if (scene.nodes.length === 1 && scene.nodes[0].children?.length) return scene.nodes[0].children;
+  return scene.nodes;
+}
+const r2 = (v) => Math.round(v * 100) / 100;
+function seqTool(act) {
+  const n = selNode();
+  if (act === 'fit') return fitMotionTiming();
+  if (act === 'stagger') {
+    const step = Math.max(0, parseFloat($('#seqStep').value) || 0);
+    let list = seqTargets();
+    if (!list.length) return;
+    checkpoint();
+    const withIn = list.filter((x) => x.motion?.in?.type);
+    if (!withIn.length) for (const x of list) (x.motion ||= {}).in = { type: 'fade', dur: 0.4, ease: 'power2.out' };
+    list = list.filter((x) => x.motion?.in?.type);
+    const base = MO.specDelay(list[0].motion.in);
+    list.forEach((x, i) => { delete x.motion.after; x.motion.in.delay = r2(base + i * step); if (!x.motion.in.delay) delete x.motion.in.delay; });
+    const outs = list.filter((x) => x.motion.out?.type);
+    outs.forEach((x, i) => { const d = r2((outs.length - 1 - i) * step); if (d) x.motion.out.delay = d; else delete x.motion.out.delay; });
+    toast(`Kaskada: ${list.length} elementów co ${step} s${outs.length ? ' (wyjścia odwrotnie)' : ''}`);
+  } else if (act === 'chain') {
+    const list = seqTargets().filter((x) => x.motion?.in?.type || x.motion?.textIn?.type);
+    if (list.length < 2) return toast('Po kolei: potrzeba co najmniej dwóch elementów z ruchem wejścia', true);
+    checkpoint();
+    list.forEach((x, i) => { if (i) x.motion.after = list[i - 1].id; else delete x.motion.after; });
+    toast(`Po kolei: ${list.length} elementów`);
+  } else if (act === 'copy') {
+    if (!n?.motion) return toast('Zaznacz element z ruchem do skopiowania', true);
+    const list = locate(n.id).list.filter((x) => x !== n);
+    if (!list.length || !confirm(`Skopiować ruch „${n.name}” na ${list.length} element(y) obok?`)) return;
+    checkpoint();
+    for (const x of list) {
+      const m = structuredClone(n.motion); delete m.after;
+      if (x.type !== 'text' && x.type !== 'clock') { delete m.textIn; delete m.textOut; }
+      if (Object.keys(m).length) x.motion = m; else delete x.motion;
+    }
+    toast(`Skopiowano ruch na ${list.length} element(y)`);
+  } else if (act === 'keys') {
+    if (!n?.motion?.in && !n?.motion?.out) return toast('Zaznacz element z presetem wejścia lub wyjścia', true);
+    const rest = {};
+    for (const p of ['x', 'y', 'opacity', 'scale', 'skewX', 'blur', 'clipL', 'clipT', 'clipR', 'clipB']) rest[p] = +(n.props?.[p] ?? PROPS[p].d) || 0;
+    const r = MO.motionToKeys(n.motion, { rest, outStart: outStartOf(), shift: MO.sequenceShifts(scene.nodes).get(n.id) || 0 });
+    const clash = Object.keys(r.anim).filter((p) => n.anim?.[p]?.length);
+    if (clash.length) return toast(`Na klucze: węzeł ma już klucze (${clash.join(', ')}) – usuń je albo zostań przy presecie`, true);
+    if (!r.done.length) return showReport('Na klucze – nic nie zamieniono', r.skipped);
+    checkpoint();
+    n.anim = { ...(n.anim || {}), ...r.anim };
+    for (const k of r.done) delete n.motion[k];
+    if (!n.motion.textIn && !n.motion.textOut) delete n.motion.after;
+    if (!Object.keys(n.motion).length) delete n.motion;
+    seqMode = false; try { localStorage.setItem('vizrs.seq', '0'); } catch { /* ignoruj */ }
+    if (r.skipped.length) showReport('Na klucze – część pominięta', r.skipped); else toast('Presety zamienione na klucze – widok kluczy');
+  } else if (act === 'fromkeys') {
+    if (!n || !MO.MOTION_PROPS.some((p) => n.anim?.[p]?.length >= 2)) return toast('Zaznacz element z kluczami położenia, krycia, skali, skosu, rozmycia lub przycięcia', true);
+    if (n.motion?.in || n.motion?.out) return toast('Z kluczy: element ma już preset wejścia/wyjścia – usuń go najpierw', true);
+    const defaults = Object.fromEntries(MO.MOTION_PROPS.map((p) => [p, PROPS[p].d]));
+    const opt = { props: n.props || {}, defaults, sample: (p, t) => +trackValue(n.anim[p], t, 'num') || 0, outStart: outStartOf(), shift: MO.sequenceShifts(scene.nodes).get(n.id) || 0 };
+    let r = MO.keysToMotion(n.anim, opt);
+    if (r.skipped.length) {
+      const a = MO.keysToMotion(n.anim, { ...opt, approx: true });
+      if (a.approx.length && confirm(`Części kluczy nie da się zapisać dokładnie presetem:\n${a.approx.join('\n')}\n\nZamienić w przybliżeniu?`)) r = a;
+    }
+    if (!r.done.length) return showReport('Z kluczy – nic nie zamieniono', r.skipped);
+    checkpoint();
+    n.anim = r.anim; if (!Object.keys(n.anim).length) delete n.anim;
+    n.props = { ...(n.props || {}), ...r.props };
+    const mo = (n.motion ||= {});
+    Object.assign(mo, r.motion);
+    if (r.dropAfter) delete mo.after;
+    seqMode = true; try { localStorage.setItem('vizrs.seq', '1'); } catch { /* ignoruj */ }
+    if (r.skipped.length) showReport('Z kluczy – część zostaje kluczami', r.skipped); else toast('Klucze zamienione na presety – widok sekwencji');
+  } else if (act === 'clear') {
+    const list = n ? [n] : seqTargets();
+    const withM = list.filter((x) => x.motion);
+    if (!withM.length || !confirm(`Usunąć ruch (presety, pętle, efekty tekstu) z ${withM.length} element(ów)?`)) return;
+    checkpoint();
+    for (const x of withM) delete x.motion;
+  }
+  renderTimeline(); renderProps(); refresh();
+}
+
+function renderKeyEd() {
+  const el = $('#keyed');
+  if (!selKey || !selKey.node.anim?.[selKey.prop]?.includes(selKey.key)) { selKey = null; el.innerHTML = '<span class="dim" style="font-size:11px">KLUCZ</span><span class="dim" style="font-size:12px">kliknij klucz (◆) na ścieżce, aby zmienić jego czas, wartość i krzywą · dwuklik na ścieżce = nowy klucz</span>'; return; }
+  const k = selKey.key, d = PROPS[selKey.prop];
+  el.innerHTML = `<span class="dim" style="font-size:11px">KLUCZ</span><b style="font-size:12px">${esc(selKey.node.name)}.${esc(d?.label || selKey.prop)}</b>
+    <label>t</label><input id="kt" type="number" step="0.01" value="${k.t}">
+    <label>wart.</label><input id="kv" ${d?.t === 'num' ? 'type="number" step="any"' : ''} value="${esc(k.v)}">
+    <select id="ke" title="krzywa do następnego klucza">${EASES.map((e) => `<option ${(k.e || 'inout') === e ? 'selected' : ''}>${e}</option>`).join('')}</select>
+    <button class="icon danger" id="kdel" title="Usuń klucz"><i class="ico del"></i></button>`;
+}
+
+function updatePlayhead() {
+  const ph = $('#playhead'); if (ph) ph.style.left = LBL + t * pps + 'px';
+  $('#tc').value = t.toFixed(2);
+}
+
+function setTime(nt) {
+  t = Math.max(0, Math.min(scene.duration, Math.round(nt * 1000) / 1000));
+  player.seek(t);
+  updatePlayhead();
+  syncProps();
+}
+
+// ------------------------------------------------------------ edycja właściwości
+function setProp(n, p, v) {
+  const tr = n.anim?.[p];
+  if (tr?.length && PROPS[p]?.anim) setKey(n, p, t, v);
+  else { n.props ||= {}; n.props[p] = v; }
+}
+/** Zmiana z panelu: przy blokadzie proporcji szerokość i wysokość zmieniają się razem. */
+function setPropUI(n, p, v) {
+  if (pui.ratio && (p === 'w' || p === 'h')) {
+    const o = p === 'w' ? 'h' : 'w', old = +propAt(n, p, t, null), oo = +propAt(n, o, t, null);
+    if (old > 0 && oo > 0) setProp(n, o, Math.round(oo * v / old * 1000) / 1000);
+  }
+  setProp(n, p, v);
+}
+function setKey(n, p, at, v) {
+  n.anim ||= {};
+  const tr = (n.anim[p] ||= []);
+  const k = tr.find((k) => Math.abs(k.t - at) < 0.0005);
+  if (k) k.v = v; else tr.push({ t: Math.round(at * 1000) / 1000, v, e: 'inout' });
+  tr.sort((a, b) => a.t - b.t);
+}
+function toggleKey(n, p) {
+  n.anim ||= {};
+  const tr = n.anim[p] || [];
+  const i = tr.findIndex((k) => Math.abs(k.t - t) < 0.0005);
+  if (i >= 0) {
+    tr.splice(i, 1);
+    if (!tr.length) { n.props ||= {}; delete n.anim[p]; }
+  } else {
+    const v = propAt(n, p, t, null);
+    if (!tr.length) { n.props ||= {}; n.props[p] = v; }
+    setKey(n, p, t, v);
+  }
+}
+function refresh() { player.apply(t); showSqueeze(); }
+/** Ściśnięcie zaznaczonego tekstu (jak wskaźnik w Trio); przepełnienie oznacza też ramka na kanwie (`data-over`). */
+function showSqueeze() {
+  const el = $('#sqInfo'); if (!el) return;
+  const n = selNode(), it = n && player.items.find((i) => i.node === n || i.node.id === n.id);
+  if (!it?.sq) { el.innerHTML = ''; return; }
+  const one = it.sq.length === 1;
+  el.innerHTML = it.sq.map((s, i) => `<span class="${s < 0.7 || it.over ? 'bad' : s < 0.999 ? 'warn' : ''}">${one ? 'ściśnięcie' : 'w' + (i + 1)}: ${Math.round(s * 100)}%</span>`).join('')
+    + (it.over ? '<span class="bad" title="Tekst wymaga ściśnięcia poniżej granicy (min. ściśnięcie) – wystaje poza ramkę">⚠︎ nie mieści się</span>' : '');
+}
+function parseVal(p, inp) {
+  const d = PROPS[p];
+  if (d.t === 'bool') return inp.checked;
+  if (d.t === 'num') {
+    let v = parseFloat(inp.value);
+    if (isNaN(v)) v = 0;
+    if (d.min != null) v = Math.max(d.min, v); if (d.max != null) v = Math.min(d.max, v);
+    return v;
+  }
+  return inp.value;
+}
+
+$('#props').addEventListener('focusin', () => { pendingCP = true; lastArea = 'props'; });
+$('#props').addEventListener('input', onPropInput);
+$('#props').addEventListener('change', onPropInput);
+function cp() { if (pendingCP) { checkpoint(); pendingCP = false; } else setDirty(true); }
+function onPropInput(e) {
+  const inp = e.target;
+  if (e.type === 'change' && inp.type !== 'checkbox' && inp.tagName !== 'SELECT' && inp.type !== 'color') {
+    pendingCP = true;
+    if (WHEN_SRC.has(inp.dataset.p) && selNode()) renderProps(); // widoczność zależnych właściwości (P4)
+    return;
+  }
+  const n = selNode();
+  if (n && (inp.dataset.mobg !== undefined || inp.dataset.moorg !== undefined)) {
+    if (e.type !== 'change') return;
+    checkpoint();
+    const key = inp.dataset.mobg !== undefined ? 'bg' : 'origin';
+    const v = key === 'bg' ? (inp.value === 'none' ? '' : inp.value) : inp.value ? inp.value.split(',').map(Number) : '';
+    if (v) (n.motion ||= {})[key] = v; else if (n.motion) { delete n.motion[key]; if (!Object.keys(n.motion).length) delete n.motion; }
+    refresh(); renderTimeline(); return;
+  }
+  if (n && inp.dataset.moafter !== undefined) {
+    if (e.type !== 'change') return;
+    checkpoint();
+    if (inp.value) (n.motion ||= {}).after = inp.value; else if (n.motion) { delete n.motion.after; if (!Object.keys(n.motion).length) delete n.motion; }
+    refresh(); renderTimeline(); return;
+  }
+  if (n && inp.dataset.mo) {
+    if (e.type === 'input' && inp.tagName === 'SELECT') return; // wybór obsługuje 'change'
+    cp();
+    const [sec, key] = inp.dataset.mo.split('.');
+    const mo = (n.motion ||= {});
+    const s = (mo[sec] ||= {});
+    let v = inp.value.trim();
+    if (inp.type === 'number') v = v === '' ? '' : Math.max(0, parseFloat(v) || 0);
+    if (v === '' || (key === 'type' && v === 'none' && sec !== 'in' && sec !== 'out')) {
+      if (key === 'type') delete mo[sec]; else delete s[key];
+    } else s[key] = v;
+    if (key === 'type' && s.type && (sec === 'in' || sec === 'out') && s.dur == null) Object.assign(s, { dur: 0.5, ease: sec === 'out' ? 'power2.in' : 'power2.out', ...(MO.DIR_TYPES.has(s.type) && !s.dir ? { dir: 'left' } : {}) });
+    if (key === 'type' && sec.startsWith('text') && mo[sec] && s.dur == null) s.dur = 0.6;
+    if (mo[sec] && !Object.keys(mo[sec]).length) delete mo[sec];
+    if (!Object.keys(mo).length) delete n.motion;
+    refresh(); renderTimeline();
+    if (key === 'type' || e.type === 'change') renderProps();
+    return;
+  }
+  if (inp.id === 'pkPick') { if (inp.value && e.type === 'change') { checkpoint(); scene.packAssets = [...new Set([...(scene.packAssets || []), inp.value])]; renderProps(); } return; }
+  if (inp.id === 'pname' && n) { cp(); n.name = inp.value; renderTree(); return; }
+  if (n && inp.dataset.p) {
+    cp(); setPropUI(n, inp.dataset.p, parseVal(inp.dataset.p, inp)); refresh();
+    if (n.type === 'ticker' && (inp.dataset.p === 'tickerMode' || (inp.dataset.p === 'catColors' && e.type === 'change'))) { renderProps(); return; }
+    if (e.type === 'change' && WHEN_SRC.has(inp.dataset.p)) { renderProps(); return; }
+    if (n.anim?.[inp.dataset.p]?.length) renderTimeline();
+    syncProps(); return;
+  }
+  if (n && inp.dataset.pc) {
+    cp();
+    const p = inp.dataset.pc;
+    const cur = parseColor(propAt(n, p, t, null));
+    let v = inp.value;
+    if (cur && cur[3] < 1) v += Math.round(cur[3] * 255).toString(16).padStart(2, '0');
+    setProp(n, p, v); refresh(); syncProps(); return;
+  }
+  if (inp.dataset.sp) {
+    if (e.type === 'change' && inp.tagName !== 'SELECT') return;
+    cp();
+    const k = inp.dataset.sp;
+    if (k === 'x' || k === 'y') { const v = Math.round(parseFloat(inp.value) || 0); setSceneOffset(k === 'x' ? v : +scene.x || 0, k === 'y' ? v : +scene.y || 0); return; }
+    const num = ['width', 'height', 'duration'].includes(k);
+    let v = num ? parseFloat(inp.value) : inp.value;
+    if (num && !(v > 0)) return;
+    scene[k] = v;
+    if (k === 'width' || k === 'height') { player.setScene(scene); resetView(); }
+    if (k === 'duration') { if (t > v) setTime(v); renderTimeline(); }
+    if (k === 'name' || k === 'layer') { renderTree(); }
+    return;
+  }
+  if (inp.dataset.si) {
+    const n2 = selNode(); if (!n2) return;
+    cp();
+    n2.showIf ||= {};
+    n2.showIf[inp.dataset.si] = inp.value;
+    if (!n2.showIf.field) delete n2.showIf;
+    else if (inp.dataset.si === 'field') { const vf = variantFields(scene).find((f) => f.id === inp.value); n2.showIf.value = vf?.opts[0] || ''; renderProps(); }
+    refresh(); return;
+  }
+  if (inp.dataset.vopt || inp.dataset.vdef) {
+    cp();
+    const id = inp.dataset.vopt || inp.dataset.vdef, m = scene.fieldMeta[id];
+    if (inp.dataset.vopt) { m.options = inp.value.split(',').map((s) => s.trim()).filter(Boolean); if (!m.options.includes(m.default)) m.default = m.options[0]; }
+    else m.default = inp.value;
+    refresh(); return;
+  }
+  if (inp.dataset.dk) {
+    cp();
+    const [i, key] = inp.dataset.dk.split('::');
+    const d = scene.dock?.[+i]; if (!d) return;
+    d[key] = key === 'target' ? inp.value.trim() : (parseFloat(inp.value) || 0);
+    return;
+  }
+  if (inp.dataset.fr) {
+    cp();
+    const [fid, key] = inp.dataset.fr.split('::');
+    scene.fieldMeta ||= {};
+    const m = (scene.fieldMeta[fid] ||= {});
+    if (inp.type === 'checkbox') {
+      if (key === 'rich' || key === 'spell') { if (inp.checked) delete m[key]; else m[key] = false; } // domyślnie włączone
+      else if (inp.checked) m[key] = true; else delete m[key];
+    } else if (inp.type === 'number') {
+      const v = parseInt(inp.value);
+      if (v > 0 || (key === 'tab' && v === 0)) m[key] = v; else delete m[key];
+    } else if (key === 'cats') {
+      const list = inp.value.split(',').map((x) => x.trim()).filter(Boolean);
+      if (list.length) m.cats = list; else delete m.cats;
+    } else if (inp.value.trim()) m[key] = inp.value; else delete m[key];
+    if (m.softMax && m.maxChars && m.softMax > m.maxChars) { m.softMax = m.maxChars; }
+    return;
+  }
+  if (inp.dataset.fm) {
+    cp();
+    scene.fieldMeta ||= {};
+    scene.fieldMeta[inp.dataset.fm] = { ...(scene.fieldMeta[inp.dataset.fm] || {}), label: inp.value };
+  }
+}
+$('#props').addEventListener('click', async (e) => {
+  const n = selNode();
+  const fo = e.target.closest('[data-fold]');
+  if (fo) { const g = fo.dataset.fold; pui.fold[g] = !folded(g); savePui(); fo.parentElement.classList.toggle('fold', folded(g)); return; }
+  if (e.target.closest('[data-pall]')) { pui.all = true; savePui(); renderProps(); return; }
+  if (e.target.closest('[data-ratio]')) { pui.ratio = !pui.ratio; savePui(); e.target.closest('[data-ratio]').classList.toggle('on', pui.ratio); return; }
+  const an = e.target.closest('[data-anchor]');
+  if (an && n) { const [ax, ay] = an.dataset.anchor.split(','); checkpoint(); setProp(n, 'anchorX', ax); setProp(n, 'anchorY', ay); refresh(); syncProps(); return; }
+  const sg = e.target.closest('[data-seg]');
+  if (sg && n) { checkpoint(); setProp(n, sg.dataset.seg, sg.dataset.v); refresh(); syncProps(); return; }
+  const kb = e.target.closest('[data-key]');
+  if (kb && n) { checkpoint(); toggleKey(n, kb.dataset.key); refresh(); syncProps(); renderTimeline(); renderTree(); return; }
+  const fb = e.target.closest('[data-field]');
+  if (fb && n) {
+    const p = fb.dataset.field;
+    const cur = n.fields?.[p] || '';
+    const v = prompt(`Nazwa pola kontrolnego dla „${n.name}.${p}”\n(litery, cyfry, _ . -; puste = usuń)`, cur || n.name.replace(/[^\w.\-]/g, '_'));
+    if (v === null) return;
+    checkpoint();
+    n.fields ||= {};
+    const id = v.trim().replace(/[^\w.\-]/g, '_');
+    if (id) n.fields[p] = id; else delete n.fields[p];
+    renderTree(); syncProps(); return;
+  }
+  const ub = e.target.closest('[data-upload]');
+  if (ub && n) { const a = await uploadAsset(ub.dataset.accept); if (a) { checkpoint(); setProp(n, ub.dataset.upload, a.name); renderProps(); refresh(); } return; }
+  if (e.target.closest('[data-mofit]')) { fitMotionTiming(); return; }
+  if (e.target.id === 'pkAdd') { const a = await uploadAsset(); if (a) { checkpoint(); scene.packAssets = [...new Set([...(scene.packAssets || []), a.name])]; renderProps(); refresh(); } return; }
+  const pkr = e.target.closest('[data-pkrm]');
+  if (pkr) { checkpoint(); scene.packAssets = (scene.packAssets || []).filter((x) => x !== pkr.dataset.pkrm); if (!scene.packAssets.length) delete scene.packAssets; renderProps(); return; }
+  if (e.target.id === 'dkAdd') { checkpoint(); (scene.dock ||= []).push({ target: 'layer:back', dx: 0, dy: -90, dur: 0.6 }); renderProps(); return; }
+  const dkd = e.target.closest('[data-dkdel]');
+  if (dkd) { checkpoint(); scene.dock.splice(+dkd.dataset.dkdel, 1); if (!scene.dock.length) delete scene.dock; renderProps(); return; }
+  const mks = e.target.closest('[data-mkstop]');
+  if (mks) { const m = scene.markers[+mks.dataset.mkstop]; if (scene.stops.some((x) => Math.abs(x - m.t) < 0.005)) return toast('Stop w tym miejscu już istnieje'); checkpoint(); scene.stops.push(+m.t.toFixed(3)); scene.stops.sort((a, b) => a - b); renderProps(); renderTimeline(); return; }
+  const mkr = e.target.closest('[data-rmmk]');
+  if (mkr) { checkpoint(); scene.markers.splice(+mkr.dataset.rmmk, 1); renderProps(); renderTimeline(); return; }
+  const ft = e.target.closest('[data-frtoggle]');
+  if (ft) { const id = ft.dataset.frtoggle; if (openRules.has(id)) openRules.delete(id); else openRules.add(id); renderProps(); return; }
+  if (e.target.closest('[data-scene0]')) { checkpoint(); setSceneOffset(0, 0); return; }
+  const rs = e.target.closest('[data-rmstop]');
+  if (rs) { checkpoint(); scene.stops.splice(+rs.dataset.rmstop, 1); renderProps(); renderTimeline(); return; }
+  const vd = e.target.closest('[data-vdel]');
+  if (vd) { checkpoint(); delete scene.fieldMeta[vd.dataset.vdel]; walk(scene.nodes, (x) => { if (x.showIf?.field === vd.dataset.vdel) delete x.showIf; }); renderProps(); refresh(); return; }
+  if (e.target.id === 'addVar') {
+    const id = prompt('Nazwa pola wariantu (np. styl)', 'styl'); if (!id) return;
+    const opts = prompt('Opcje, po przecinku', 'info, pilne'); if (!opts) return;
+    checkpoint();
+    scene.fieldMeta ||= {};
+    const o = opts.split(',').map((s) => s.trim()).filter(Boolean);
+    scene.fieldMeta[id.replace(/[^\w.\-]/g, '_')] = { type: 'select', label: id, options: o, default: o[0] };
+    renderProps(); return;
+  }
+  if (e.target.id === 'mkPage') {
+    if (dirty) await save();
+    const values = {}; for (const f of listFields(scene)) values[f.id] = f.default;
+    try { const p = await api('POST', '/api/pages', { scene: scene.id, name: scene.name, values }); toast(`Utworzono stronę ${p.number} – otwórz Trio`); }
+    catch (err) { toast(err.message, true); }
+  }
+});
+// prawy klik na etykiecie = wartość domyślna (gdy właściwość nie ma kluczy)
+$('#props').addEventListener('contextmenu', (e) => {
+  const lb = e.target.closest('label[data-scrub]'), n = selNode();
+  const p = lb?.closest('[data-prop]')?.dataset.prop;
+  if (!lb || !n || !p || !PROPS[p]) return;
+  e.preventDefault();
+  if (n.anim?.[p]?.length) return toast('Właściwość ma klucze – usuń je na osi czasu', true);
+  if (!n.props || !(p in n.props)) return;
+  checkpoint(); delete n.props[p]; refresh();
+  if (WHEN_SRC.has(p)) renderProps(); else syncProps();
+  toast(`${PROPS[p].label || p}: wartość domyślna`);
+});
+// pasek panelu: zakładki, tryb Podstawowe/Wszystko, szukanie
+$('#ptools').addEventListener('click', (e) => {
+  const tb = e.target.closest('[data-ptab]');
+  if (tb) { pui.tab = tb.dataset.ptab; savePui(); renderProps(); return; }
+  if (e.target.id === 'pall') { pui.all = !pui.all; savePui(); renderProps(); }
+});
+$('#psearch').addEventListener('input', () => applySearch());
+$('#psearch').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.target.value = ''; applySearch(); e.target.blur(); } });
+// przeciąganie etykiety = zmiana wartości liczbowej
+$('#props').addEventListener('mousedown', (e) => {
+  const lb = e.target.closest('label[data-scrub]');
+  const n = selNode();
+  if (!lb || !lb.dataset.scrub || !n) return;
+  e.preventDefault();
+  const p = lb.dataset.scrub, d = PROPS[p];
+  const start = propAt(n, p, t, null), sx = e.clientX;
+  let moved = false;
+  const mv = (ev) => {
+    if (!moved) { checkpoint(); moved = true; }
+    let v = start + (ev.clientX - sx) * (d.step || 1) * (ev.shiftKey ? 10 : 1);
+    if (d.min != null) v = Math.max(d.min, v); if (d.max != null) v = Math.min(d.max, v);
+    setPropUI(n, p, Math.round(v * 1000) / 1000); refresh(); syncProps();
+  };
+  const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); if (moved && n.anim?.[p]) renderTimeline(); if (moved && WHEN_SRC.has(p)) renderProps(); };
+  addEventListener('mousemove', mv); addEventListener('mouseup', up);
+});
+
+function uploadAsset(accept = 'image/*,video/mp4,video/webm,.ttf,.otf,.woff,.woff2') {
+  return new Promise((res) => {
+    const fi = $('#fileIn');
+    fi.accept = accept;
+    fi.value = '';
+    fi.onchange = async () => {
+      const f = fi.files[0]; if (!f) return res(null);
+      try {
+        const r = await fetch('/api/assets?name=' + encodeURIComponent(f.name), { method: 'POST', body: f });
+        const j = await r.json(); if (!r.ok) throw new Error(j.error);
+        await loadAssets(); toast('Wgrano ' + j.name); res(j);
+      } catch (e) { toast('Upload: ' + e.message, true); res(null); }
+    };
+    fi.click();
+  });
+}
+
+// ------------------------------------------------------------ drzewo
+function select(id) {
+  selId = id || null;
+  if (selKey && selKey.node.id !== selId) { selKey = null; selKeys = []; }
+  renderTree(); renderProps(); renderTimeline();
+}
+$('#tree').addEventListener('click', (e) => {
+  lastArea = 'tree';
+  const eye = e.target.closest('[data-eye]');
+  if (eye) { const n = locate(eye.dataset.eye)?.node; if (n) { checkpoint(); n.hidden = !n.hidden; refresh(); renderTree(); } return; }
+  const lock = e.target.closest('[data-lock]');
+  if (lock) { const n = locate(lock.dataset.lock)?.node; if (n) { checkpoint(); if (n.locked) delete n.locked; else n.locked = true; renderTree(); } return; }
+  const it = e.target.closest('.item'); if (it) select(it.dataset.id);
+});
+$('#tree').addEventListener('dblclick', (e) => {
+  const it = e.target.closest('.item'); if (!it?.dataset.id) return;
+  const n = locate(it.dataset.id).node;
+  const v = prompt('Nazwa kontenera', n.name); if (v === null) return;
+  checkpoint(); n.name = v; renderTree(); renderProps();
+});
+
+const DEFAULTS = {
+  group: { w: 600, h: 200 },
+  rect: { w: 400, h: 100, color: '#e30613' },
+  ellipse: { w: 200, h: 200, color: '#3d8bfd' },
+  text: { w: 800, h: 100, text: 'Nowy tekst', size: 64, color: '#ffffff', font: 'Inter', textFit: 'squeeze', squeezeMin: 0.6 },
+  image: { w: 400, h: 300 },
+  qr: { w: 240, h: 240, text: 'https://example.com', color: '#000000', qrBg: '#ffffff' },
+  clock: { w: 300, h: 80, size: 48, color: '#ffffff', font: 'Roboto Mono', align: 'center' },
+  ticker: { w: 1920, h: 70, text: 'Pierwsza wiadomość\nDruga wiadomość', size: 32, color: '#ffffff' },
+};
+/** Presety tickerów (jak „Paski i tickery” w edytorze BTB): grupa z tłem i węzłem ticker z polem `news`. */
+const TICKER_PRESETS = {
+  full: { name: 'Ticker pełny ekran (crawl)', g: { x: 0, y: 1010, w: 1920, h: 70 }, nodes: [
+    { type: 'rect', name: 'tlo', props: { x: 0, y: 0, w: 1920, h: 70, color: '#0b1a33' } },
+    { type: 'rect', name: 'linia', props: { x: 0, y: 0, w: 1920, h: 3, color: '#e30613' } },
+    { type: 'ticker', name: 'ticker', field: 'news', props: { x: 0, y: 3, w: 1920, h: 67, tickerMode: 'crawl', label: 'INFO', catW: 180, catBg: '#e30613', sepStyle: 'dot', speed: 140, size: 34, weight: '600', upper: true, font: 'Barlow Condensed', text: 'PILNE|Pierwsza wiadomość\nDruga wiadomość\nSPORT|Trzecia wiadomość', catColors: 'PILNE=#e30613; SPORT=#1f8a4c' } }] },
+  whip: { name: 'Pasek z wiperem (whip)', g: { x: 80, y: 990, w: 1760, h: 60 }, nodes: [
+    { type: 'rect', name: 'tlo', props: { x: 0, y: 0, w: 1760, h: 60, color: '#0b0f19', color2: '#1e293b', gradAngle: 90, radius: 4 } },
+    { type: 'ticker', name: 'ticker', field: 'news', props: { x: 0, y: 0, w: 1760, h: 60, tickerMode: 'whip', hold: 6, label: 'PILNE', catW: 190, catBg: '#c8102e', gleam: 3, size: 30, weight: '700', font: 'Barlow Condensed', text: 'Pierwsza wiadomość\nKRAJ|Druga wiadomość\nŚWIAT|Trzecia wiadomość', catColors: 'KRAJ=#c8102e; ŚWIAT=#1c3f94' } }] },
+  line: { name: 'Crawl z linią akcentu', g: { x: 0, y: 1020, w: 1920, h: 60 }, nodes: [
+    { type: 'rect', name: 'tlo', props: { x: 0, y: 0, w: 1920, h: 60, color: '#0f172a' } },
+    { type: 'rect', name: 'akcent', props: { x: 0, y: 0, w: 1920, h: 2, color: '#38bdf8' } },
+    { type: 'ticker', name: 'ticker', field: 'news', props: { x: 30, y: 2, w: 1890, h: 58, tickerMode: 'crawl', sepStyle: 'pipe', sepColor: '#38bdf8', speed: 120, size: 28, weight: '600', upper: true, font: 'Barlow Condensed', text: 'Giełda w Warszawie notuje wzrosty\nKurs złotego stabilny\nJutro słonecznie' } }] },
+  side: { name: 'Ticker boczny (roll)', g: { x: 1420, y: 300, w: 460, h: 90 }, nodes: [
+    { type: 'rect', name: 'tlo', props: { x: 0, y: 0, w: 460, h: 90, color: '#0b0f19', radius: 8, borderColor: '#3b82f6', borderWidth: 1 } },
+    { type: 'ticker', name: 'ticker', field: 'news', props: { x: 0, y: 0, w: 460, h: 90, tickerMode: 'roll', hold: 5, catW: 120, catBg: '#2563eb', size: 26, weight: '600', font: 'Barlow Condensed', text: 'SKRÓT|Nowe przepisy drogowe\nSKRÓT|Spotkanie ministrów UE' } }] },
+};
+$('#addSel').innerHTML += `<optgroup label="Presety tickerów">${Object.entries(TICKER_PRESETS).map(([k, v]) => `<option value="preset:${k}">⇠ ${v.name}</option>`).join('')}</optgroup>`;
+function addPreset(key) {
+  const pr = TICKER_PRESETS[key]; if (!pr) return;
+  checkpoint();
+  const used = new Set(listFields(scene).map((f) => f.id));
+  let fid = 'news', k = 2; while (used.has(fid)) fid = 'news' + k++;
+  const g = { id: uid('n'), type: 'group', name: pr.name.toLowerCase().replace(/\s*\(.*$/, '').replace(/[^a-ząćęłńóśźż0-9]+/g, '_'), props: { ...pr.g }, anim: {}, fields: {}, children: pr.nodes.map((x) => ({ id: uid('n'), type: x.type, name: x.name, props: { ...x.props }, anim: {}, fields: x.field ? { text: fid } : {} })) };
+  scene.nodes.push(g);
+  scene.fieldMeta ||= {};
+  scene.fieldMeta[fid] = { label: 'Wiadomości', ...(scene.fieldMeta[fid] || {}) };
+  player.setScene(scene); player.seek(t);
+  select(g.children.find((c) => c.type === 'ticker').id);
+  toast(`Dodano „${pr.name}” – pole „${fid}” edytuje operator w Trio`);
+}
+function addNode(type) {
+  if (type.startsWith('preset:')) { addPreset(type.slice(7)); return; }
+  if (!scene) return toast('Najpierw otwórz albo utwórz scenę', true);
+  if (!TYPES[type]) return;
+  checkpoint();
+  let count = 0; walk(scene.nodes, (n) => { if (n.type === type) count++; });
+  const props = { w: 200, h: 200, ...DEFAULTS[type] };
+  const sel = selId ? locate(selId) : null;
+  // do środka wkładamy tylko do zaznaczonej grupy (prostokąt też bywa kontenerem, ale nowy element znikał w nim pod przycięciem)
+  const intoParent = sel && sel.node.type === 'group';
+  if (intoParent || sel?.parent) { props.x = 0; props.y = 0; }
+  else { props.x = Math.round((scene.width - props.w) / 2); props.y = Math.round((scene.height - props.h) / 2); }
+  const n = { id: uid('n'), type, name: TYPES[type].label.toLowerCase().replace(/[^a-ząćęłńóśźż]/g, '') + (count + 1), props, anim: {}, fields: {} };
+  if (TYPES[type].children) n.children = [];
+  if (intoParent) { (sel.node.children ||= []).push(n); fitGroup(sel.node); }
+  else if (sel) { sel.list.splice(sel.index + 1, 0, n); if (sel.parent) fitGroup(sel.parent); }
+  else scene.nodes.push(n);
+  player.setScene(scene); player.seek(t);
+  select(n.id);
+  if (intoParent || sel?.parent) toast(`Dodano do grupy „${(intoParent ? sel.node : sel.parent).name}” – odznacz (klik w puste miejsce), aby dodać na najwyższy poziom`);
+}
+$('#addSel').addEventListener('change', (e) => { if (e.target.value) addNode(e.target.value); e.target.value = ''; });
+
+function cloneNode(n) {
+  const c = structuredClone(n);
+  const re = (x) => { x.id = uid('n'); (x.children || []).forEach(re); };
+  re(c); return c;
+}
+function treeOp(op) {
+  const L = selId && locate(selId); if (!L) return;
+  const { node: n, list, index: i, parent } = L;
+  checkpoint();
+  if (op === 'up' && i > 0) [list[i - 1], list[i]] = [list[i], list[i - 1]];
+  else if (op === 'down' && i < list.length - 1) [list[i + 1], list[i]] = [list[i], list[i + 1]];
+  else if (op === 'in' && i > 0 && TYPES[list[i - 1].type]?.children) {
+    const P = list[i - 1];
+    list.splice(i, 1); (P.children ||= []).push(n);
+    n.props.x = (n.props.x || 0) - (P.props?.x || 0); n.props.y = (n.props.y || 0) - (P.props?.y || 0);
+    fitGroup(P);
+  } else if (op === 'out' && parent) {
+    const PL = locate(parent.id);
+    list.splice(i, 1); PL.list.splice(PL.index + 1, 0, n);
+    n.props.x = (n.props.x || 0) + (parent.props?.x || 0); n.props.y = (n.props.y || 0) + (parent.props?.y || 0);
+  } else if (op === 'dup') {
+    const c = cloneNode(n); c.name = n.name + '_kopia';
+    list.splice(i + 1, 0, c); selId = c.id;
+  } else if (op === 'fit') {
+    if (!fitGroup(n)) { undo.pop(); return toast('Dopasowanie działa dla grupy z elementami', true); }
+  } else if (op === 'del') {
+    if (isLocked(n.id)) { undo.pop(); return toast('Element jest zablokowany – odblokuj go w drzewie (🔒)', true); }
+    list.splice(i, 1); selId = null; selKey = null;
+  } else { undo.pop(); return; }
+  player.setScene(scene); player.seek(t);
+  renderTree(); renderProps(); renderTimeline();
+}
+$('#tUp').onclick = () => treeOp('up');
+$('#tDown').onclick = () => treeOp('down');
+$('#tIn').onclick = () => treeOp('in');
+$('#tOut').onclick = () => treeOp('out');
+$('#tDupN').onclick = () => treeOp('dup');
+$('#tDel').onclick = () => treeOp('del');
+$('#tFit').onclick = () => treeOp('fit');
+
+// ------------------------------------------------------------ podgląd / płótno
+// zoom podglądu (jak w Trio): k – krotność względem dopasowania, x/y – przesunięcie w px pudełka
+let view = { k: 1, x: 0, y: 0 }, fit = { base: 1, ox: 0, oy: 0 };
+function applyView() {
+  const b = box.getBoundingClientRect(), w = scene.width * scale, h = scene.height * scale, M = 40;
+  // scena nie może całkiem uciec z pola widzenia
+  view.x = Math.min(b.width - M - fit.ox, Math.max(M - w - fit.ox, view.x));
+  view.y = Math.min(b.height - M - fit.oy, Math.max(M - h - fit.oy, view.y));
+  stage.style.transform = `translate(${fit.ox + view.x}px, ${fit.oy + view.y}px) scale(${scale})`;
+  $('#vZoom').textContent = Math.round(scale * 100) + '%';
+  $('#info').textContent = $('#info').textContent.replace(/\d+%$/, Math.round(scale * 100) + '%');
+  placeSafe(); updateSel();
+}
+function resize() {
+  if (!scene) return;
+  const b = box.getBoundingClientRect(), old = fit.base, base = fitStage(stage, box, scene.width, scene.height);
+  // zmiana panelu: ten sam punkt sceny zostaje na środku
+  if (old > 0 && base > 0) { view.x *= base / old; view.y *= base / old; }
+  fit = { base, ox: (b.width - scene.width * base) / 2, oy: (b.height - scene.height * base) / 2 };
+  scale = base * view.k;
+  applyView();
+}
+function resetView() { view = { k: 1, x: 0, y: 0 }; resize(); }
+/** Zoom do skali s (rzeczywistej), z punktem (px, py) pudełka nieruchomym. */
+function zoomAt(s, px, py) {
+  s = Math.min(8, Math.max(Math.min(0.1, fit.base), s));
+  const f = s / scale;
+  view = { k: s / fit.base, x: px - fit.ox - (px - fit.ox - view.x) * f, y: py - fit.oy - (py - fit.oy - view.y) * f };
+  scale = s; applyView();
+}
+/** Punkt (cx, cy) w px sceny na środku pudełka, w skali s. */
+function zoomOn(cx, cy, s) {
+  s = Math.min(8, Math.max(Math.min(0.1, fit.base), s));
+  const b = box.getBoundingClientRect();
+  view = { k: s / fit.base, x: b.width / 2 - fit.ox - cx * s, y: b.height / 2 - fit.oy - cy * s };
+  scale = s; applyView();
+}
+const boxMid = () => { const b = box.getBoundingClientRect(); return [b.width / 2, b.height / 2]; };
+const zoom100 = () => zoomOn(scene.width / 2, scene.height / 2, 1);
+function zoomSel() {
+  const el = selId && stage.querySelector(`[data-id="${CSS.escape(selId)}"]`);
+  const r = el && el.style.display !== 'none' ? el.getBoundingClientRect() : null;
+  if (!r || !r.width || !r.height) { toast('Zaznacz widoczny element', true); return; }
+  const b = box.getBoundingClientRect(), s0 = stage.getBoundingClientRect();
+  zoomOn((r.left + r.width / 2 - s0.left) / scale, (r.top + r.height / 2 - s0.top) / scale, scale * Math.min(0.7 * b.width / r.width, 0.7 * b.height / r.height));
+}
+$('#vTools').addEventListener('mousedown', (e) => e.stopPropagation());
+$('#vIn').onclick = () => zoomAt(scale * 1.5, ...boxMid());
+$('#vOut').onclick = () => zoomAt(scale / 1.5, ...boxMid());
+$('#vFit').onclick = resetView;
+$('#v100').onclick = zoom100;
+$('#vSel').onclick = zoomSel;
+box.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const b = box.getBoundingClientRect();
+  zoomAt(scale * Math.exp(-e.deltaY * 0.0015), e.clientX - b.left, e.clientY - b.top);
+}, { passive: false });
+addEventListener('resize', () => { resize(); renderTimeline(); });
+function placeSafe() {
+  const b = box.getBoundingClientRect(), r = stage.getBoundingClientRect(), s = $('#safe');
+  Object.assign(s.style, { left: r.left - b.left + 'px', top: r.top - b.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+}
+$('#bSafe').onclick = () => { const s = $('#safe'); s.style.display = s.style.display === 'block' ? 'none' : 'block'; placeSafe(); };
+
+function updateSel() {
+  const o = $('#sel');
+  const el = selId && stage.querySelector(`[data-id="${CSS.escape(selId)}"]`);
+  if (!el || el.style.display === 'none') { o.style.display = 'none'; return; }
+  const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
+  Object.assign(o.style, { display: 'block', left: r.left - b.left + 'px', top: r.top - b.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+  const n = selNode();
+  o.querySelector('.lbl').textContent = n ? `${n.name}  ${Math.round(propAt(n, 'x', t))}, ${Math.round(propAt(n, 'y', t))}  ${Math.round(propAt(n, 'w', t))}×${Math.round(propAt(n, 'h', t))}` : '';
+}
+
+box.addEventListener('mousedown', (e) => {
+  lastArea = 'canvas';
+  if (e.button === 1) {
+    e.preventDefault();
+    const sx = e.clientX, sy = e.clientY, x0 = view.x, y0 = view.y;
+    const mv = (ev) => { view.x = x0 + ev.clientX - sx; view.y = y0 + ev.clientY - sy; applyView(); };
+    const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); };
+    addEventListener('mousemove', mv); addEventListener('mouseup', up);
+    return;
+  }
+  if (e.button !== 0) return;
+  const handle = e.target.closest('#sel .h');
+  // zablokowane elementy są „przezroczyste” dla myszy: chwytamy pierwszy niezablokowany pod kursorem
+  const nodeEl = !handle && document.elementsFromPoint(e.clientX, e.clientY).find((x) => x.classList?.contains('vz-node') && stage.contains(x) && !isLocked(x.dataset.id));
+  if (!handle && !nodeEl) {
+    // puste miejsce: zaznacz scenę; przeciągnięcie przesuwa całą scenę (scene.x / y)
+    if (selId) select(null);
+    e.preventDefault();
+    const sx = e.clientX, sy = e.clientY, x0 = +scene.x || 0, y0 = +scene.y || 0; let moved = false;
+    const mv = (ev) => {
+      let dx = (ev.clientX - sx) / scale, dy = (ev.clientY - sy) / scale;
+      if (!moved && Math.abs(dx) + Math.abs(dy) < 2) return;
+      if (!moved) { checkpoint(); moved = true; }
+      if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+      setSceneOffset(x0 + dx, y0 + dy);
+    };
+    const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); };
+    addEventListener('mousemove', mv); addEventListener('mouseup', up);
+    return;
+  }
+  e.preventDefault();
+  if (nodeEl && nodeEl.dataset.id !== selId) select(nodeEl.dataset.id);
+  const n = selNode(); if (!n || isLocked(n.id)) return;
+  const sx = e.clientX, sy = e.clientY;
+  const k = handle ? ['w', 'h'] : ['x', 'y'];
+  const v0 = k.map((p) => propAt(n, p, t, null));
+  let moved = false;
+  const mv = (ev) => {
+    let dx = (ev.clientX - sx) / scale, dy = (ev.clientY - sy) / scale;
+    if (!moved && Math.abs(dx) + Math.abs(dy) < 2) return;
+    if (!moved) { checkpoint(); moved = true; }
+    if (ev.shiftKey && !handle) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+    setProp(n, k[0], Math.round(v0[0] + dx));
+    setProp(n, k[1], Math.round(v0[1] + dy));
+    refresh(); syncProps();
+  };
+  const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); if (moved) renderTimeline(); };
+  addEventListener('mousemove', mv); addEventListener('mouseup', up);
+});
+box.addEventListener('mousemove', (e) => {
+  const r = stage.getBoundingClientRect();
+  const x = Math.round((e.clientX - r.left) / scale), y = Math.round((e.clientY - r.top) / scale);
+  $('#info').textContent = `${x}, ${y}   ·   ${scene?.width}×${scene?.height}   ·   ${Math.round(scale * 100)}%`;
+});
+
+// ------------------------------------------------------------ timeline
+$('#zoom').addEventListener('input', (e) => setZoom(+e.target.value));
+$('#tc').addEventListener('change', (e) => setTime(parseFloat(e.target.value) || 0));
+$('#dur').addEventListener('change', (e) => {
+  const v = parseFloat(e.target.value); if (!(v > 0)) return;
+  checkpoint(); scene.duration = v; if (t > v) setTime(v); renderTimeline(); if (!selId) renderProps();
+});
+const sortedStops = () => [...scene.stops].sort((a, b) => a - b);
+$('#pHome').onclick = () => setTime(0);
+$('#pTake').onclick = () => { const s = sortedStops(); player.playTo(s.length ? s[0] : scene.duration, 0); };
+$('#pCont').onclick = () => { const nx = sortedStops().find((s) => s > t + 1e-4); player.playTo(nx ?? scene.duration); };
+$('#pOut').onclick = () => { const s = sortedStops(); const ls = s.length ? s[s.length - 1] : 0; player.playTo(scene.duration, Math.max(t, ls)); };
+$('#pPlay').onclick = () => player.playTo(scene.duration, t >= scene.duration - 1e-3 ? 0 : t);
+$('#pStop').onclick = () => { player.playing = false; };
+$('#addStop').onclick = () => {
+  if (scene.stops.some((s) => Math.abs(s - t) < 0.005)) return toast('Stop w tym miejscu już istnieje');
+  checkpoint(); scene.stops.push(+t.toFixed(3)); scene.stops.sort((a, b) => a - b); renderTimeline(); if (!selId) renderProps();
+};
+
+function timeFromX(clientX) {
+  const a = $('#tl .tl-area[data-area="ruler"]').getBoundingClientRect();
+  return (clientX - a.left) / pps;
+}
+$('#seqMode').onclick = () => { seqMode = !seqMode; try { localStorage.setItem('vizrs.seq', seqMode ? '1' : '0'); } catch { /* ignoruj */ } renderTimeline(); };
+$('#seqTools').addEventListener('click', (e) => { const b = e.target.closest('[data-seq]'); if (b) seqTool(b.dataset.seq); });
+$('#tl').addEventListener('mousedown', (e) => {
+  lastArea = 'timeline';
+  const mb = e.target.closest('.mb[data-mb]');
+  if (mb && !mb.classList.contains('loop')) {
+    // pasek ruchu: przeciągnięcie = opóźnienie, krawędź = czas trwania
+    e.preventDefault();
+    const [nid, sec] = mb.dataset.mb.split('|');
+    const n = locate(nid)?.node; if (!n?.motion?.[sec]) return;
+    const spec = n.motion[sec], resize = !!e.target.closest('.mbh');
+    const d0 = MO.specDelay(spec), u0 = MO.specDur(spec), sx = e.clientX;
+    let moved = false;
+    if (selId !== nid) { selId = nid; renderTree(); renderProps(); }
+    const mv = (ev) => {
+      const dx = ev.clientX - sx; if (!moved && Math.abs(dx) < 3) return;
+      if (!moved) { checkpoint(); moved = true; }
+      const q = (v) => (ev.shiftKey ? Math.round(v * 20) / 20 : r2(v));
+      if (resize) spec.dur = Math.max(0.02, q(u0 + dx / pps));
+      else { const d = Math.max(0, q(d0 + dx / pps)); if (d) spec.delay = d; else delete spec.delay; }
+      renderTimeline(); refresh();
+    };
+    const up = () => {
+      removeEventListener('mousemove', mv); removeEventListener('mouseup', up);
+      if (!moved) { const st = sec === 'out' || sec === 'textOut' ? outStartOf() + d0 : (MO.sequenceShifts(scene.nodes).get(nid) || 0) + d0; setTime(Number.isFinite(st) ? st : 0); }
+      renderTimeline(); renderProps();
+    };
+    addEventListener('mousemove', mv); addEventListener('mouseup', up);
+    return;
+  }
+  const kf = e.target.closest('.kf');
+  const sm = e.target.closest('.stopm');
+  const lbl = e.target.closest('.tl-lbl[data-sel]');
+  if (lbl) { select(lbl.dataset.sel); return; }
+  if (kf) {
+    e.preventDefault();
+    const [nid, p, i] = kf.dataset.k.split('|');
+    const n = locate(nid).node; const key = n.anim[p][+i];
+    const entry = { node: n, prop: p, key };
+    if (e.shiftKey) {
+      const j = selKeys.findIndex((x) => x.key === key);
+      if (j >= 0) selKeys.splice(j, 1); else selKeys.push(entry);
+    } else if (!selKeys.some((x) => x.key === key) || selKeys.length < 2) selKeys = [entry];
+    selKey = entry;
+    if (selId !== nid) { selId = nid; renderTree(); renderProps(); }
+    renderTimeline();
+    const sx = e.clientX; let moved = false;
+    const starts = selKeys.map((x) => x.key.t);
+    const mv = (ev) => {
+      const dx = ev.clientX - sx; if (!moved && Math.abs(dx) < 3) return;
+      if (!moved) { checkpoint(); moved = true; }
+      const minT = Math.min(...starts);
+      let dt = Math.max(-minT, dx / pps);
+      dt = ev.shiftKey ? Math.round(dt * 20) / 20 : Math.round(dt * 100) / 100;
+      selKeys.forEach((x, idx) => { x.key.t = Math.max(0, starts[idx] + dt); });
+      new Set(selKeys.map((x) => x.node.anim[x.prop])).forEach((tr) => tr.sort((a, b) => a.t - b.t));
+      renderTimeline(); refresh(); syncProps();
+    };
+    const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); if (!moved && selKeys.length === 1) setTime(key.t); };
+    addEventListener('mousemove', mv); addEventListener('mouseup', up);
+    return;
+  }
+  if (sm) {
+    e.preventDefault();
+    const i = +sm.dataset.stop, sx = e.clientX, t0 = scene.stops[i]; let moved = false;
+    const mv = (ev) => {
+      const dx = ev.clientX - sx; if (!moved && Math.abs(dx) < 3) return;
+      if (!moved) { checkpoint(); moved = true; }
+      scene.stops[i] = Math.max(0, Math.min(scene.duration, Math.round((t0 + dx / pps) * 100) / 100));
+      renderTimeline();
+    };
+    const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); scene.stops.sort((a, b) => a - b); if (!moved) setTime(t0); renderTimeline(); if (!selId) renderProps(); };
+    addEventListener('mousemove', mv); addEventListener('mouseup', up);
+    return;
+  }
+  const mk = e.target.closest('.mkm');
+  if (mk) { e.preventDefault(); setTime(scene.markers[+mk.dataset.mk].t); return; }
+  if (e.shiftKey && e.target.closest('.tl-area[data-row]')) { // zaznaczanie ramką
+    e.preventDefault();
+    const host = $('#tl'), hr = host.getBoundingClientRect(), sx = e.clientX, sy = e.clientY;
+    const band = document.createElement('div'); band.id = 'band'; host.appendChild(band);
+    const mv = (ev) => {
+      const x1 = Math.min(sx, ev.clientX), x2 = Math.max(sx, ev.clientX), y1 = Math.min(sy, ev.clientY), y2 = Math.max(sy, ev.clientY);
+      Object.assign(band.style, { left: x1 - hr.left + host.scrollLeft + 'px', top: y1 - hr.top + host.scrollTop + 'px', width: x2 - x1 + 'px', height: y2 - y1 + 'px' });
+    };
+    const up = (ev) => {
+      removeEventListener('mousemove', mv); removeEventListener('mouseup', up); band.remove();
+      const x1 = Math.min(sx, ev.clientX), x2 = Math.max(sx, ev.clientX), y1 = Math.min(sy, ev.clientY), y2 = Math.max(sy, ev.clientY);
+      const picked = [];
+      for (const kfEl of $$('#tl .kf')) {
+        const r = kfEl.getBoundingClientRect();
+        if (r.right < x1 || r.left > x2 || r.bottom < y1 || r.top > y2) continue;
+        const [nid, p, i] = kfEl.dataset.k.split('|');
+        const n = locate(nid)?.node; if (n?.anim?.[p]?.[+i]) picked.push({ node: n, prop: p, key: n.anim[p][+i] });
+      }
+      selKeys = picked; selKey = picked[0] || null;
+      renderTimeline();
+    };
+    addEventListener('mousemove', mv); addEventListener('mouseup', up);
+    return;
+  }
+  if (e.target.closest('.tl-area')) {
+    e.preventDefault();
+    if (selKey || selKeys.length) { selKey = null; selKeys = []; renderKeyEd(); $$('.kf.sel').forEach((k) => k.classList.remove('sel')); }
+    player.playing = false;
+    setTime(timeFromX(e.clientX));
+    const mv = (ev) => setTime(timeFromX(ev.clientX));
+    const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); };
+    addEventListener('mousemove', mv); addEventListener('mouseup', up);
+  }
+});
+$('#tl').addEventListener('dblclick', (e) => {
+  const mk = e.target.closest('.mkm');
+  if (mk) {
+    const m = scene.markers[+mk.dataset.mk];
+    const v = prompt('Nazwa markera (puste = usuń)', m.name || ''); if (v === null) return;
+    checkpoint(); if (v.trim()) m.name = v.trim(); else scene.markers.splice(+mk.dataset.mk, 1);
+    renderTimeline(); if (!selId) renderProps(); return;
+  }
+  if (e.target.closest('.tl-area[data-area="ruler"]') && !e.target.closest('.stopm')) { addMarker(Math.round(timeFromX(e.clientX) * 100) / 100); return; }
+  const sm = e.target.closest('.stopm');
+  if (sm) { checkpoint(); scene.stops.splice(+sm.dataset.stop, 1); renderTimeline(); if (!selId) renderProps(); return; }
+  const row = e.target.closest('.tl-area[data-row]');
+  if (!row || e.target.closest('.kf')) return;
+  const [nid, p] = row.dataset.row.split('|');
+  const n = locate(nid).node;
+  const at = Math.round(timeFromX(e.clientX) * 100) / 100;
+  checkpoint(); setKey(n, p, at, propAt(n, p, at, null));
+  setTime(at); renderTimeline();
+});
+$('#keyed').addEventListener('change', (e) => {
+  if (!selKey) return;
+  const k = selKey.key, tr = selKey.node.anim[selKey.prop];
+  checkpoint();
+  if (e.target.id === 'kt') { k.t = Math.max(0, parseFloat(e.target.value) || 0); tr.sort((a, b) => a.t - b.t); }
+  if (e.target.id === 'kv') k.v = PROPS[selKey.prop]?.t === 'num' ? parseFloat(e.target.value) || 0 : e.target.value;
+  if (e.target.id === 'ke') k.e = e.target.value;
+  refresh(); renderTimeline(); syncProps();
+});
+function deleteSelKey() {
+  if (!selKey && !selKeys.length) return;
+  checkpoint();
+  for (const x of (selKeys.length ? selKeys : [selKey])) {
+    const tr = x.node.anim?.[x.prop]; if (!tr) continue;
+    const i = tr.indexOf(x.key); if (i >= 0) tr.splice(i, 1);
+    if (!tr.length) delete x.node.anim[x.prop];
+  }
+  selKey = null; selKeys = []; refresh(); renderTimeline(); syncProps(); renderTree();
+}
+$('#keyed').addEventListener('click', (e) => { if (e.target.id === 'kdel') deleteSelKey(); });
+
+// ------------------------------------------------------------ markery, zoom, kopiuj/wklej klucze
+function addMarker(at, name) {
+  const v = name ?? prompt('Nazwa markera', 'marker' + ((scene.markers?.length || 0) + 1)); if (v === null || !v.trim()) return;
+  checkpoint(); (scene.markers ||= []).push({ t: Math.max(0, Math.min(scene.duration, +at.toFixed(3))), name: v.trim() });
+  scene.markers.sort((a, b) => a.t - b.t); renderTimeline(); if (!selId) renderProps();
+}
+$('#markAdd').onclick = () => addMarker(t);
+function setZoom(v, anchorClientX) {
+  const host = $('#tl'), old = pps;
+  const ar = host.getBoundingClientRect();
+  const cx = anchorClientX != null ? anchorClientX - ar.left : ar.width / 2;
+  const tAt = (host.scrollLeft + cx - LBL) / old;
+  pps = Math.max(40, Math.min(1200, v));
+  $('#zoom').value = pps;
+  renderTimeline();
+  host.scrollLeft = Math.max(0, tAt * pps + LBL - cx);
+}
+$('#tl').addEventListener('wheel', (e) => {
+  if (!e.ctrlKey && !e.metaKey) return; // bez Ctrl – zwykłe przewijanie
+  e.preventDefault();
+  setZoom(pps * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX);
+}, { passive: false });
+$('#zoomFit').onclick = () => { setZoom(($('#tl').clientWidth - LBL - 90) / Math.max(0.1, scene.duration)); $('#tl').scrollLeft = 0; };
+function copyKeys() {
+  const sel = selKeys.length ? selKeys : selKey ? [selKey] : [];
+  if (!sel.length) return toast('Zaznacz klucze (kliknij, Shift+klik lub Shift+przeciągnięcie ramką)', true);
+  const t0 = Math.min(...sel.map((x) => x.key.t));
+  clipKeys = sel.map((x) => ({ prop: x.prop, dt: x.key.t - t0, v: x.key.v, e: x.key.e }));
+  toast(`Skopiowano ${clipKeys.length} kluczy`);
+}
+function pasteKeys() {
+  const n = selNode();
+  if (!clipKeys) return toast('Schowek kluczy jest pusty', true);
+  if (!n) return toast('Zaznacz węzeł, na który wkleić klucze', true);
+  const ok = clipKeys.filter((c) => PROPS[c.prop]?.anim && TYPES[n.type].props.includes(c.prop));
+  if (!ok.length) return toast(`Węzeł „${n.name}” nie ma tych właściwości`, true);
+  checkpoint();
+  for (const c of ok) {
+    const at = Math.round(Math.max(0, Math.min(scene.duration, t + c.dt)) * 1000) / 1000;
+    setKey(n, c.prop, at, c.v);
+    const k = n.anim[c.prop].find((x) => Math.abs(x.t - at) < 0.0005); if (k && c.e) k.e = c.e;
+  }
+  refresh(); renderTimeline(); renderTree(); syncProps();
+  toast(`Wklejono ${ok.length} kluczy` + (ok.length < clipKeys.length ? ` (pominięto ${clipKeys.length - ok.length} – brak właściwości)` : ''));
+}
+$('#keyCopy').onclick = copyKeys;
+$('#keyPaste').onclick = pasteKeys;
+
+// ------------------------------------------------------------ drzewo: przeciąganie (zmiana rodzica / kolejności)
+const absPos = (id) => { let x = 0, y = 0, cur = locate(id); while (cur) { x += +cur.node.props?.x || 0; y += +cur.node.props?.y || 0; cur = cur.parent ? locate(cur.parent.id) : null; } return { x, y }; };
+const isDesc = (anc, id) => { let f = false; walk(anc.children || [], (n) => { if (n.id === id) f = true; }); return f; };
+function moveNode(srcId, dstId, mode) {
+  const S = locate(srcId), D = dstId ? locate(dstId) : null; if (!S) return;
+  if (D && (D.node.id === srcId || isDesc(S.node, D.node.id))) return toast('Nie można przenieść węzła do własnego potomka', true);
+  if (mode === 'into' && !(D && TYPES[D.node.type]?.children)) return;
+  checkpoint();
+  const abs = absPos(srcId);
+  S.list.splice(S.index, 1);
+  const L = D ? locate(D.node.id) : null;
+  let parent = null;
+  if (mode === 'into') { (L.node.children ||= []).push(S.node); parent = L.node; }
+  else if (L) { L.list.splice(L.index + 1, 0, S.node); parent = L.parent || null; }
+  else scene.nodes.push(S.node);
+  // zachowaj położenie na scenie: współrzędne względem nowego rodzica
+  const pa = parent ? absPos(parent.id) : { x: 0, y: 0 };
+  S.node.props ||= {}; S.node.props.x = Math.round(abs.x - pa.x); S.node.props.y = Math.round(abs.y - pa.y);
+  if (mode === 'into') fitGroup(parent);
+  player.setScene(scene); player.seek(t); renderTree(); renderProps(); renderTimeline();
+}
+let dragNode = null;
+$('#tree').addEventListener('dragstart', (e) => { const it = e.target.closest('.item[data-id]'); if (!it || !it.dataset.id) { e.preventDefault(); return; } dragNode = it.dataset.id; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragNode); } catch { /* ignoruj */ } });
+function dropMode(e, it) {
+  const r = it.getBoundingClientRect(), n = locate(it.dataset.id)?.node;
+  return n && TYPES[n.type]?.children && e.clientY > r.top + r.height * 0.25 && e.clientY < r.bottom - r.height * 0.25 ? 'into' : 'after';
+}
+$('#tree').addEventListener('dragover', (e) => {
+  const it = e.target.closest('.item'); if (!dragNode || !it) return;
+  e.preventDefault();
+  $$('#tree .dropinto, #tree .dropafter').forEach((x) => x.classList.remove('dropinto', 'dropafter'));
+  it.classList.add(it.dataset.id ? (dropMode(e, it) === 'into' ? 'dropinto' : 'dropafter') : 'dropafter');
+});
+$('#tree').addEventListener('dragend', () => { dragNode = null; $$('#tree .dropinto, #tree .dropafter').forEach((x) => x.classList.remove('dropinto', 'dropafter')); });
+$('#tree').addEventListener('drop', (e) => {
+  const it = e.target.closest('.item'); if (!dragNode || !it) return;
+  e.preventDefault();
+  const src = dragNode; dragNode = null;
+  $$('#tree .dropinto, #tree .dropafter').forEach((x) => x.classList.remove('dropinto', 'dropafter'));
+  if (!it.dataset.id) { moveNode(src, null, 'after'); return; } // upuszczenie na wiersz sceny = na koniec korzenia
+  moveNode(src, it.dataset.id, dropMode(e, it));
+});
+
+// ------------------------------------------------------------ biblioteka presetów animacji
+let animPresets = [];
+async function loadPresets() { animPresets = await api('GET', '/api/animpresets').catch(() => []); }
+async function savePresets() { animPresets = await api('PUT', '/api/animpresets', animPresets); }
+function presetFromNode(n, name) {
+  const tracks = {}; let t0 = Infinity, t1 = 0;
+  for (const [p, tr] of Object.entries(n.anim || {})) if (tr?.length) { tracks[p] = tr.map((k) => ({ ...k })); t0 = Math.min(t0, tr[0].t); t1 = Math.max(t1, tr[tr.length - 1].t); }
+  if (!Object.keys(tracks).length) return null;
+  for (const tr of Object.values(tracks)) tr.forEach((k) => { k.t = Math.round((k.t - t0) * 1000) / 1000; });
+  return { id: uid('ap'), name, duration: Math.round((t1 - t0) * 1000) / 1000, tracks };
+}
+function applyPreset(n, pr) {
+  let used = 0;
+  for (const [p, tr] of Object.entries(pr.tracks || {})) {
+    if (!PROPS[p]?.anim || !TYPES[n.type].props.includes(p)) continue;
+    n.anim ||= {};
+    const lo = t - 1e-4, hi = t + pr.duration + 1e-4;
+    n.anim[p] = (n.anim[p] || []).filter((k) => k.t < lo || k.t > hi).concat(tr.map((k) => ({ ...k, t: Math.round((k.t + t) * 1000) / 1000 })));
+    n.anim[p].sort((a, b) => a.t - b.t); used++;
+  }
+  return used;
+}
+$('#props').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-ap]'); if (!b) return;
+  const n = selNode(); if (!n) return;
+  const act = b.dataset.ap;
+  try {
+    if (act === 'save') {
+      const name = prompt('Nazwa presetu animacji', n.name + ' – animacja'); if (!name) return;
+      const pr = presetFromNode(n, name);
+      if (!pr) return toast('Węzeł nie ma kluczy animacji', true);
+      animPresets.push(pr); await savePresets(); renderProps(); toast(`Zapisano preset „${name}”`);
+    } else {
+      const sel = $('#apSel')?.value, pr = animPresets.find((x) => x.id === sel);
+      if (act === 'apply') {
+        if (!pr) return toast('Wybierz preset', true);
+        checkpoint(); const used = applyPreset(n, pr);
+        if (!used) { undo.pop(); return toast('Ten węzeł nie ma właściwości z presetu', true); }
+        player.setScene(scene); player.seek(t); renderTimeline(); renderTree(); syncProps(); toast(`Zastosowano preset „${pr.name}” od ${t.toFixed(2)}s`);
+      } else if (act === 'del') {
+        if (!pr || !confirm(`Usunąć preset „${pr.name}”?`)) return;
+        animPresets = animPresets.filter((x) => x.id !== pr.id); await savePresets(); renderProps();
+      } else if (act === 'export') {
+        if (!pr) return toast('Wybierz preset', true);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(pr, null, 2)], { type: 'application/json' }));
+        a.download = (pr.name || 'preset').replace(/[^\w.\-]+/g, '_') + '.animpreset.json'; a.click();
+      } else if (act === 'import') {
+        const fi = $('#fileIn'); fi.accept = '.json,application/json'; fi.value = '';
+        fi.onchange = async () => {
+          try { const x = JSON.parse(await fi.files[0].text()); if (!x.tracks) throw new Error('to nie jest preset animacji'); x.id = uid('ap'); animPresets.push(x); await savePresets(); renderProps(); toast('Zaimportowano preset'); }
+          catch (err) { toast('Import: ' + err.message, true); }
+        };
+        fi.click();
+      }
+    }
+  } catch (err) { toast(err.message, true); }
+});
+loadPresets();
+
+// ------------------------------------------------------------ górny pasek
+$('#sceneSel').addEventListener('change', async (e) => {
+  const s = scenes.find((s) => s.id === e.target.value);
+  if (await confirmLeave()) openScene(s); else renderSceneSel();
+});
+$('#bSave').onclick = () => save();
+$('#bUndo').onclick = doUndo;
+$('#bRedo').onclick = doRedo;
+$('#bNew').onclick = async () => {
+  if (!(await confirmLeave())) return;
+  const n = prompt('Nazwa nowej sceny', 'Scena' + (scenes.length + 1)); if (!n) return;
+  newScene(n);
+};
+$('#bDup').onclick = async () => {
+  if (!(await confirmLeave())) return;
+  const c = structuredClone(scene); c.name += ' kopia'; newScene(null, c);
+};
+$('#bDel').onclick = async () => {
+  if (!confirm(`Usunąć scenę „${scene.name}”?\nStrony w Trio korzystające z tego szablonu też zostaną usunięte.`)) return;
+  try {
+    await api('DELETE', '/api/scenes/' + encodeURIComponent(scene.id));
+    scenes = scenes.filter((s) => s.id !== scene.id); setDirty(false);
+    if (scenes.length) openScene(scenes[0]); else newScene('Nowa scena');
+  } catch (e) { toast(e.message, true); }
+};
+$('#bExp').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(scene, null, 2)], { type: 'application/json' }));
+  a.download = (scene.name || 'scena').replace(/[^\w.\-]+/g, '_') + '.vizrs.json'; a.click();
+};
+$('#bImp').onclick = () => {
+  const fi = $('#fileIn'); fi.accept = '.json,.cgpack,application/json,application/zip'; fi.value = '';
+  fi.onchange = () => { if (fi.files[0]) importFile(fi.files[0]); };
+  fi.click();
+};
+async function importFile(f) {
+  try {
+    if (/\.cgpack$/i.test(f.name)) {
+      const u8 = new Uint8Array(await f.arrayBuffer());
+      const kind = await PACK.packKind(u8);
+      if (kind === 'btb') return importBtbFile(f);
+      if (!kind) throw new Error('to nie jest paczka .cgpack');
+      return importPack(u8);
+    }
+    const s = JSON.parse(await f.text()); if (!Array.isArray(s.nodes)) throw new Error('to nie jest scena VizRS'); if (await confirmLeave()) newScene(null, s);
+  } catch (e) { toast('Import: ' + e.message, true); }
+}
+// plik z menedżera plików albo ze skojarzenia: paczka i scena – import, obraz/wideo – nowy element, czcionka – do zasobów
+const IMG_RE = /\.(png|jpe?g|webp|gif|svg|mp4|webm)$/i, FONT_FILE_RE = /\.(ttf|otf|woff2?)$/i;
+async function openFile(f) {
+  if (/\.(cgpack|json)$/i.test(f.name)) return importFile(f);
+  if (!IMG_RE.test(f.name) && !FONT_FILE_RE.test(f.name)) return toast(`Nieobsługiwany plik: ${f.name}`, true);
+  try {
+    const r = await fetch('/api/assets?name=' + encodeURIComponent(f.name), { method: 'POST', body: f });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error);
+    await loadAssets(); toast('Wgrano ' + j.name);
+    if (IMG_RE.test(f.name)) { addNode('image'); selNode().props.src = j.name; refresh(); renderProps(); }
+  } catch (e) { toast('Upload: ' + e.message, true); }
+}
+addEventListener('dragover', (e) => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); });
+addEventListener('drop', (e) => { const fs = [...(e.dataTransfer?.files || [])]; if (!fs.length) return; e.preventDefault(); (async () => { for (const f of fs) await openFile(f); })(); });
+
+// ------------------------------------------------------------ paczka belek (.cgpack)
+const fetchAssetBytes = async (name) => {
+  const r = await fetch('/assets/' + encodeURIComponent(name));
+  if (!r.ok) throw new Error(String(r.status));
+  return new Uint8Array(await r.arrayBuffer());
+};
+async function uploadBytes(name, data) {
+  const r = await fetch('/api/assets?name=' + encodeURIComponent(name), { method: 'POST', body: data });
+  if (!r.ok) throw new Error(`${name}: ${(await r.json().catch(() => ({}))).error || r.status}`);
+}
+$('#bPack').onclick = async () => {
+  let show;
+  try { show = await api('GET', '/api/show'); } catch (e) { return toast(e.message, true); }
+  await loadAssets();
+  const known = assets.map((a) => a.name);
+  const list = show.scenes.map((s) => (scene && s.id === scene.id ? scene : s)); // bieżąca scena w wersji z edytora
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;display:flex;align-items:center;justify-content:center';
+  d.innerHTML = `<div style="width:min(720px,94vw);max-height:86vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px">
+    <b style="font-size:15px">Paczka belek (.cgpack)</b>
+    <div class="dim" style="margin:4px 0 10px;font-size:12px">Sceny razem z grafikami i czcionkami, których używają (oraz dołączonymi w „Zasoby paczki”). Czcionki z paczki serwer wysyła na /output – komputer z OBS nie musi ich mieć.</div>
+    <div class="row" style="gap:6px;margin-bottom:6px"><button data-pk="all">zaznacz wszystkie</button><button data-pk="none">żadna</button><span class="grow"></span><label><input type="checkbox" id="pkPages" checked> dołącz strony z Trio</label></div>
+    <div id="pkList" style="max-height:38vh;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:4px 8px">${list.map((s) => `<label style="display:flex;gap:8px;align-items:center;padding:2px 0"><input type="checkbox" value="${esc(s.id)}" ${scene && s.id === scene.id ? 'checked' : ''}><span class="grow">${esc(s.name)}</span><span class="dim" style="font-size:11px">${PACK.sceneAssets(s, known).length} plik(ów)</span></label>`).join('')}</div>
+    <div id="pkSum" class="dim" style="margin:8px 0;font-size:12px"></div>
+    ${dirty ? '<div style="color:var(--warn,#e8b04b);font-size:12px;margin-bottom:6px">Bieżąca scena ma niezapisane zmiany – trafią do paczki w wersji z edytora.</div>' : ''}
+    <div class="row" style="gap:6px"><button id="pkGo" class="acc">⇩ Pobierz .cgpack</button><button id="pkNo">Anuluj</button></div></div>`;
+  document.body.appendChild(d);
+  const chosen = () => $$('#pkList input:checked', d).map((i) => list.find((s) => s.id === i.value)).filter(Boolean);
+  const sum = () => {
+    const sc = chosen(), files = new Set(); sc.forEach((s) => PACK.sceneAssets(s, known).forEach((n) => files.add(n)));
+    const fonts = [...files].filter((n) => PACK.FONT_RE.test(n));
+    $('#pkSum', d).innerHTML = `${sc.length} scen · ${files.size - fonts.length} grafik · ${fonts.length} czcionek${fonts.length ? ': ' + fonts.map(esc).join(', ') : ''}`;
+  };
+  sum();
+  d.addEventListener('change', sum);
+  d.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-pk]');
+    if (b) { $$('#pkList input', d).forEach((i) => (i.checked = b.dataset.pk === 'all')); sum(); return; }
+    if (e.target.id === 'pkNo' || e.target === d) { d.remove(); return; }
+    if (e.target.id !== 'pkGo') return;
+    const sc = chosen(); if (!sc.length) return toast('Zaznacz co najmniej jedną scenę', true);
+    e.target.disabled = true;
+    try {
+      const { blob, missing, assets: packed } = await PACK.buildPack({
+        scenes: sc, pages: $('#pkPages', d).checked ? show.pages : [], known, fetchAsset: fetchAssetBytes, generator: 'VizRS Artist',
+      });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (sc.length === 1 ? sc[0].name || 'scena' : 'belki').replace(/[^\w.\-]+/g, '_') + '.cgpack'; a.click();
+      d.remove();
+      toast(`Paczka: ${sc.length} scen, ${packed.length} plików (${(blob.size / 1024).toFixed(0)} KB)`);
+      if (missing.length) showReport('Paczka utworzona – brakujące pliki', missing.map((n) => `nie udało się odczytać ${n}`));
+    } catch (err) { toast('Paczka: ' + err.message, true); e.target.disabled = false; }
+  });
+};
+async function importPack(u8) {
+  const pk = await PACK.readPack(u8);
+  if (!(await confirmLeave())) return;
+  await loadAssets();
+  const report = [];
+  const { map, uploaded, skipped } = await PACK.installAssets(pk.assets, { existing: assets.map((a) => a.name), fetchAsset: fetchAssetBytes, upload: uploadBytes });
+  for (const [a, b] of map) report.push(`plik ${a} istniał z inną treścią – zapisano jako ${b}`);
+  const scenesIn = PACK.renameAssets(pk.scenes, map), pagesIn = PACK.renameAssets(pk.pages, map);
+  const ids = new Map(); let last = null;
+  for (const s of scenesIn) {
+    const { id, rev, ...body } = s; // eslint-disable-line no-unused-vars
+    if (scenes.some((x) => x.name === body.name)) report.push(`scena „${body.name}” już istnieje – dodano jako kopię`);
+    try { const saved = await api('POST', '/api/scenes', body); scenes.push(saved); ids.set(id, saved.id); last = saved; }
+    catch (e) { report.push(`scena „${body.name}”: ${e.message}`); }
+  }
+  let pages = 0;
+  for (const p of pagesIn) {
+    const sid = ids.get(p.scene); if (!sid) continue;
+    const { id, rev, ...body } = p; // eslint-disable-line no-unused-vars
+    body.scene = sid;
+    try { await api('POST', '/api/pages', body); pages++; }
+    catch (e) {
+      if (/zajęty/.test(e.message)) { delete body.number; try { await api('POST', '/api/pages', body); pages++; report.push(`strona ${p.number} „${p.name || ''}”: numer zajęty – nadano nowy`); } catch (e2) { report.push(`strona ${p.number}: ${e2.message}`); } }
+      else report.push(`strona ${p.number}: ${e.message}`);
+    }
+  }
+  await loadAssets();
+  if (last) openScene(last);
+  const fonts = uploaded.filter((n) => PACK.FONT_RE.test(n));
+  showReport(`Zaimportowano paczkę: ${ids.size} scen, ${pages} stron, ${uploaded.length} nowych plików${fonts.length ? ` (czcionki: ${fonts.join(', ')})` : ''}${skipped.length ? `, ${skipped.length} plików już było` : ''}`, report);
+}
+
+// ------------------------------------------------------------ BTB CG: import elementów
+function showReport(title, lines) {
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;display:flex;align-items:center;justify-content:center';
+  d.innerHTML = `<div style="width:min(720px,94vw);max-height:86vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px">
+    <b style="font-size:15px">${esc(title)}</b>
+    <ul id="rep" style="margin:10px 0;padding-left:18px;line-height:1.5">${lines.map((l) => `<li>${esc(l)}</li>`).join('') || '<li class="dim">Bez uwag – wszystko przeniesiono.</li>'}</ul>
+    <button id="repOk" class="acc">OK</button></div>`;
+  document.body.appendChild(d);
+  d.querySelector('#repOk').onclick = () => d.remove();
+  d.addEventListener('mousedown', (e) => { if (e.target === d) d.remove(); });
+}
+$('#bImpBtb').onclick = () => {
+  const fi = $('#fileIn'); fi.accept = '.json,.cgpack,application/json,application/zip'; fi.value = '';
+  fi.onchange = () => { if (fi.files[0]) importBtbFile(fi.files[0]); };
+  fi.click();
+};
+async function importBtbFile(f) {
+  try {
+    if (!(await confirmLeave())) return;
+    const isZip = /\.cgpack$/i.test(f.name);
+    const { elements, files } = await BTB.readBtb(isZip ? new Uint8Array(await f.arrayBuffer()) : await f.text(), f.name);
+    const report = []; let made = 0, last = null;
+    for (const el of elements) {
+      const used = new Set();
+      const r = BTB.convertElement(el, {
+        knownFonts: [...FONTS, ...OFFLINE_FONTS],
+        assetName: (src) => { const k = Object.keys(files || {}).find((n) => n === src || n === src.replace(/^\//, '')); if (!k) return null; used.add(k); return k.split('/').pop(); },
+      });
+      for (const k of used) {
+        const rr = await fetch('/api/assets?name=' + encodeURIComponent(k.split('/').pop()), { method: 'POST', body: files[k] });
+        if (!rr.ok) r.warnings.push(`plik ${k}: ${(await rr.json().catch(() => ({}))).error || rr.status}`);
+      }
+      const saved = await api('POST', '/api/scenes', r.scene);
+      scenes.push(saved);
+      await api('POST', '/api/pages', { scene: saved.id, name: r.page.name, values: r.page.values }).catch((e) => r.warnings.push('strona nie utworzona: ' + e.message));
+      r.warnings.forEach((w) => report.push(`${r.scene.name}: ${w}`));
+      made++; last = saved;
+    }
+    await loadAssets();
+    if (last) openScene(last);
+    showReport(`Zaimportowano ${made} ${made === 1 ? 'element' : 'elementy'}`, report);
+  } catch (e) { toast('Import elementu: ' + e.message, true); }
+}
+
+// ------------------------------------------------------------ klawiatura
+addEventListener('keydown', (e) => {
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName);
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
+  if (typing) return;
+  if (e.key === '/' && !mod && selNode()) { e.preventDefault(); $('#psearch').focus(); $('#psearch').select(); return; }
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return; }
+  if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); doRedo(); return; }
+  if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); treeOp('dup'); return; }
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); if (lastArea === 'timeline' && selKey) deleteSelKey(); else treeOp('del'); return; }
+  if (e.key === ' ') { e.preventDefault(); if (player.playing) player.playing = false; else $('#pPlay').click(); return; }
+  if (mod && e.key.toLowerCase() === 'c' && lastArea === 'timeline') { e.preventDefault(); copyKeys(); return; }
+  if (mod && e.key.toLowerCase() === 'v' && lastArea === 'timeline') { e.preventDefault(); pasteKeys(); return; }
+  if (e.key.toLowerCase() === 'm' && !mod) { e.preventDefault(); addMarker(t); return; }
+  if (e.shiftKey && !mod && e.code === 'Digit1') { e.preventDefault(); resetView(); return; }
+  if (e.shiftKey && !mod && e.code === 'Digit2') { e.preventDefault(); zoom100(); return; }
+  if (e.shiftKey && !mod && e.code === 'Digit3') { e.preventDefault(); zoomSel(); return; }
+  if (e.key === 'Home') { setTime(0); return; }
+  if (e.key === 'End') { setTime(scene.duration); return; }
+  const n = selNode();
+  const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  if (!n && arrows[e.key] && lastArea !== 'timeline') {
+    e.preventDefault(); checkpoint();
+    const m = e.shiftKey ? 10 : 1, [dx, dy] = arrows[e.key];
+    setSceneOffset((+scene.x || 0) + dx * m, (+scene.y || 0) + dy * m); return;
+  }
+  if (n && arrows[e.key] && !isLocked(n.id)) {
+    e.preventDefault(); checkpoint();
+    const m = e.shiftKey ? 10 : 1, [dx, dy] = arrows[e.key];
+    setProp(n, 'x', propAt(n, 'x', t, null) + dx * m); setProp(n, 'y', propAt(n, 'y', t, null) + dy * m);
+    refresh(); syncProps();
+  }
+});
+addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+// pętla UI: śledzenie odtwarzania i ramki zaznaczenia
+let lastSync = 0;
+(function frame(now) {
+  if (player) {
+    if (player.playing || Math.abs(player.t - t) > 1e-6) {
+      t = player.t; updatePlayhead();
+      if (now - lastSync > 80) { syncProps(); lastSync = now; }
+    }
+    updateSel();
+  }
+  requestAnimationFrame(frame);
+})(0);
+
+new ResizeObserver(() => resize()).observe(box);
+const loaded = load().catch((e) => toast('Błąd: ' + e.message, true));
+
+// ------------------------------------------------------------ pasek stanu: podpowiedź do panelu pod kursorem
+const HINT0 = 'Ctrl+S zapisz · Ctrl+Z / Ctrl+Y cofnij / ponów · najedź na panel, aby zobaczyć jego skróty';
+$('#hint').textContent = HINT0;
+document.addEventListener('mouseover', (e) => { const h = e.target.closest?.('[data-hint]')?.dataset.hint || HINT0; if ($('#hint').textContent !== h) $('#hint').textContent = h; });
+
+// ------------------------------------------------------------ rozdzielacze paneli (rozmiary zapamiętane w przeglądarce/oknie)
+const LAY = { l: [270, 170, 560], r: [350, 260, 680], t: [260, 120, 640] }; // domyślnie, min, max
+const lay = (() => { try { return JSON.parse(localStorage.getItem('vizrs.artistLayout')) || {}; } catch { return {}; } })();
+const setLay = (k, v) => { const [, lo, hi] = LAY[k]; lay[k] = Math.round(Math.max(lo, Math.min(hi, v))); $('#main').style.setProperty('--' + k, lay[k] + 'px'); };
+const saveLay = () => { try { localStorage.setItem('vizrs.artistLayout', JSON.stringify(lay)); } catch { /* brak localStorage */ } renderTimeline(); };
+for (const k of Object.keys(LAY)) setLay(k, +lay[k] || LAY[k][0]);
+for (const g of document.querySelectorAll('.gutter')) {
+  const k = g.dataset.k;
+  g.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    g.setPointerCapture(e.pointerId); g.classList.add('drag');
+    const start = lay[k], x0 = e.clientX, y0 = e.clientY;
+    const move = (ev) => setLay(k, start + (k === 'l' ? ev.clientX - x0 : k === 'r' ? x0 - ev.clientX : y0 - ev.clientY));
+    const up = () => { g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); g.classList.remove('drag'); saveLay(); };
+    g.addEventListener('pointermove', move); g.addEventListener('pointerup', up);
+  });
+  g.addEventListener('dblclick', () => { setLay(k, LAY[k][0]); saveLay(); });
+}
+
+// okno natywne: bez przeglądarkowego menu pod prawym przyciskiem (Wstecz/Odśwież…); w polach tekstowych zostaje (kopiuj, wklej, pisownia)
+if (document.documentElement.classList.contains('native')) {
+  addEventListener('contextmenu', (e) => { if (!e.target.closest('input, textarea, [contenteditable]')) e.preventDefault(); });
+}
+
+// ------------------------------------------------------------ okno natywne: stan dla powłoki, komendy menu, kopia robocza
+const click = (id) => () => $(id).click();
+const native = nativeBridge({
+  state: () => scene && { title: `${dirty ? '● ' : ''}${scene.name} — VizRS Artist`, dirty, undo: undo.length > 0, redo: redo.length > 0, scene: scene.id },
+  save: () => save(),
+  whatChanged: () => `Scena „${scene.name}” ma niezapisane zmiany.`,
+  draft: () => (dirty && scene ? { id: scene.id, text: JSON.stringify(scene) } : null),
+  commands: {
+    new: click('#bNew'), save: () => save(), export: click('#bExp'), pack: click('#bPack'),
+    undo: doUndo, redo: doRedo, dup: () => treeOp('dup'), del: () => (lastArea === 'timeline' && selKey ? deleteSelKey() : treeOp('del')),
+    fit: resetView, z100: zoom100, zsel: zoomSel, marker: () => addMarker(t),
+    play: () => { if (player.playing) player.playing = false; else $('#pPlay').click(); },
+    file: async (f) => { await loaded; openFile(f); },
+    // kopia robocza po awarii: propozycja przy otwarciu sceny
+    draft: async (text) => {
+      await loaded;
+      let d; try { d = JSON.parse(text); } catch { return; }
+      if (d.id !== scene?.id || !Array.isArray(d.nodes) || text === JSON.stringify(scene)) return;
+      if (confirm(`Znaleziono niezapisaną kopię roboczą sceny „${d.name}” (np. po awarii).\n\nOK = przywróć, Anuluj = pomiń.`)) {
+        checkpoint(); scene = { ...d, rev: scene.rev }; player.setScene(scene); player.seek(t); renderAll();
+      }
+    },
+  },
+});
+
+// ------------------------------------------------------------ połączenie z serwerem
+// tylko wskaźnik (edycja sceny nie jest nadpisywana zdarzeniami); okno aplikacji `vizrs artist` wie dzięki temu, że Artist jest otwarty
+// warstwa zmieniona w Trio: bez tego otwarta scena przywróciłaby starą przy zapisie (`rev` – tylko gdy nikt nie zmienił nic więcej)
+function layerChanged(ev) {
+  const held = scenes.find((s) => s.id === ev.id);
+  for (const s of new Set([held, scene?.id === ev.id ? scene : null])) if (s && s.rev === ev.rev - 1) { s.layer = ev.layer; s.rev = ev.rev; }
+  renderSceneSel(); renderTree();
+  const inp = $('[data-sp="layer"]'); if (inp && scene?.id === ev.id) inp.value = scene.layer;
+}
+connectEvents((ev) => { if (ev.t === 'show' && ev.kind === 'scenes' && ev.layer) layerChanged(ev); }, (ok) => {
+  $('#conn').textContent = ok ? 'połączono' : 'brak połączenia';
+  $('#conn').className = 'pill ' + (ok ? 'ok' : 'on');
+});
+</script>
+</body>
+</html>

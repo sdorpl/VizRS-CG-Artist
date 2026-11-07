@@ -20,7 +20,8 @@ Język pracy z użytkownikiem i dokumentacji: **polski**. Kod, komentarze i komu
 
 - **Serwer nie jest wkompilowany.** Okno dołącza do działającego `vizrs` na tym katalogu danych (blokada `.vizrs.lock` + zgodny `instance` w `/health`) albo uruchamia `vizrs serve --idle-exit 10` jako osobny proces. Awaria okna nie może zdjąć grafiki z anteny.
 - **Strona nie ma dostępu do systemu.** Komunikaty strony → okno przechodzą przez białą listę w `src/bridge.rs` (`state`, `close`, `stay`, `draft`) z limitami długości; przyjmowane tylko z tego samego źródła co serwer okna (`same_origin`). Okno połączenia (`connect:`) jest wbudowane w binarkę — strony serwera nie mogą przełączyć okna na inny adres. Nowy komunikat = wariant w `bridge::Msg` + limity + test.
-- **Nie powielaj logiki strony.** Rysowanie, edycja sceny, skróty edycji — wszystko w `web/artist.html` w `../VizRS CG System`. Okno tylko wywołuje `window.__vizrsCmd(akcja)` i przekazuje pliki przez `window.__vizrsFile`. Skróty edycji (Ctrl+Z, Ctrl+S…) zostają w stronie: akcelerator GTK przechwyciłby je też w polach tekstowych.
+- **Strona Artist należy do tego repo, rysowanie – do CG System.** `web/artist.html` i `web/native.js` rozwijamy tutaj (od 2026-11-07; `/artist` w serwerze jest zamrożony). Moduły rysowania i wspólne (`renderer.js`, `motion.js`, `qr.js`, `richtext.js`, `ticker-*.js`, `color-picker.js`, `btb-io.js`, `cgpack.js`, `ui.css`, `fonts/`) to **kopie** z `../VizRS CG System/source/web` – nie edytuj ich tutaj: zmiana najpierw w CG System, potem `tools/sync-cg.sh`; `tools/sync-cg.sh --check` (bramka, CI) pilnuje identyczności, bo kanwa ma rysować dokładnie jak antena.
+- **Okno nie powiela logiki strony.** Edycja sceny i skróty edycji są w `web/artist.html`; okno tylko wywołuje `window.__vizrsCmd(akcja)` i przekazuje pliki przez `window.__vizrsFile`. Skróty edycji (Ctrl+Z, Ctrl+S…) zostają w stronie: akcelerator GTK przechwyciłby je też w polach tekstowych.
 - **Zgodność z `vizrs-shell`.** Most ma ten sam kształt co w oknie wry (`window.ipc.postMessage`, `IPC_SHIM`), więc `native.js` serwera działa w obu oknach. Zmiana protokołu = zmiana po obu stronach (`../VizRS CG System/source/shell/`, `source/web/native.js`).
 - **Zależności tylko te z `Cargo.toml`:** `gtk4`, `webkit6`, `serde_json`. Nowy crate — tylko po decyzji użytkownika.
 - **Dane z dysku i z sieci są wrogie:** limity (`MAX_FILE` 512 MB, `MAX_DRAFT` 16 MB, `MAX_SAVED` 20 serwerów, odpowiedź HTTP do 1 MB), zapis atomowy (`paths::write_atomic`), wpis `.desktop` nie powstaje dla ścieżek ze znakami specjalnymi.
@@ -56,6 +57,7 @@ Przy pracy nad oknem **zobacz wynik** — zrzut ekranu (pliki PNG trzymaj poza r
 ## Testy (bramka przed commitem)
 
 ```bash
+tools/sync-cg.sh --check          # moduły strony = CG System (wersja w web/CG_SYSTEM)
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
@@ -80,6 +82,8 @@ Przy zmianie zachowania okna (most, serwer, okno połączenia, instancja) także
 | `tests/e2e/okno.js` | test w działaniu przez `--probe` z prawdziwym `vizrs` |
 | `.github/workflows/ci.yml` | CI: bramka na Ubuntu 24.04 |
 | `packaging/deb/build.sh`, `packaging/pl.vizrs.CgArtist.xml` | paczka `.deb`, typy plików `.cgpack` / `.vizrs.json` |
+| `web/` | strona Artist: `artist.html`, `native.js` (tego repo) + kopie modułów i fontów z CG System; `CG_SYSTEM` – wersja źródła |
+| `tools/sync-cg.sh` | kopiowanie i `--check` modułów strony z CG System |
 | `tools/webkit6-shim.sh` | pliki pkg-config dla budowy bez `libwebkitgtk-6.0-dev` |
 | `.dev/` | wygenerowany shim — nie commituj |
 

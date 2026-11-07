@@ -13,6 +13,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: Wersja CG System dla modułów strony
+        id: cg
+        run: echo "ref=$(cat web/CG_SYSTEM)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: sdorpl/VizRS-CG-System
+          ref: ${{ steps.cg.outputs.ref }}
+          path: cg
+      - name: Moduły strony zgodne z CG System
+        run: tools/sync-cg.sh --check cg
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy

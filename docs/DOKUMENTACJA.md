@@ -149,7 +149,11 @@ Zależności: `libgtk-4-1`, `libwebkitgtk-6.0-4`; zalecany pakiet `vizrs` (serwe
 Pliki nazwane po identyfikatorze aplikacji, więc paczka instaluje się obok pakietu `vizrs` bez konfliktów. Z wpisem systemowym
 okno nie zakłada ukrytego wpisu w `~/.local/share/applications`. CI buduje paczkę i sprawdza wpisy `desktop-file-validate`.
 
-Bramka przed commitem: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo build --release`.
+Strona Artist leży w `web/`. `artist.html` i `native.js` rozwija to repo; reszta (moduły rysowania, `ui.css`, fonty i `fonts.css`)
+to kopie z VizRS CG System – `tools/sync-cg.sh [katalog-CG]` kopiuje, `tools/sync-cg.sh --check` sprawdza identyczność
+(CI pobiera CG System w wersji z `web/CG_SYSTEM`). Zmiana rysowania zawsze najpierw w CG System.
+
+Bramka przed commitem: `tools/sync-cg.sh --check`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo build --release`.
 To samo robi CI (`.github/workflows/ci.yml`, Ubuntu 24.04).
 
 Test w działaniu (prawdziwy `vizrs`, widoczne okna na kilka sekund; bez ekranu: `xvfb-run`):
