@@ -14,7 +14,7 @@
   - Pamięć wyglądu i rozmiaru okna (`window.json`) w `src/main.rs`.
   - Paczki generowane przez bundler Tauri (`npx @tauri-apps/cli@2 build`): Linux (.deb, .rpm, AppImage – Ubuntu 22.04+ / WebKitGTK 4.1), Windows (.msi, instalator NSIS .exe), macOS (.dmg – 11.0+). Skojarzenia `.cgpack` i plik typów MIME `packaging/pl.vizrs.CgArtist.xml`, wpis menu z szablonu `linux/desktop.hbs`.
   - Most strony `window.__vizrsPost` (z rezerwą `window.ipc.postMessage`), sekret magazynu z `getrandom`. Test dymny `tests/e2e/smoke.js`.
-  - CI/CD (`ci.yml`, `release.yml`): bramka na Linuksie, budowa paczek i test dymny (`tests/e2e/smoke.js`) na trzech systemach (Linux, Windows, macOS); na Linuksie test w działaniu (`tests/e2e/okno.js` pod Xvfb). Wspólne wydania ze wszystkimi paczkami.
+  - CI/CD (`ci.yml`, `release.yml`): bramka na Linuksie, budowa paczek i test dymny (`tests/e2e/smoke.js`) na trzech systemach (Linux, Windows, macOS); na Linuksie test w działaniu (`tests/e2e/okno.js` pod Xvfb). Wspólne wydania ze wszystkimi paczkami. Pliki bez zamiany końców wierszy (`.gitattributes`, `core.autocrlf false` w CI), więc strona w binarce Windows jest bajt w bajt ta sama co na Linuksie.
 
 - **GitHub:** repozytorium `sdorpl/VizRS-CG-Artist`, wydania z `release.yml` (znacznik `v*` albo ręcznie; sumy SHA256), `drafts.yml` usuwa szkice wydań.
 

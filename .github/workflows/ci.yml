@@ -61,6 +61,8 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Bez zamiany końców wierszy (Windows – strona w binarce bajt w bajt jak na Linuksie)
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Biblioteki okna (Linux)
