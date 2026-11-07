@@ -16,11 +16,12 @@ w repo `VizRS CG System`.
 | „Zapisz jako”, import, przeciąganie, skojarzenia plików | zrobione |
 | Pytanie przy zamykaniu, kopia robocza, jedna instancja, `window.json` | zrobione |
 | Pierwszy commit | zrobione |
-| CI, paczka (`.deb` / AppImage / Flatpak) | do zrobienia |
+| CI (`.github/workflows/ci.yml`: fmt, clippy, test, build na Ubuntu 24.04) | zrobione (repo bez zdalnego – nieuruchomione na GitHubie) |
+| Paczka (`.deb` / AppImage / Flatpak) | do zrobienia |
 | Windows / macOS | nie planowane (GTK 4 + WebKitGTK – tylko Linux); tam `vizrs-shell` |
 
 ## Następne zadanie
-CI (fmt, clippy, test, build na Ubuntu z `libwebkitgtk-6.0-dev`).
+Test w działaniu (LUKI #1): skrypt `--probe` z prawdziwym `vizrs`, potem paczka `.deb`.
 
 ## Blokery
 Brak. (`libwebkitgtk-6.0-dev` jest już na maszynie deweloperskiej; `tools/webkit6-shim.sh` zostaje dla maszyn bez pakietu `-dev`.)

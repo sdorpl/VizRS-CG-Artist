@@ -2,6 +2,8 @@
 
 ## Niewydane
 
+- **CI:** `.github/workflows/ci.yml` – fmt, clippy, testy i budowa wydania na Ubuntu 24.04 z `libwebkitgtk-6.0-dev`.
+
 ## 0.1.0 – pierwsza wersja
 
 - **Okno Artist na GTK 4 + WebKitGTK 6.0** (Linux): strona Artist z serwera `vizrs`, menu Plik / Edycja / Widok / Pomoc, powiększenie, pełny ekran, narzędzia deweloperskie, pisownia polska.

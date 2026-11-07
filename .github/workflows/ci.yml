@@ -1,0 +1,31 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    # Ubuntu 24.04: libwebkitgtk-6.0-dev jest w archiwum (22.04 go nie ma).
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Biblioteki GTK 4 i WebKitGTK 6.0
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - run: cargo build --release
+      - name: Wersja i suma kontrolna
+        run: |
+          ./target/release/vizrs-cg-artist --version
+          ./target/release/vizrs-cg-artist --help > /dev/null
+          sha256sum target/release/vizrs-cg-artist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vizrs-cg-artist-linux-x86_64
+          path: target/release/vizrs-cg-artist
