@@ -1,4 +1,4 @@
-//! Most strona → powłoka: komunikaty `app:` stron Artist/Trio z serwera (biała lista, limity).
+//! Most strona → powłoka: komunikaty `app:` strony Artist (biała lista, limity).
 //! Strona nie dostaje dostępu do systemu: może zmienić tytuł własnego okna, stan pozycji menu,
 //! zdecydować o zamknięciu własnego okna i zapisać kopię roboczą w katalogu powłoki pod nazwą z skrótu.
 

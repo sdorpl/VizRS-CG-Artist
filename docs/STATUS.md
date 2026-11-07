@@ -5,26 +5,22 @@
 > **Ostatnia aktualizacja:** 2026-11-07
 
 ## Bieżący etap
-**0.1.0** – okno Artist na GTK 4 + WebKitGTK 6.0 (Linux), odpowiednik okna Artist z `vizrs-shell` (tao + wry, WebKitGTK 4.1)
-w repo `VizRS CG System`.
+**0.2 – samodzielny edytor** (decyzja 2026-11-07): Artist to osobny edytor grafik i animacji pakietu VizRS, bez Trio.
+Plan źródłowy: `../VizRS CG System/docs/plany/PLAN-artist-osobny.md` (A2–A6).
 
-| Etap | Stan |
-|---|---|
-| Okno Artist, menu, akcje, powiększenie, pisownia | zrobione |
-| Test w działaniu `tests/e2e/okno.js` (20 sprawdzeń) | zrobione, uruchamiany ręcznie |
-| Serwer: dołączanie / uruchamianie `vizrs serve --idle-exit`, wolny port | zrobione |
-| Okno „Połącz z serwerem”, `connections.json`, łączenie przy uruchomieniu | zrobione |
-| „Zapisz jako”, import, przeciąganie, skojarzenia plików | zrobione |
-| Pytanie przy zamykaniu, kopia robocza, jedna instancja, `window.json` | zrobione |
-| Pierwszy commit | zrobione |
-| CI (`.github/workflows/ci.yml`: fmt, clippy, test, build na Ubuntu 24.04) | zrobione (repo bez zdalnego – nieuruchomione na GitHubie) |
-| Paczka `.deb` (`packaging/deb/build.sh`, w CI) | zrobione; do sprawdzenia instalacja na czystym Ubuntu 24.04 |
-| Wydania (`release.yml`), AppImage / Flatpak | do zrobienia |
-| Windows / macOS | nie planowane (GTK 4 + WebKitGTK – tylko Linux); tam `vizrs-shell` |
+| Etap | Zakres | Stan |
+|---|---|---|
+| S0 | Okno 0.1.0: menu, serwer, okno połączenia, pliki, kopia robocza, jedna instancja, CI, `.deb`, test w działaniu | zrobione |
+| S1 | Okno bez Trio i wyjścia (menu, dokumentacja) | zrobione |
+| S2 | Własna strona Artist w repo (`web/`, wkompilowana); moduły rysowania pilnowane jako kopie z CG System | do zrobienia |
+| S3 | Lokalny magazyn w procesie okna (show, zasoby, fonty, presety) – Artist działa bez `vizrs` | do zrobienia |
+| S4 | Serwer zdalny jako cel wysyłki scen (deploy, `rev`/409), nie miejsce edycji | do zrobienia |
+| S5 | Walidacja show przez `vizrs-model` (najpierw A1 w CG System) | czeka na A1 |
+| S6 | Import BTB i `.cgpack` w Ruście | do zrobienia |
+| S7 | AppImage, wydania na GitHubie; w CG System usunięcie Artist z `vizrs-shell` i pakietu `vizrs` (A7) | do zrobienia |
 
 ## Następne zadanie
-Instalacja `.deb` na czystym Ubuntu 24.04 (z pakietem `vizrs`), potem wydania na GitHubie (`release.yml`) i test w działaniu w CI (LUKI #1).
-Repozytorium nie ma jeszcze zdalnego (`git remote`) – CI nie było uruchomione.
+S2: kopia `web/` Artist z CG System, `tools/sync-cg.sh --check`, serwowanie strony z binarki.
 
 ## Blokery
-Brak. (`libwebkitgtk-6.0-dev` jest już na maszynie deweloperskiej; `tools/webkit6-shim.sh` zostaje dla maszyn bez pakietu `-dev`.)
+Brak. Repozytorium nie ma jeszcze zdalnego (`git remote`) – CI nie było uruchomione.

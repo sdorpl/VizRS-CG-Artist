@@ -1,7 +1,8 @@
 # VizRS CG Artist
 
-Natywne okno **Artist** – projektowanie scen grafiki [VizRS CG System](https://github.com/sdorpl/VizRS-CG-System)
+Samodzielny edytor grafik i animacji pakietu VizRS – projektowanie scen dla [VizRS CG System](https://github.com/sdorpl/VizRS-CG-System)
 (lekki odpowiednik Viz Artist dla grafiki telewizyjnej na żywo w OBS). Linux, **GTK 4 + WebKitGTK 6.0**.
+Trio (wydawanie na antenę) i wyjście dla OBS należą do VizRS CG System – Artist ich nie dostarcza.
 
 - Ta sama strona Artist co w przeglądarce (przychodzi z serwera `vizrs`), plus to, czego przeglądarka nie daje:
   menu, systemowe „Zapisz jako”, pytanie o zapis przy zamykaniu, kopia robocza po awarii, jedna instancja,

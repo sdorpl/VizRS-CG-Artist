@@ -1,7 +1,9 @@
 # VizRS CG Artist
 
-Natywne okno **Artist** (projektowanie scen) systemu grafiki na żywo **VizRS CG System** (`../VizRS CG System`),
-zbudowane na **GTK 4 + WebKitGTK 6.0** (Linux). Strona Artist (kanwa `renderer.js`, panele) zostaje w JS i przychodzi
+**Samodzielny edytor grafik i animacji** pakietu VizRS (odpowiednik Viz Artist) dla systemu grafiki na żywo
+**VizRS CG System** (`../VizRS CG System`), zbudowany na **GTK 4 + WebKitGTK 6.0** (Linux). **Trio i wyjście nie są dostarczane
+z Artist** (decyzja użytkownika 2026-11-07) – należą do VizRS CG System; okno nie otwiera ich ani nie odsyła do nich.
+Kierunek: `../VizRS CG System/docs/plany/PLAN-artist-osobny.md` (A2–A6) i etapy w [docs/STATUS.md](docs/STATUS.md). Strona Artist (kanwa `renderer.js`, panele) zostaje w JS i przychodzi
 z serwera `vizrs`; to okno daje to, czego przeglądarka nie ma: menu, systemowe „Zapisz jako”, pytanie przy zamknięciu,
 kopię roboczą, jedną instancję, skojarzenia plików, przeciąganie plików i wybór serwera.
 

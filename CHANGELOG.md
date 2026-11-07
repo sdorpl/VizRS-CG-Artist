@@ -2,9 +2,11 @@
 
 ## Niewydane
 
+- **Artist bez Trio:** Artist staje się samodzielnym edytorem grafik i animacji. Z menu znikają Plik → Trio w przeglądarce, Wyjście (podgląd) w przeglądarce i Pomoc → Strona startowa i API; Trio i wyjście należą do VizRS CG System.
+
 - **Paczka `.deb`** (`packaging/deb/build.sh`, też w CI): program, skróty „VizRS CG Artist” i „VizRS CG Artist – serwer zdalny”, ikona, skojarzenia `.cgpack` / `.vizrs.json`; instaluje się obok pakietu `vizrs`.
 
-- **`connect` bez serwera lokalnego:** okno wyboru otwiera się bez uruchamiania `vizrs serve`; serwer lokalny powstaje dopiero po „Serwer lokalny”. Wcześniej `connect` bez programu `vizrs` kończył się błędem, zanim pokazał okno wyboru. Do chwili wyboru Plik → Trio / Wyjście w przeglądarce i Pomoc → Strona startowa i API są wyłączone.
+- **`connect` bez serwera lokalnego:** okno wyboru otwiera się bez uruchamiania `vizrs serve`; serwer lokalny powstaje dopiero po „Serwer lokalny”. Wcześniej `connect` bez programu `vizrs` kończył się błędem, zanim pokazał okno wyboru.
 - **Test w działaniu** `tests/e2e/okno.js`: most okna, jedna instancja, serwer (`--idle-exit`, dołączanie, blokada), okno połączenia.
 
 - **CI:** `.github/workflows/ci.yml` – fmt, clippy, testy i budowa wydania na Ubuntu 24.04 z `libwebkitgtk-6.0-dev`.

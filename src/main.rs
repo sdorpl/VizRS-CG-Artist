@@ -364,16 +364,6 @@ impl App {
 
 /// Stan pozycji menu zależnych od strony.
 fn sync_actions(app: &App) {
-    // strony serwera – dopiero po wyborze serwera (`connect` startuje bez adresu)
-    for name in ["trio", "output", "docs"] {
-        if let Some(a) = app
-            .gtk
-            .lookup_action(name)
-            .and_downcast::<gio::SimpleAction>()
-        {
-            a.set_enabled(!app.base.is_empty());
-        }
-    }
     let w = app.focused();
     let artist = w.is_some_and(|w| w.kind == Kind::Artist);
     for (name, _) in PAGE_CMDS {
@@ -413,14 +403,7 @@ fn build_menu() -> gio::Menu {
     let s2 = section(&PAGE_CMDS[..4]);
     s2.append(Some("Importuj…"), Some("app.import"));
     file.append_section(None, &s2);
-    file.append_section(
-        None,
-        &section(&[
-            ("trio", "Trio w przeglądarce"),
-            ("output", "Wyjście (podgląd) w przeglądarce"),
-            ("data-dir", "Otwórz katalog danych"),
-        ]),
-    );
+    file.append_section(None, &section(&[("data-dir", "Otwórz katalog danych")]));
     file.append_section(
         None,
         &section(&[("close", "Zamknij okno"), ("quit", "Zakończ")]),
@@ -444,7 +427,6 @@ fn build_menu() -> gio::Menu {
     menu.append_submenu(
         Some("Pomoc"),
         &section(&[
-            ("docs", "Strona startowa i API"),
             ("logs", "Pokaż logi"),
             ("updates", "Sprawdź aktualizacje"),
             ("about", "O programie"),
@@ -510,25 +492,9 @@ fn install_actions(gapp: &gtk::Application) {
             },
         );
     });
-    add_action(gapp, "trio", &[], |app| {
-        let a = app.borrow();
-        open_external(&page_url(&a.base, "/trio", a.token.as_deref()));
-    });
-    add_action(gapp, "output", &[], |app| {
-        let a = app.borrow();
-        open_external(&page_url(
-            &a.base,
-            "/output?checker=1&status=1",
-            a.token.as_deref(),
-        ));
-    });
     add_action(gapp, "data-dir", &[], |app| {
         let d = app.borrow().data.clone();
         open_external(&std::fs::canonicalize(&d).unwrap_or(d).to_string_lossy());
-    });
-    add_action(gapp, "docs", &[], |app| {
-        let a = app.borrow();
-        open_external(&page_url(&a.base, "/", a.token.as_deref()));
     });
     add_action(gapp, "logs", &[], |_| {
         open_external(&paths::state_dir().to_string_lossy())
@@ -721,7 +687,7 @@ fn open_window(app: &Shared, kind: Kind, url: String) {
     };
     view.set_zoom_level(zoom);
 
-    // odnośniki poza serwer VizRS i nowe okna (Trio, wyjście) otwiera przeglądarka systemowa
+    // odnośniki poza serwer VizRS i nowe okna otwiera przeglądarka systemowa
     view.connect_decide_policy(move |_, decision, ty| {
         let Some(nd) = decision.downcast_ref::<webkit6::NavigationPolicyDecision>() else {
             return false;

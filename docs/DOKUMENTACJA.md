@@ -5,6 +5,9 @@ repozytorium **VizRS CG System** (`docs/DOKUMENTACJA.md`).
 
 ## 1. Czym jest VizRS CG Artist
 
+Samodzielny edytor grafik i animacji pakietu VizRS – odpowiednik Viz Artist. Projektuje sceny (szablony) z animacją;
+na antenę wydaje je Trio z VizRS CG System, które **nie jest dostarczane z Artist**.
+
 Natywne okno Linux (GTK 4 + WebKitGTK 6.0) dla strony **Artist** – edytora scen VizRS. Strona przychodzi z serwera `vizrs`
 (ta sama co w przeglądarce pod `/artist`); okno dodaje menu, „Zapisz jako”, pytanie przy zamknięciu, kopię roboczą,
 jedną instancję, skojarzenia plików, przeciąganie plików i wybór serwera.
@@ -25,7 +28,8 @@ vizrs-cg-artist (GTK 4)          vizrs serve (osobny proces)          OBS
   `vizrs serve --idle-exit 10` na wolnym porcie (od 8088, następne 20; `--port` / `VIZRS_PORT` – dokładnie ten).
   Serwer uruchomiony przez okno kończy pracę sam po 10 s bez okien i wyjść; grafika na antenie przeżywa zamknięcie okna.
 - **Program `vizrs`:** `--vizrs` / `VIZRS_BIN`, inaczej plik obok `vizrs-cg-artist`, inaczej `PATH`.
-- **Odnośniki** poza serwerem okna i nowe okna strony (Trio, wyjście) otwiera przeglądarka systemowa.
+- **Odnośniki** poza serwerem okna i nowe okna strony otwiera przeglądarka systemowa. Okno nie otwiera Trio ani wyjścia –
+  należą do VizRS CG System.
 - Okno ustawia znacznik okna natywnego – strona chowa zakładki „Artist / Trio / Wyjście” i menu przeglądarki.
 
 ## 3. Uruchamianie i opcje
@@ -54,10 +58,10 @@ Błędne argumenty: komunikat na stderr, kod wyjścia 2.
 
 | Menu | Pozycje |
 |---|---|
-| Plik | Nowe okno Artist · Połącz z serwerem… (Ctrl+Shift+K) · Nowa scena · Zapisz · Eksportuj scenę… · Paczka .cgpack… · Importuj… · Trio w przeglądarce · Wyjście (podgląd) w przeglądarce · Otwórz katalog danych · Zamknij okno (Ctrl+W) · Zakończ (Ctrl+Q) |
+| Plik | Nowe okno Artist · Połącz z serwerem… (Ctrl+Shift+K) · Nowa scena · Zapisz · Eksportuj scenę… · Paczka .cgpack… · Importuj… · Otwórz katalog danych · Zamknij okno (Ctrl+W) · Zakończ (Ctrl+Q) |
 | Edycja | Cofnij · Ponów · Duplikuj · Usuń |
 | Widok | Dopasuj kanwę · Kanwa 100% · Kanwa do zaznaczenia · Odtwórz / zatrzymaj · Dodaj marker · Powiększ (Ctrl+=) · Pomniejsz (Ctrl+−) · Rozmiar 100% (Ctrl+0) · Odśwież (F5) · Pełny ekran (F11) · Narzędzia deweloperskie (Ctrl+Shift+I) |
-| Pomoc | Strona startowa i API · Pokaż logi · Sprawdź aktualizacje · O programie |
+| Pomoc | Pokaż logi · Sprawdź aktualizacje · O programie |
 
 Pozycje strony (Nowa scena…Dodaj marker) wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+D,
 Delete, Shift+1/2/3, Spacja, M) obsługuje strona, nie GTK – inaczej działałyby też w polach tekstowych.
@@ -91,7 +95,7 @@ na inny adres. Lista do 20 serwerów w `connections.json` (prawa tylko dla wła�
 opcja „łącz przy uruchomieniu”. Dla `http://` okno sprawdza `GET /api/state` z tokenem przed przełączeniem (token wyjścia → 403).
 
 Uruchomione jako `connect` (bez `--connect` i bez zapisanego łączenia przy uruchomieniu) okno nie ma jeszcze serwera:
-nagłówek pokazuje „Teraz: nie połączono”, Plik → Trio / Wyjście w przeglądarce i Pomoc → Strona startowa i API są wyłączone, a prośba kolejnego uruchomienia
+nagłówek pokazuje „Teraz: nie połączono”, a prośba kolejnego uruchomienia
 (także z plikiem) tylko wysuwa okno połączenia. Zamknięcie okna bez wyboru kończy program.
 
 ## 9. Most strona → okno

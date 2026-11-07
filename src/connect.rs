@@ -1,7 +1,7 @@
 //! Okno „Połącz z serwerem”: adres i token serwera VizRS (np. na VPS), lista zapisanych połączeń.
 //!
 //! Strona okna jest wbudowana w powłokę (nie pochodzi z serwera), więc tylko ona może wysłać przez most
-//! komunikat `connect:` – strony Artist/Trio serwera nie mogą przełączyć okien na inny adres.
+//! komunikat `connect:` – strona Artist nie może przełączyć okien na inny adres.
 //! Lista leży w `connections.json` w katalogu konfiguracji użytkownika (Linux `~/.config/vizrs`,
 //! Windows `%APPDATA%\VizRS`, macOS `~/Library/Application Support/VizRS`); token tylko na życzenie.
 
