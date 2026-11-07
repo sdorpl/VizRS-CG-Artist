@@ -128,6 +128,23 @@ cargo build --release
 Bez `libwebkitgtk-6.0-dev` (jest tylko `libwebkitgtk-6.0-4`): `eval "$(tools/webkit6-shim.sh)"` zakłada w `.dev/` pliki pkg-config
 i dowiązania `.so`, potem `cargo build`.
 
+Paczka Debian/Ubuntu (Ubuntu 24.04+ / Debian 13+ – wcześniejsze nie mają WebKitGTK 6.0):
+
+```bash
+packaging/deb/build.sh [ścieżka-do-vizrs-cg-artist] [wersja] [katalog]   # domyślnie: target/release, Cargo.toml, .
+```
+
+| W paczce | Plik |
+|---|---|
+| program | `/usr/bin/vizrs-cg-artist` |
+| skróty w menu | `pl.vizrs.CgArtist.desktop` (VizRS CG Artist, `%f`, skojarzenia `.cgpack` i `.vizrs.json`), `pl.vizrs.CgArtist.Connect.desktop` (serwer zdalny, `connect`) |
+| ikona | `/usr/share/icons/hicolor/256x256/apps/pl.vizrs.CgArtist.png` |
+| typy plików | `/usr/share/mime/packages/pl.vizrs.CgArtist.xml` (te same typy co w pakiecie `vizrs`) |
+
+Zależności: `libgtk-4-1`, `libwebkitgtk-6.0-4`; zalecany pakiet `vizrs` (serwer w `/usr/bin` – okno znajduje go obok siebie).
+Pliki nazwane po identyfikatorze aplikacji, więc paczka instaluje się obok pakietu `vizrs` bez konfliktów. Z wpisem systemowym
+okno nie zakłada ukrytego wpisu w `~/.local/share/applications`. CI buduje paczkę i sprawdza wpisy `desktop-file-validate`.
+
 Bramka przed commitem: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo build --release`.
 To samo robi CI (`.github/workflows/ci.yml`, Ubuntu 24.04).
 

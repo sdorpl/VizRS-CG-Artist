@@ -17,5 +17,5 @@ Zamykając pozycję, usuń wiersz i dopisz wersję w `CHANGELOG.md`. Nowe braki 
 ## G3 – funkcje
 | # | Luka | Uwagi |
 |---|---|---|
-| 5 | Brak paczek (`.deb`, AppImage, Flatpak) | CI jest (`.github/workflows/ci.yml`) |
+| 5 | Brak AppImage i Flatpak; brak wydań na GitHubie (`release.yml`) | `.deb` jest (`packaging/deb/build.sh`, w CI); paczki nie instalowano jeszcze na czystym systemie |
 | 6 | Tylko okno Artist – Trio i wyjście otwierają się w przeglądarce systemowej | Trio / Fill+Key: `vizrs-shell` |

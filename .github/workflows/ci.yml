@@ -25,7 +25,17 @@ jobs:
           ./target/release/vizrs-cg-artist --version
           ./target/release/vizrs-cg-artist --help > /dev/null
           sha256sum target/release/vizrs-cg-artist
+      - name: Paczka .deb
+        run: |
+          sudo apt-get install -y --no-install-recommends desktop-file-utils
+          packaging/deb/build.sh target/release/vizrs-cg-artist "" dist
+          dpkg-deb -I dist/*.deb
+          mkdir dist/x && dpkg-deb -x dist/*.deb dist/x
+          desktop-file-validate dist/x/usr/share/applications/*.desktop
+          rm -rf dist/x
       - uses: actions/upload-artifact@v4
         with:
           name: vizrs-cg-artist-linux-x86_64
-          path: target/release/vizrs-cg-artist
+          path: |
+            target/release/vizrs-cg-artist
+            dist/*.deb

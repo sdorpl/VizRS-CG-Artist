@@ -2,6 +2,8 @@
 
 ## Niewydane
 
+- **Paczka `.deb`** (`packaging/deb/build.sh`, też w CI): program, skróty „VizRS CG Artist” i „VizRS CG Artist – serwer zdalny”, ikona, skojarzenia `.cgpack` / `.vizrs.json`; instaluje się obok pakietu `vizrs`.
+
 - **`connect` bez serwera lokalnego:** okno wyboru otwiera się bez uruchamiania `vizrs serve`; serwer lokalny powstaje dopiero po „Serwer lokalny”. Wcześniej `connect` bez programu `vizrs` kończył się błędem, zanim pokazał okno wyboru. Do chwili wyboru Plik → Trio / Wyjście w przeglądarce i Pomoc → Strona startowa i API są wyłączone.
 - **Test w działaniu** `tests/e2e/okno.js`: most okna, jedna instancja, serwer (`--idle-exit`, dołączanie, blokada), okno połączenia.
 

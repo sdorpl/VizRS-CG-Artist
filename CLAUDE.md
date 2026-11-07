@@ -77,6 +77,7 @@ Przy zmianie zachowania okna (most, serwer, okno połączenia, instancja) także
 | `assets/vizrs-256.png` | ikona okna (wkompilowana) |
 | `tests/e2e/okno.js` | test w działaniu przez `--probe` z prawdziwym `vizrs` |
 | `.github/workflows/ci.yml` | CI: bramka na Ubuntu 24.04 |
+| `packaging/deb/build.sh`, `packaging/pl.vizrs.CgArtist.xml` | paczka `.deb`, typy plików `.cgpack` / `.vizrs.json` |
 | `tools/webkit6-shim.sh` | pliki pkg-config dla budowy bez `libwebkitgtk-6.0-dev` |
 | `.dev/` | wygenerowany shim — nie commituj |
 

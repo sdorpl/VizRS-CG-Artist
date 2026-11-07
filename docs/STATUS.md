@@ -18,11 +18,13 @@ w repo `VizRS CG System`.
 | Pytanie przy zamykaniu, kopia robocza, jedna instancja, `window.json` | zrobione |
 | Pierwszy commit | zrobione |
 | CI (`.github/workflows/ci.yml`: fmt, clippy, test, build na Ubuntu 24.04) | zrobione (repo bez zdalnego – nieuruchomione na GitHubie) |
-| Paczka (`.deb` / AppImage / Flatpak) | do zrobienia |
+| Paczka `.deb` (`packaging/deb/build.sh`, w CI) | zrobione; do sprawdzenia instalacja na czystym Ubuntu 24.04 |
+| Wydania (`release.yml`), AppImage / Flatpak | do zrobienia |
 | Windows / macOS | nie planowane (GTK 4 + WebKitGTK – tylko Linux); tam `vizrs-shell` |
 
 ## Następne zadanie
-Paczka `.deb` (LUKI #5): `vizrs-cg-artist` + wpis `.desktop` + ikona + skojarzenie `.cgpack`; potem test w działaniu w CI (LUKI #1).
+Instalacja `.deb` na czystym Ubuntu 24.04 (z pakietem `vizrs`), potem wydania na GitHubie (`release.yml`) i test w działaniu w CI (LUKI #1).
+Repozytorium nie ma jeszcze zdalnego (`git remote`) – CI nie było uruchomione.
 
 ## Blokery
 Brak. (`libwebkitgtk-6.0-dev` jest już na maszynie deweloperskiej; `tools/webkit6-shim.sh` zostaje dla maszyn bez pakietu `-dev`.)
