@@ -94,6 +94,9 @@ android/             (opcja: aplikacja Kotlin z WebView + artist-core przez JNI)
 
 ## 7. Decyzje do podjęcia (użytkownik)
 
+Alternatywa Qt – oceniona w [RAPORT-qt.md](RAPORT-qt.md): nie ułatwia (Android bez WebEngine, +~200 MB, C++), rekomendacja: nie; do rozważenia wry/Tauri 2 wszędzie.
+
+
 1. **Nowe zależności** (dziś tylko `gtk4`, `webkit6`, `serde_json`): okno Windows/macOS – `tao`, `wry`, `muda`, `rfd`
    (jak w `vizrs-shell`, wersje z CG System). Proponowane: tak.
 2. **Klient HTTPS bez GTK:** (a) `ureq` + `rustls` (jedna implementacja na wszystkie systemy, także Linux) albo
