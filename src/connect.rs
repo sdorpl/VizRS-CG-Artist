@@ -303,7 +303,7 @@ button:disabled { opacity:.5; cursor:default; }
 <div id="list"></div>
 <div id="err"></div>
 <div class="actions">
-  <button id="local" type="button">Serwer lokalny</button>
+  <button id="local" type="button">Praca lokalna (bez serwera)</button>
   <span class="sp"></span>
   <button id="cancel" type="button">Anuluj</button>
   <button id="go" class="primary" type="button">Połącz</button>
@@ -312,8 +312,7 @@ button:disabled { opacity:.5; cursor:default; }
 const C = window.__vizrsConn || { servers: [] };
 const $ = (id) => document.getElementById(id);
 const send = (m) => window.ipc.postMessage(JSON.stringify(m));
-$('now').textContent = 'Teraz: ' + (!C.current ? 'nie połączono' : C.remote ? C.current : 'serwer lokalny (' + C.current + ')');
-if (!C.local) $('local').hidden = true;
+$('now').textContent = 'Teraz: ' + (!C.current ? 'nie połączono' : C.remote ? C.current : 'praca lokalna');
 if (C.remote) { $('url').value = C.current; $('token').value = C.token || ''; $('auto').checked = C.auto === C.current; }
 function fill(s) {
   $('url').value = s.url; $('token').value = ''; $('keep').checked = s.hasToken;

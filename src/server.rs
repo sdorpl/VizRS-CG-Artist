@@ -1,17 +1,16 @@
-//! Serwer dla okien powłoki: dołącz do działającego `vizrs` na tym katalogu danych albo uruchom
-//! `vizrs serve --idle-exit N` jako osobny proces. Osobny proces = awaria okna nie zdejmuje anteny,
-//! a serwer kończy pracę sam, gdy nie ma już okien ani wyjść (OBS).
+//! Serwer `vizrs` z punktu widzenia okna: kto trzyma katalog danych (blokada `.vizrs.lock` w formacie
+//! serwera, `src/datalock.rs` w CG System) i proste `GET` do sprawdzenia serwera przed połączeniem.
+//! Artist nie uruchamia `vizrs` – pracuje na własnym magazynie (`local`), a do działającego serwera dołącza.
 
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::path::Path;
+use std::time::Duration;
 
-/// Plik blokady katalogu danych zakładany przez `vizrs` (src/datalock.rs w rdzeniu).
-const LOCK_FILE: &str = ".vizrs.lock";
-/// Ile sekund bez okien i wyjść, zanim serwer uruchomiony przez powłokę zakończy pracę.
-const IDLE_EXIT_S: u32 = 10;
+use serde_json::Value;
+
+/// Plik blokady katalogu danych (ten sam dla `vizrs` i magazynu Artist).
+pub const LOCK_FILE: &str = ".vizrs.lock";
 
 /// `GET` na `addr` (`host:port`), odpowiedź do 1 MB. Zwraca (kod, treść).
 pub fn http_get(
@@ -51,159 +50,76 @@ pub fn http_get(
     Ok((code, body.to_string()))
 }
 
-/// Adres działającego serwera VizRS, który trzyma katalog danych (blokada + zgodny `instance` w `/health`).
-pub fn running_server(data: &Path, token: Option<&str>) -> Result<Option<String>, String> {
-    let Ok(text) = std::fs::read_to_string(data.join(LOCK_FILE)) else {
-        return Ok(None);
-    };
-    let Ok(lock) = serde_json::from_str::<serde_json::Value>(&text) else {
-        return Ok(None);
-    };
+fn read_lock(data: &Path) -> Option<Value> {
+    let text = std::fs::read_to_string(data.join(LOCK_FILE)).ok()?;
+    serde_json::from_str::<Value>(&text)
+        .ok()
+        .filter(|v| v["instance"].is_string())
+}
+
+/// Czy proces na pewno nie istnieje (Linux: `/proc/<pid>`).
+fn pid_dead(pid: u64) -> bool {
+    pid != 0 && cfg!(target_os = "linux") && !Path::new(&format!("/proc/{pid}")).exists()
+}
+
+/// Właściciel blokady żyje: proces istnieje, a `/health` pod zapisanym adresem zwraca ten sam `instance`
+/// (401/403 – odpowiada, ale z innym tokenem: jak w serwerze uznajemy za żywy, żeby nie było dwóch zapisujących).
+fn alive(lock: &Value, token: Option<&str>) -> Result<bool, String> {
+    if pid_dead(lock["pid"].as_u64().unwrap_or(0)) {
+        return Ok(false);
+    }
     let (Some(addr), Some(inst)) = (lock["addr"].as_str(), lock["instance"].as_str()) else {
-        return Ok(None);
+        return Ok(false);
     };
     match http_get(addr, "/health", token, Duration::from_millis(1500)) {
-        Ok((200, body)) => {
-            let same = serde_json::from_str::<serde_json::Value>(&body)
-                .map(|h| h["instance"].as_str() == Some(inst))
-                .unwrap_or(false);
-            Ok(same.then(|| addr.to_string()))
-        }
+        Ok((200, body)) => Ok(serde_json::from_str::<Value>(&body)
+            .map(|h| h["instance"].as_str() == Some(inst))
+            .unwrap_or(false)),
         Ok((401 | 403, _)) => Err(format!(
             "serwer VizRS na {addr} wymaga tokenu – podaj --token albo ustaw VIZRS_TOKEN"
         )),
-        _ => Ok(None),
+        _ => Ok(false),
     }
 }
 
-/// Plik wykonywalny `vizrs`: wskazany, obok powłoki, w `PATH`.
-pub fn find_vizrs(over: Option<&str>) -> Option<PathBuf> {
-    let name = if cfg!(windows) { "vizrs.exe" } else { "vizrs" };
-    if let Some(o) = over.filter(|o| !o.is_empty()) {
-        return Some(PathBuf::from(o));
+/// Opis żywego właściciela katalogu danych (dowolnego: `vizrs` albo inne okno Artist).
+pub fn lock_owner(data: &Path) -> Option<String> {
+    let lock = read_lock(data)?;
+    if !alive(&lock, None).unwrap_or(true) {
+        return None;
     }
-    let sibling = std::env::current_exe()
-        .ok()
-        .and_then(|e| e.parent().map(|d| d.join(name)));
-    if let Some(s) = sibling.filter(|s| s.is_file()) {
-        return Some(s);
-    }
-    let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path)
-        .map(|d| d.join(name))
-        .find(|p| p.is_file())
-}
-
-/// Plik komunikatów serwera uruchomionego przez okno.
-pub fn log_path() -> PathBuf {
-    crate::paths::state_dir().join("serwer.log")
-}
-
-/// Serwer uruchomiony przez powłokę.
-pub struct Spawned {
-    pub addr: String,
-    /// Plik z komunikatami serwera (stdout i stderr).
-    pub log: PathBuf,
-    // proces potomny nie jest zabijany przy zamknięciu okna: kończy się sam (--idle-exit),
-    // gdy nikt z niego nie korzysta – zamknięcie okna nie zdejmuje grafiki z OBS
-    _child: Child,
-}
-
-/// Pierwszy wolny port od `from` (do 20 kolejnych), inaczej dowolny wolny wskazany przez system.
-/// Przy porcie zajętym przez inny serwer VizRS (np. na innym katalogu danych) okno uruchamia własny obok.
-pub fn free_port(from: u16) -> u16 {
-    let free = |p: u16| {
-        std::net::TcpListener::bind(("127.0.0.1", p))
-            .ok()
-            .and_then(|l| l.local_addr().ok())
-            .map(|a| a.port())
+    let who = match lock["app"].as_str() {
+        Some(crate::local::APP_NAME) => "VizRS CG Artist",
+        _ => "serwer vizrs",
     };
-    (from..from.saturating_add(20))
-        .find_map(|p| free(p).filter(|_| p != 0))
-        .or_else(|| free(0))
-        .unwrap_or(from)
+    Some(format!(
+        "{who}, pid {}, {}",
+        lock["pid"].as_u64().unwrap_or(0),
+        lock["addr"].as_str().unwrap_or("?")
+    ))
 }
 
-/// Uruchamia `vizrs serve` i czeka, aż odpowie. Błąd zawiera komunikat serwera (np. zajęty port).
-pub fn spawn(vizrs: &Path, data: &Path, port: u16, token: Option<&str>) -> Result<Spawned, String> {
-    // komunikaty serwera do pliku, nie do potoku: serwer żyje dłużej niż okno, a pisanie do
-    // zamkniętego potoku kończyłoby się błędem w serwerze
-    let log = log_path();
-    if let Some(d) = log.parent() {
-        std::fs::create_dir_all(d).map_err(|e| format!("{}: {e}", d.display()))?;
-    }
-    // poprzedni przebieg zostaje jako .1 – to on bywa potrzebny po awarii
-    std::fs::rename(&log, log.with_extension("log.1")).ok();
-    let log_file = std::fs::File::create(&log).map_err(|e| format!("{}: {e}", log.display()))?;
-    let mut cmd = Command::new(vizrs);
-    cmd.arg("serve")
-        .arg("--data")
-        .arg(data)
-        .arg("--port")
-        .arg(port.to_string())
-        .arg("--idle-exit")
-        .arg(IDLE_EXIT_S.to_string())
-        .stdin(Stdio::null())
-        .stdout(log_file.try_clone().map_err(|e| e.to_string())?)
-        .stderr(log_file);
-    if let Some(t) = token {
-        // token przez zmienną – nie widać go w liście procesów
-        cmd.env("VIZRS_TOKEN", t);
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("nie mogę uruchomić {}: {e}", vizrs.display()))?;
-    let errors = || {
-        let t = std::fs::read_to_string(&log).unwrap_or_default();
-        // ramka z adresami to nie błąd – zostaw tylko komunikaty
-        t.lines()
-            .filter(|l| !l.starts_with(['┌', '│', '└']))
-            .collect::<Vec<_>>()
-            .join("\n")
-            .trim()
-            .to_string()
+/// Adres działającego serwera `vizrs`, który trzyma katalog danych – okno dołącza do niego zamiast
+/// otwierać magazyn lokalny (jeden zapisujący na `show.json`). Katalog otwarty w innym oknie Artist = błąd.
+pub fn running_server(data: &Path, token: Option<&str>) -> Result<Option<String>, String> {
+    let Some(lock) = read_lock(data) else {
+        return Ok(None);
     };
-
-    let started = Instant::now();
-    while started.elapsed() < Duration::from_secs(15) {
-        if let Ok(Some(status)) = child.try_wait() {
-            let msg = errors();
-            return Err(if msg.is_empty() {
-                format!("serwer VizRS zakończył się ({status})")
-            } else {
-                msg
-            });
-        }
-        if let Ok(Some(addr)) = running_server(data, token) {
-            return Ok(Spawned {
-                addr,
-                log,
-                _child: child,
-            });
-        }
-        std::thread::sleep(Duration::from_millis(150));
+    if !alive(&lock, token)? {
+        return Ok(None);
     }
-    Err("serwer VizRS nie odpowiedział w ciągu 15 s".into())
+    if lock["app"].as_str() == Some(crate::local::APP_NAME) {
+        return Err(format!(
+            "Katalog danych {} jest otwarty w innym oknie VizRS CG Artist.",
+            data.display()
+        ));
+    }
+    Ok(lock["addr"].as_str().map(String::from))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn busy_port_is_skipped() {
-        let busy = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let p = busy.local_addr().unwrap().port();
-        assert_ne!(free_port(p), p);
-        drop(busy);
-        assert_eq!(free_port(p), p);
-    }
 
     #[test]
     fn no_lock_means_no_server() {
@@ -219,13 +135,5 @@ mod tests {
         std::fs::write(d.join(LOCK_FILE), "śmieci").unwrap();
         assert_eq!(running_server(&d, None).unwrap(), None);
         std::fs::remove_dir_all(d).ok();
-    }
-
-    #[test]
-    fn explicit_vizrs_path_wins() {
-        assert_eq!(
-            find_vizrs(Some("/opt/x/vizrs")),
-            Some(PathBuf::from("/opt/x/vizrs"))
-        );
     }
 }

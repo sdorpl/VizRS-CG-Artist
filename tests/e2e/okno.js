@@ -1,8 +1,9 @@
-// Test w działaniu okna VizRS CG Artist (GTK 4 + WebKitGTK 6.0) z prawdziwym serwerem `vizrs`:
+// Test w działaniu okna VizRS CG Artist (GTK 4 + WebKitGTK 6.0):
 //   node tests/e2e/okno.js [ścieżka-do-vizrs] [ścieżka-do-vizrs-cg-artist]
-// Sprawdza: most okna (pytanie przy zamykaniu, plik od okna), jedną instancję, uruchamianie `vizrs serve --idle-exit`
-// i dołączanie do działającego serwera, koniec serwera bez okien i wyjść, okno „Połącz z serwerem” z tokenem
-// i zapisem połączenia, odrzucenie przełączenia adresu przez stronę serwera.
+// Sprawdza: pracę lokalną bez serwera (strona z binarki, zapis sceny do show.json, zasoby, brak stron Trio),
+// most okna (pytanie przy zamykaniu, plik od okna), jedną instancję, wzajemną blokadę katalogu z `vizrs`,
+// dołączanie do `vizrs` na tym samym katalogu, okno „Połącz z serwerem” (token, zapis, praca lokalna) i to,
+// że strona nie przełącza okna na inny adres. `vizrs` jest potrzebny tylko w krokach z serwerem.
 // Otwiera na kilka sekund widoczne okna (w CI: xvfb-run). Katalogi użytkownika (konfiguracja, stan, wpis .desktop,
 // gniazdo instancji) są w katalogu tymczasowym – test nie rusza danych użytkownika.
 const { spawn, spawnSync } = require('child_process');
@@ -23,19 +24,19 @@ const data = path.join(tmp, 'data');
 
 // Własne katalogi XDG. Gniazdo Waylanda leży w XDG_RUNTIME_DIR, więc jego nazwę zamieniamy na ścieżkę bezwzględną.
 const ENV = { ...process.env, VIZRS_CONFIG: path.join(tmp, 'cfg'), XDG_STATE_HOME: path.join(tmp, 'state'), XDG_DATA_HOME: path.join(tmp, 'share'), XDG_RUNTIME_DIR: path.join(tmp, 'run') };
-for (const k of ['VIZRS_DATA', 'VIZRS_PORT', 'VIZRS_TOKEN', 'VIZRS_CONNECT', 'VIZRS_BIN']) delete ENV[k];
+for (const k of ['VIZRS_ARTIST_DATA', 'VIZRS_DATA', 'VIZRS_TOKEN', 'VIZRS_CONNECT']) delete ENV[k];
 fs.mkdirSync(ENV.XDG_RUNTIME_DIR, { mode: 0o700 });
 if (process.env.WAYLAND_DISPLAY && !path.isAbsolute(process.env.WAYLAND_DISPLAY) && process.env.XDG_RUNTIME_DIR) {
   ENV.WAYLAND_DISPLAY = path.join(process.env.XDG_RUNTIME_DIR, process.env.WAYLAND_DISPLAY);
 }
 
 const write = (name, js) => { const p = path.join(tmp, name); fs.writeFileSync(p, js); return p; };
-// sonda: czeka na połączenie z serwerem, zwraca tytuł, wskaźnik i liczbę scen
+// sonda: czeka na połączenie, zwraca tytuł, wskaźnik, adres i liczbę scen
 const PROBE = write('probe.js', `(async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
   await sleep(500);
-  const r = { title: document.title, conn: document.querySelector('#conn')?.textContent, scenes: document.querySelectorAll('#sceneSel option').length };
+  const r = { title: document.title, conn: document.querySelector('#conn')?.textContent, href: location.href, scenes: document.querySelectorAll('#sceneSel option').length };
   window.ipc.postMessage('probe:' + JSON.stringify(r));
 })();`);
 const health = (port = PORT) => new Promise((res) => {
@@ -46,90 +47,77 @@ const run = (args, script, name, env = ENV) => {
   const r = spawnSync(APP, [...args, '--probe', script, '--probe-out', out], { encoding: 'utf8', timeout: 60000, env });
   return fs.existsSync(out) ? JSON.parse(fs.readFileSync(out, 'utf8')) : { error: r.status, signal: r.signal, stderr: (r.stderr || '').slice(-2000) };
 };
-const local = ['--data', data, '--port', String(PORT), '--vizrs', BIN];
+const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'show.json'), 'utf8')); } catch { return null; } };
 
 (async () => {
-  let obs;
   try {
-    for (const f of [BIN, APP]) if (!fs.existsSync(f)) throw new Error('brak programu: ' + f);
+    if (!fs.existsSync(APP)) throw new Error('brak programu: ' + APP);
+    const haveVizrs = fs.existsSync(BIN);
 
-    // 0. most okna: pytanie przy zamykaniu, plik od okna trafia do zasobów, nieznany komunikat nic nie robi
-    const nat = run(local, write('native.js', `(async () => {
+    // 1. praca lokalna bez serwera: strona z binarki, zapis sceny, plik od okna → zasoby, pytanie przy zamykaniu
+    const loc = run(['--data', data], write('local.js', `(async () => {
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-      for (let i = 0; i < 50 && !document.querySelector('#sceneSel option'); i++) await sleep(100);
+      for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
       await sleep(400);
-      const r = { cmd: typeof window.__vizrsCmd, file: typeof window.__vizrsFile };
-      window.ipc.postMessage('app:' + JSON.stringify({ action: 'nieznany', x: 1 }));
-      window.ipc.postMessage('app:' + 'x'.repeat(100000));
-      window.__vizrsCmd('fit');
+      const r = { title: document.title, conn: document.querySelector('#conn')?.textContent, href: location.href,
+        cmd: typeof window.__vizrsCmd, nav: !!document.querySelector('.topbar nav'), mkPage: !!document.querySelector('#mkPage') };
+      r.state = await (await fetch('/api/state')).json();
+      r.pages = (await fetch('/api/pages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"scene":"x"}' })).status;
+      window.__vizrsCmd('save'); await sleep(800);
+      r.saved = (await (await fetch('/api/show')).json()).scenes.length;
+      window.__vizrsFile.begin('kropka.png'); window.__vizrsFile.chunk(btoa('nie-obraz-ale-plik')); window.__vizrsFile.end();
+      await sleep(800);
+      r.assets = (await (await fetch('/api/assets')).json()).map((a) => a.name);
+      r.dirty = document.querySelector('#bSave')?.classList.contains('dirty');
       window.__vizrsCmd('close'); await sleep(50);
       r.modal = !!document.querySelector('#nativeClose');
       document.querySelector('[data-nc="stay"]')?.click();
-      const before = (await (await fetch('/api/assets')).json()).length;
-      window.__vizrsFile.begin('kropka.png');
-      window.__vizrsFile.chunk(btoa('nie-obraz-ale-plik'));
-      window.__vizrsFile.end();
-      await sleep(800);
-      r.uploaded = (await (await fetch('/api/assets')).json()).length - before;
-      r.dirty = document.querySelector('#bSave')?.classList.contains('dirty');
+      window.ipc.postMessage('app:' + JSON.stringify({ t: 'nieznany' }));
       window.ipc.postMessage('probe:' + JSON.stringify(r));
-    })();`), 'native');
-    ok(nat.cmd === 'function' && nat.file === 'object', 'strona widzi most okna (__vizrsCmd, __vizrsFile)', nat);
-    ok(nat.modal === true, 'pytanie o niezapisane zmiany przy zamykaniu', nat);
-    ok(nat.uploaded === 1 && nat.dirty === true, 'plik od okna trafia do zasobów i dodaje element', nat);
-    const log = fs.readdirSync(path.join(ENV.XDG_STATE_HOME, 'vizrs')).filter((f) => f.endsWith('.log'));
-    ok(log.length > 0, 'log serwera w katalogu stanu', fs.readdirSync(ENV.XDG_STATE_HOME));
+    })();`), 'local');
+    ok(loc.title === 'VizRS Artist' && loc.conn === 'połączono' && /^http:\/\/127\.0\.0\.1:\d+\/artist/.test(loc.href || ''), 'praca lokalna: strona z binarki, połączona z magazynem okna', loc);
+    ok(loc.state?.mode === 'local' && loc.pages === 400 && !loc.mkPage && !loc.nav, 'bez Trio: tryb lokalny, strony Trio odrzucone, brak zakładek i „Utwórz stronę”', loc);
+    ok(loc.saved === 1 && showOf(data)?.scenes?.length === 1, 'zapis sceny trafia do show.json w katalogu danych', { saved: loc.saved, show: showOf(data) });
+    ok(loc.assets?.includes('kropka.png') && fs.existsSync(path.join(data, 'assets', 'kropka.png')) && loc.dirty, 'plik od okna trafia do assets/ i dodaje element', loc);
+    ok(loc.modal === true, 'pytanie o niezapisane zmiany przy zamykaniu', loc);
+    ok(!fs.existsSync(path.join(data, '.vizrs.lock')), 'blokada katalogu zwolniona po zamknięciu okna');
+    const port = loc.href ? Number(new URL(loc.href).port) : 0;
+    ok(port > 0 && !(await health(port)), 'magazyn lokalny kończy się razem z oknem');
 
-    // 0b. jedna instancja: drugie uruchomienie przekazuje prośbę i kończy pracę
-    const first = spawn(APP, local, { env: ENV, stdio: 'ignore' });
-    await sleep(3000);
-    const second = spawnSync(APP, local, { env: ENV, timeout: 5000 });
+    // 2. jedna instancja: drugie uruchomienie przekazuje prośbę i kończy pracę; vizrs nie wystartuje na tym katalogu
+    const first = spawn(APP, ['--data', data], { env: ENV, stdio: 'ignore' });
+    for (let i = 0; i < 50 && !fs.existsSync(path.join(data, '.vizrs.lock')); i++) await sleep(100);
+    await sleep(1500);
+    const second = spawnSync(APP, ['--data', data], { env: ENV, timeout: 5000 });
     ok(second.status === 0 && first.exitCode === null, 'drugie uruchomienie kończy się od razu, pierwsze działa', { second: second.status, first: first.exitCode });
+    let lock = {};
+    try { lock = JSON.parse(fs.readFileSync(path.join(data, '.vizrs.lock'), 'utf8')); } catch { /* brak */ }
+    ok(lock.app === 'vizrs-cg-artist' && /^127\.0\.0\.1:\d+$/.test(lock.addr || ''), 'blokada katalogu w formacie serwera', lock);
+    if (haveVizrs) {
+      const v = spawnSync(BIN, ['--port', String(PORT + 7), '--tcp', '0', '--data', data], { encoding: 'utf8', timeout: 10000 });
+      ok(v.status !== 0 && v.status !== null, 'vizrs nie startuje na katalogu otwartym w Artist', { status: v.status, err: (v.stderr || '').slice(-300) });
+    }
     first.kill();
-    for (let i = 0; i < 60 && await health(); i++) await sleep(500);
-    ok(!(await health()), 'serwer po zamknięciu okna kończy pracę (--idle-exit)');
+    await sleep(500);
 
-    // 1. okno uruchamia serwer i łączy się z nim
-    const a = run(local, PROBE, 'artist');
-    ok(a.title === 'VizRS Artist' && a.conn === 'połączono' && a.scenes > 0, 'Artist w oknie: strona, połączenie, sceny', a);
-    const h1 = await health();
-    ok(!!h1, 'serwer uruchomiony przez okno działa po jego zamknięciu (czeka na --idle-exit)');
-    ok(fs.existsSync(path.join(data, '.vizrs.lock')), 'serwer trzyma blokadę katalogu danych');
+    if (haveVizrs) {
+      // 3. vizrs pracuje na katalogu danych → okno dołącza do niego (jeden zapisujący)
+      const vdata = path.join(tmp, 'vdata');
+      const srv = spawn(BIN, ['--port', String(PORT), '--tcp', '0', '--data', vdata], { stdio: 'ignore' });
+      try {
+        for (let i = 0; i < 50 && !(await health()); i++) await sleep(100);
+        const j = run(['--data', vdata], PROBE, 'join');
+        ok(j.conn === 'połączono' && j.href?.startsWith(`http://127.0.0.1:${PORT}/artist`) && j.scenes > 0, 'okno dołącza do vizrs pracującego na tym katalogu danych', j);
+      } finally {
+        srv.kill();
+      }
 
-    // 2. drugie okno dołącza do tego samego serwera. Podłączone „wyjście” trzyma serwer dłużej niż start WebKitGTK.
-    obs = await new Promise((res) => {
-      const req = http.get(`http://127.0.0.1:${PORT}/events`, () => res(req));
-      req.on('error', () => res(req));
-    });
-    const b = run(['--data', data, '--port', String(PORT + 5), '--vizrs', BIN], PROBE, 'artist2');
-    ok(b.conn === 'połączono' && b.scenes > 0, 'okno dołącza do działającego serwera na tym katalogu danych (inny --port bez znaczenia)', b);
-    const h2 = await health();
-    ok(h2 && h1 && h2.instance === h1.instance, 'to ten sam serwer (instance)', [h1?.instance, h2?.instance]);
-    ok(!(await health(PORT + 5)), 'drugi serwer nie powstał');
-
-    // 3. z podłączonym wyjściem serwer działa; bez okien i wyjść kończy pracę sam
-    await sleep(14000);
-    ok(!!(await health()), 'z podłączonym wyjściem serwer działa dalej');
-    obs.destroy();
-    let gone = false;
-    for (let i = 0; i < 40 && !gone; i++) { await sleep(1000); gone = !(await health()); }
-    ok(gone, 'bez okien i wyjść serwer kończy pracę sam');
-    ok(!fs.existsSync(path.join(data, '.vizrs.lock')), 'blokada zwolniona');
-
-    // 4a. `connect` bez programu vizrs: okno wyboru otwiera się, serwer lokalny nie powstaje przed wyborem
-    const NOVIZRS = path.join(tmp, 'brak', 'vizrs');
-    const pre = run(['connect', '--data', path.join(tmp, 'local'), '--port', String(PORT + 2), '--vizrs', NOVIZRS], write('pre.js', `(async () => {
-  await new Promise((r) => setTimeout(r, 300));
-  window.ipc.postMessage('probe:' + JSON.stringify({ title: document.title, now: document.getElementById('now')?.textContent, url: document.getElementById('url')?.value }));
-})();`), 'pre');
-    ok(pre.title === 'Połącz z serwerem' && pre.now === 'Teraz: nie połączono' && pre.url === '', 'connect bez programu vizrs: okno wyboru, „nie połączono”', pre);
-
-    // 4. okno „Połącz z serwerem”: zły token → komunikat, dobry → Artist na serwerze „zdalnym”, zapis na liście
-    const RPORT = PORT + 1, TOKEN = 'zdalny-token-1234567';
-    const remote = spawn(BIN, ['--port', String(RPORT), '--tcp', '0', '--data', path.join(tmp, 'remote'), '--token', TOKEN], { stdio: 'ignore' });
-    try {
-      for (let i = 0; i < 50 && !(await health(RPORT)); i++) await sleep(100);
-      const CPROBE = write('connect.js', `(async () => {
+      // 4. okno „Połącz z serwerem”: zły token → komunikat, dobry → Artist na serwerze zdalnym, zapis na liście
+      const RPORT = PORT + 1, TOKEN = 'zdalny-token-1234567';
+      const remote = spawn(BIN, ['--port', String(RPORT), '--tcp', '0', '--data', path.join(tmp, 'remote'), '--token', TOKEN], { stdio: 'ignore' });
+      try {
+        for (let i = 0; i < 50 && !(await health(RPORT)); i++) await sleep(100);
+        const CPROBE = write('connect.js', `(async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const $ = (id) => document.getElementById(id);
   if (document.title === 'Połącz z serwerem') {
@@ -143,23 +131,38 @@ const local = ['--data', data, '--port', String(PORT), '--vizrs', BIN];
   window.ipc.postMessage('connect:' + JSON.stringify({ url: 'http://127.0.0.1:1' }));
   for (let i = 0; i < 100 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
   await sleep(500);
-  window.ipc.postMessage('probe:' + JSON.stringify({ href: location.href, title: document.title, conn: document.querySelector('#conn')?.textContent, scenes: document.querySelectorAll('#sceneSel option').length }));
+  window.ipc.postMessage('probe:' + JSON.stringify({ href: location.href, conn: document.querySelector('#conn')?.textContent, scenes: document.querySelectorAll('#sceneSel option').length }));
 })();`);
-      const c = run(['connect', '--data', path.join(tmp, 'local'), '--port', String(PORT + 2), '--vizrs', NOVIZRS], CPROBE, 'connect');
-      ok(c.conn === 'połączono' && c.scenes > 0 && c.href?.startsWith(`http://127.0.0.1:${RPORT}/artist`), 'okno połączenia przełącza Artist na serwer zdalny z tokenem; strona serwera nie zmienia adresu', c);
-      const file = path.join(ENV.VIZRS_CONFIG, 'connections.json');
-      const saved = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
-      ok(saved.servers?.[0]?.url === `http://127.0.0.1:${RPORT}` && saved.servers?.[0]?.token === TOKEN, 'serwer i token na liście zapisanych', saved);
-      if (fs.existsSync(file)) ok((fs.statSync(file).mode & 0o077) === 0, 'lista zapisanych tylko dla właściciela');
-      ok(!(await health(PORT + 2)), 'połączenie zdalne nie uruchamia serwera lokalnego (i nie potrzebuje programu vizrs)');
-    } finally {
-      remote.kill();
+        const c = run(['connect', '--data', path.join(tmp, 'local')], CPROBE, 'connect');
+        ok(c.conn === 'połączono' && c.scenes > 0 && c.href?.startsWith(`http://127.0.0.1:${RPORT}/artist`), 'okno połączenia przełącza Artist na serwer zdalny z tokenem; strona serwera nie zmienia adresu', c);
+        const file = path.join(ENV.VIZRS_CONFIG, 'connections.json');
+        const saved = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+        ok(saved.servers?.[0]?.url === `http://127.0.0.1:${RPORT}` && saved.servers?.[0]?.token === TOKEN, 'serwer i token na liście zapisanych', saved);
+        if (fs.existsSync(file)) ok((fs.statSync(file).mode & 0o077) === 0, 'lista zapisanych tylko dla właściciela');
+        ok(!fs.existsSync(path.join(tmp, 'local', 'show.json')), 'połączenie zdalne nie zakłada magazynu lokalnego');
+      } finally {
+        remote.kill();
+      }
+    } else {
+      console.log(`POMINIĘTO kroki z serwerem – brak ${BIN}`);
     }
+
+    // 5. `connect` → „Praca lokalna (bez serwera)”
+    const lp = run(['connect', '--data', path.join(tmp, 'local2')], write('connlocal.js', `(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  if (document.title === 'Połącz z serwerem') {
+    const b = document.getElementById('local');
+    if (b.hidden || !b.offsetParent) return window.ipc.postMessage('probe:' + JSON.stringify({ hidden: true, now: document.getElementById('now').textContent }));
+    b.click(); return;
+  }
+  for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
+  window.ipc.postMessage('probe:' + JSON.stringify({ href: location.href, conn: document.querySelector('#conn')?.textContent, mode: (await (await fetch('/api/state')).json()).mode }));
+})();`), 'connlocal');
+    ok(lp.conn === 'połączono' && lp.mode === 'local', 'connect → „Praca lokalna” otwiera Artist na magazynie okna', lp);
   } catch (e) {
     console.error(e);
     failures++;
   } finally {
-    obs?.destroy();
     if (process.env.KEEP_TMP) console.log('katalog testu: ' + tmp);
     else fs.rmSync(tmp, { recursive: true, force: true });
   }

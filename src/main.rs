@@ -1,16 +1,21 @@
-//! VizRS CG Artist – okno projektowania scen grafiki VizRS: GTK 4 + WebKitGTK 6.0.
+//! VizRS CG Artist – samodzielny edytor grafik i animacji pakietu VizRS: GTK 4 + WebKitGTK 6.0.
 //!
-//! Strona Artist (kanwa `renderer.js`, panele) zostaje w JS i przychodzi z serwera `vizrs`. Okno daje to, czego
-//! przeglądarka nie ma: menu, systemowe „Zapisz jako”, pytanie przy zamknięciu, kopię roboczą, jedną instancję,
-//! skojarzenia plików i wybór serwera. Strona nie ma dostępu do systemu – tylko komunikaty z białej listy (`bridge`).
-//! Serwer nie jest wkompilowany: okno dołącza do działającego albo uruchamia `vizrs serve --idle-exit`.
+//! Strona Artist (kanwa `renderer.js`, panele) zostaje w JS i jest wkompilowana (`web`). Domyślnie pracuje na
+//! magazynie lokalnym w procesie okna (`local`, `store`) – bez serwera `vizrs`; serwer zdalny wybiera okno
+//! połączenia. Okno daje to, czego przeglądarka nie ma: menu, systemowe „Zapisz jako”, pytanie przy zamknięciu,
+//! kopię roboczą, jedną instancję, skojarzenia plików. Strona nie ma dostępu do systemu – tylko komunikaty
+//! z białej listy (`bridge`). Trio i wyjście należą do VizRS CG System i nie są tu dostarczane.
 
 mod bridge;
 mod connect;
 mod desktop;
+mod http;
 mod instance;
+mod local;
 mod paths;
 mod server;
+mod store;
+mod web;
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -60,11 +65,8 @@ enum Kind {
 struct Args {
     kind: Kind,
     data: PathBuf,
-    port: u16,
-    port_set: bool,
     token: Option<String>,
     connect: Option<String>,
-    vizrs: Option<String>,
     local: bool,
     probe: Option<(PathBuf, PathBuf)>,
     gpu: Option<bool>,
@@ -72,41 +74,30 @@ struct Args {
 }
 
 fn help() -> &'static str {
-    "vizrs-cg-artist – VizRS CG Artist, projektowanie scen grafiki VizRS (GTK 4 + WebKitGTK 6.0)
+    "vizrs-cg-artist – VizRS CG Artist, edytor grafik i animacji VizRS (GTK 4 + WebKitGTK 6.0)
 
 Użycie: vizrs-cg-artist [connect] [opcje] [PLIK]   (connect – najpierw wybór serwera; PLIK .cgpack albo .vizrs.json – import)
 
-  --data KAT      katalog danych serwera (VIZRS_DATA; domyślnie ./vizrs-data, jeśli jest, inaczej ~/.local/share/vizrs)
-  --port N        port serwera uruchamianego przez okno (VIZRS_PORT; domyślnie 8088, a gdy zajęty – następny wolny)
+  --data KAT      katalog danych Artist (VIZRS_ARTIST_DATA; domyślnie ~/.local/share/vizrs-cg-artist)
   --token T       token serwera (VIZRS_TOKEN)
   --connect URL   serwer zdalny, np. https://cg.example.pl (VIZRS_CONNECT)
-  --local         serwer lokalny, nawet gdy zapisano łączenie z serwerem zdalnym przy uruchomieniu
+  --local         praca lokalna, nawet gdy zapisano łączenie z serwerem zdalnym przy uruchomieniu
   --gpu TRYB      akceleracja GPU strony: on, off, auto (VIZRS_GPU)
-  --vizrs PLIK    program vizrs do uruchomienia serwera (VIZRS_BIN; domyślnie obok vizrs-cg-artist albo w PATH)
   --probe JS --probe-out JSON   narzędzie testowe: po wczytaniu strony wykonaj skrypt, zapisz wynik, zakończ
 
-Jeśli serwer na tym katalogu danych już działa, okno dołącza do niego. Inaczej uruchamia `vizrs serve` jako osobny
-proces: zamknięcie okna nie zdejmuje grafiki z anteny."
+Bez serwera: sceny, zasoby i presety w katalogu danych (show.json, assets/). Gdy na tym katalogu działa serwer
+vizrs, okno dołącza do niego. Trio i wyjście dla OBS – VizRS CG System."
 }
 
 fn parse_args() -> Result<Args, String> {
     let env = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
     let mut a = Args {
         kind: Kind::Artist,
-        data: env("VIZRS_DATA")
+        data: env("VIZRS_ARTIST_DATA")
             .map(PathBuf::from)
             .unwrap_or_else(paths::default_data),
-        port: env("VIZRS_PORT")
-            .map(|p| {
-                p.parse()
-                    .map_err(|_| "VIZRS_PORT: zły numer portu".to_string())
-            })
-            .transpose()?
-            .unwrap_or(8088),
-        port_set: env("VIZRS_PORT").is_some(),
         token: env("VIZRS_TOKEN"),
         connect: env("VIZRS_CONNECT"),
-        vizrs: env("VIZRS_BIN"),
         local: false,
         probe: None,
         gpu: match env("VIZRS_GPU").as_deref() {
@@ -129,15 +120,8 @@ fn parse_args() -> Result<Args, String> {
             "artist" => a.kind = Kind::Artist,
             "connect" => a.kind = Kind::Connect,
             "--data" => a.data = PathBuf::from(val()?),
-            "--port" => {
-                a.port = val()?
-                    .parse()
-                    .map_err(|_| "--port: zły numer portu".to_string())?;
-                a.port_set = true;
-            }
             "--token" => a.token = Some(val()?),
             "--connect" => a.connect = Some(val()?),
-            "--vizrs" => a.vizrs = Some(val()?),
             "--local" => a.local = true,
             "--gpu" => {
                 a.gpu = match val()?.as_str() {
@@ -251,10 +235,13 @@ struct App {
     gtk: gtk::Application,
     base: String,
     token: Option<String>,
-    /// adres serwera lokalnego (uruchomionego albo dołączonego), jeśli jest
+    /// praca lokalna: adres magazynu w oknie albo serwera `vizrs` na tym katalogu danych
     local: Option<String>,
     local_token: Option<String>,
-    local_start: (PathBuf, u16, Option<String>),
+    /// magazyn lokalny (żyje do końca programu; zwalnia blokadę katalogu)
+    store: Option<local::Local>,
+    /// token z `--token` / `VIZRS_TOKEN` (do serwera `vizrs` na katalogu danych)
+    user_token: Option<String>,
     server_note: String,
     data: PathBuf,
     gpu: Option<bool>,
@@ -318,6 +305,17 @@ impl App {
                 url_escape(&s)
             ),
             None => url,
+        }
+    }
+
+    /// Klucz kopii roboczej: magazyn lokalny ma losowy port, więc liczy się katalog danych, nie adres.
+    fn draft_key(&self) -> String {
+        match &self.store {
+            Some(l) if l.base == self.base => {
+                let d = std::fs::canonicalize(&self.data).unwrap_or_else(|_| self.data.clone());
+                format!("lokalny:{}", d.display())
+            }
+            _ => self.base.clone(),
         }
     }
 
@@ -504,10 +502,11 @@ fn install_actions(gapp: &gtk::Application) {
         let msg = {
             let a = app.borrow();
             format!(
-                "vizrs-cg-artist {}\nSerwer: {}\n{}",
+                "vizrs-cg-artist {} (moduły rysowania: VizRS CG System {})\n{}\nDane: {}",
                 env!("CARGO_PKG_VERSION"),
-                if a.base.is_empty() { "–" } else { &a.base },
-                a.server_note
+                web::cg_version(),
+                a.server_note,
+                a.data.display()
             )
         };
         gtk::AlertDialog::builder()
@@ -824,13 +823,14 @@ fn on_ipc(app: &Shared, window: &gtk::ApplicationWindow, body: &str) {
         }
         return;
     }
-    let (kind, from, base) = {
+    let (kind, from, base, draft_key) = {
         let a = app.borrow();
         let Some(w) = a.win(window) else { return };
         (
             w.kind,
             w.view.uri().map(|u| u.to_string()).unwrap_or_default(),
             a.base.clone(),
+            a.draft_key(),
         )
     };
     if kind == Kind::Connect {
@@ -865,8 +865,9 @@ fn on_ipc(app: &Shared, window: &gtk::ApplicationWindow, body: &str) {
                 (w.st.dirty, w.st.undo, w.st.redo) = (dirty, undo, redo);
                 if scene.is_some() && scene != w.st.scene {
                     w.st.scene = scene.clone();
-                    let saved = scene
-                        .and_then(|s| std::fs::read_to_string(bridge::draft_path(&base, &s)).ok());
+                    let saved = scene.and_then(|s| {
+                        std::fs::read_to_string(bridge::draft_path(&draft_key, &s)).ok()
+                    });
                     if let Some(text) = saved {
                         run_js(
                             &w.view,
@@ -901,7 +902,7 @@ fn on_ipc(app: &Shared, window: &gtk::ApplicationWindow, body: &str) {
             }
         }
         bridge::Msg::Draft { id, data } => {
-            let p = bridge::draft_path(&base, &id);
+            let p = bridge::draft_path(&draft_key, &id);
             match data {
                 Some(d) => {
                     if let Err(e) = paths::write_atomic(&p, &d) {
@@ -1083,25 +1084,29 @@ fn on_conn(app: &Shared, body: &str) {
             }
         }
         connect::Msg::Local => {
-            let (local, (data, port, vizrs), token) = {
+            let (local, token, data, user_token) = {
                 let a = app.borrow();
                 (
                     a.local.clone(),
-                    a.local_start.clone(),
                     a.local_token.clone(),
+                    a.data.clone(),
+                    a.user_token.clone(),
                 )
             };
-            let local = match local {
-                Some(l) => l,
-                None => match local_server(&data, port, token.as_deref(), vizrs.as_deref()) {
-                    Ok((base, _)) => {
-                        app.borrow_mut().local = Some(base.clone());
-                        base
+            let (local, token, note) = match local {
+                Some(l) => (l, token, LOCAL_NOTE.to_string()),
+                None => match local_work(&data, user_token) {
+                    Ok(w) => {
+                        let mut a = app.borrow_mut();
+                        a.local = Some(w.base.clone());
+                        a.local_token = w.token.clone();
+                        a.store = w.store;
+                        (w.base, w.token, w.note)
                     }
                     Err(e) => return conn_error(app, &e),
                 },
             };
-            switch(app, local, token, "serwer lokalny".into());
+            switch(app, local, token, note);
         }
         connect::Msg::Connect(mut req) => {
             // puste pole tokenu = token zapamiętany dla tego serwera
@@ -1140,30 +1145,33 @@ fn on_checked(app: &Shared, req: connect::Request, err: Option<String>) {
     );
 }
 
-/// Serwer lokalny: działający na tym katalogu danych albo uruchamiany teraz. Zwraca (adres, opis).
-fn local_server(
-    data: &Path,
-    port: u16,
-    token: Option<&str>,
-    vizrs: Option<&str>,
-) -> Result<(String, String), String> {
-    if let Some(addr) = server::running_server(data, token)? {
-        return Ok((
-            format!("http://{addr}"),
-            format!("dołączono do działającego serwera ({})", data.display()),
-        ));
+const LOCAL_NOTE: &str = "praca lokalna (bez serwera)";
+
+/// Praca lokalna: serwer `vizrs` działający na tym katalogu danych (jeden zapisujący na `show.json`)
+/// albo magazyn lokalny w oknie.
+struct LocalWork {
+    base: String,
+    token: Option<String>,
+    note: String,
+    store: Option<local::Local>,
+}
+
+fn local_work(data: &Path, user_token: Option<String>) -> Result<LocalWork, String> {
+    if let Some(addr) = server::running_server(data, user_token.as_deref())? {
+        return Ok(LocalWork {
+            base: format!("http://{addr}"),
+            token: user_token,
+            note: format!("dołączono do serwera vizrs, który pracuje na katalogu danych ({addr})"),
+            store: None,
+        });
     }
-    let vizrs = server::find_vizrs(vizrs).ok_or("Nie znaleziono programu vizrs (obok vizrs-cg-artist ani w PATH) – wskaż go: --vizrs ŚCIEŻKA albo VIZRS_BIN.")?;
-    let s = server::spawn(&vizrs, data, port, token)
-        .map_err(|e| format!("Serwer VizRS nie wystartował:\n{e}"))?;
-    Ok((
-        format!("http://{}", s.addr),
-        format!(
-            "serwer uruchomiony przez okno ({}), log: {}",
-            data.display(),
-            s.log.display()
-        ),
-    ))
+    let l = local::start(data)?;
+    Ok(LocalWork {
+        base: l.base.clone(),
+        token: Some(l.secret.clone()),
+        note: LOCAL_NOTE.into(),
+        store: Some(l),
+    })
 }
 
 /// Przed przełączeniem: `/api/state` serwera `http://` (token, dostępność). `https://` sprawdza strona (wskaźnik połączenia).
@@ -1235,38 +1243,35 @@ fn main() -> glib::ExitCode {
         None => None,
     };
 
-    // serwer: zdalny (--connect albo zapisany „przy uruchomieniu”), działający na tym katalogu danych albo uruchamiany teraz
-    let port = if args.port_set {
-        args.port
-    } else {
-        server::free_port(args.port)
-    };
+    // serwer zdalny (--connect albo zapisany „przy uruchomieniu”), inaczej praca lokalna
     let auto = if args.connect.is_none() && !args.local {
         connect::Saved::load().auto
     } else {
         None
     };
     let mut token = args.token.clone();
-    let start: Result<(String, Option<String>, String), String> = if let Some(c) = &args.connect {
-        Ok((c.clone(), None, "serwer zdalny (--connect)".into()))
+    let remote = |base: String, note: &str| LocalWork {
+        base,
+        token: None,
+        note: note.into(),
+        store: None,
+    };
+    let start: Result<(LocalWork, bool), String> = if let Some(c) = &args.connect {
+        Ok((remote(c.clone(), "serwer zdalny (--connect)"), false))
     } else if let Some(a) = auto {
         token = connect::Saved::load().token_for(&a);
         Ok((
-            a,
-            None,
-            "serwer zdalny (łączenie przy uruchomieniu; serwer lokalny: --local)".into(),
+            remote(
+                a,
+                "serwer zdalny (łączenie przy uruchomieniu; praca lokalna: --local)",
+            ),
+            false,
         ))
     } else if args.kind == Kind::Connect {
-        // najpierw wybór: serwer lokalny powstaje dopiero po „Serwer lokalny” (bez `vizrs` okno i tak się otwiera)
-        Ok((String::new(), None, NOT_CONNECTED.into()))
+        // najpierw wybór: magazyn lokalny powstaje dopiero po „Praca lokalna”
+        Ok((remote(String::new(), NOT_CONNECTED), false))
     } else {
-        local_server(
-            &args.data,
-            port,
-            args.token.as_deref(),
-            args.vizrs.as_deref(),
-        )
-        .map(|(b, note)| (b.clone(), Some(b), note))
+        local_work(&args.data, args.token.clone()).map(|w| (w, true))
     };
 
     // NON_UNIQUE: jedną instancję na katalog danych pilnuje `instance` (gniazdo), nie D-Bus
@@ -1277,8 +1282,7 @@ fn main() -> glib::ExitCode {
     let first = args.kind;
     let first_file = args.file.clone();
     let data = args.data.clone();
-    let local_start = (args.data.clone(), port, args.vizrs.clone());
-    let local_token = args.token.clone();
+    let user_token = args.token.clone();
     let gpu = args.gpu;
     let init = RefCell::new(Some((start, token, probe)));
     gapp.connect_activate(move |gapp| {
@@ -1288,7 +1292,7 @@ fn main() -> glib::ExitCode {
         set_icon();
         gapp.set_menubar(Some(&build_menu()));
         install_actions(gapp);
-        let (base, local, server_note) = match start {
+        let (work, is_local) = match start {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("{e}");
@@ -1305,14 +1309,16 @@ fn main() -> glib::ExitCode {
                 return;
             }
         };
+        let token = if is_local { work.token.clone() } else { token };
         let app: Shared = Rc::new(RefCell::new(App {
             gtk: gapp.clone(),
-            base,
+            base: work.base.clone(),
             token,
-            local,
-            local_token: local_token.clone(),
-            local_start: local_start.clone(),
-            server_note,
+            local: is_local.then(|| work.base.clone()),
+            local_token: if is_local { work.token } else { None },
+            store: work.store,
+            user_token: user_token.clone(),
+            server_note: work.note,
             data: data.clone(),
             gpu,
             probe,

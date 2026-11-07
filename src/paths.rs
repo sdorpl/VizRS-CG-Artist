@@ -14,14 +14,10 @@ fn home() -> Option<PathBuf> {
     env("HOME")
 }
 
-/// Domyślny katalog danych: `./vizrs-data`, jeśli już jest (dotychczasowe instalacje), inaczej katalog użytkownika.
-/// Względna ścieżka bez sprawdzenia zależałaby od tego, skąd uruchomiono okno.
+/// Domyślny katalog danych Artist (własny, nie katalog serwera `vizrs`): `~/.local/share/vizrs-cg-artist`.
 pub fn default_data() -> PathBuf {
-    let cwd = PathBuf::from("vizrs-data");
-    if cwd.join("show.json").is_file() {
-        return cwd;
-    }
-    user_data(env("XDG_DATA_HOME"), home(), env("LOCALAPPDATA")).unwrap_or(cwd)
+    user_data(env("XDG_DATA_HOME"), home(), env("LOCALAPPDATA"))
+        .unwrap_or_else(|| std::env::temp_dir().join("vizrs-cg-artist"))
 }
 
 fn user_data(
@@ -30,13 +26,13 @@ fn user_data(
     local: Option<PathBuf>,
 ) -> Option<PathBuf> {
     if cfg!(windows) {
-        Some(local?.join("VizRS"))
+        Some(local?.join("VizRS CG Artist"))
     } else if cfg!(target_os = "macos") {
-        Some(home?.join("Library/Application Support/VizRS/data"))
+        Some(home?.join("Library/Application Support/VizRS CG Artist"))
     } else {
         Some(
             xdg.or_else(|| home.map(|h| h.join(".local/share")))?
-                .join("vizrs"),
+                .join("vizrs-cg-artist"),
         )
     }
 }
@@ -134,11 +130,11 @@ mod tests {
     fn data_follows_xdg() {
         assert_eq!(
             user_data(Some("/x".into()), Some("/h".into()), None),
-            Some(PathBuf::from("/x/vizrs"))
+            Some(PathBuf::from("/x/vizrs-cg-artist"))
         );
         assert_eq!(
             user_data(None, Some("/h".into()), None),
-            Some(PathBuf::from("/h/.local/share/vizrs"))
+            Some(PathBuf::from("/h/.local/share/vizrs-cg-artist"))
         );
         assert_eq!(user_data(None, None, None), None);
     }
