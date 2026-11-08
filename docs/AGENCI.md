@@ -100,6 +100,10 @@ Ustalone w próbach (VizRS Live, 2026-11-07):
 - **Budowa na Linuksie:** wymaga bibliotek deweloperskich (`libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev libssl-dev`); shimu `webkit6-shim.sh` już nie ma.
 - **Odrzucone polecenie kończy całe zlecenie bez wyniku** („no output produced … auto-denied”). Gemini lubi zacząć od `git status` / `git diff` – zezwól na nie przy redakcji dokumentacji (`--settings '{"permissions":{"allow":["command(git status)","command(git diff --stat)"]}}'`) albo napisz w zleceniu, że ma nie uruchamiać poleceń.
 - **Gemini dopowiada fakty**, których nie ma w zleceniu ani w kodzie (2026-11-07: zmyślone ścieżki na Windows/macOS, inny limit czasu klienta, „etapy wykonane”, których nie wykonano). W zleceniu podawaj fakty wprost, a przy przeglądzie sprawdzaj każdą liczbę, ścieżkę i stan etapu z kodem.
+- **Odczyt poza katalogiem roboczym i `--add-dir` też jest odrzucany** – zlecenie kończy się bez wyniku („a tool required the "read_file" permission … auto-denied”). Reguła `--settings` `read_file` bez celu nie pomaga. Dodaj `--add-dir` dla każdego katalogu, który Gemini ma czytać: wzory z innego repo, sąsiednie repozytoria przy odnośnikach (zlecenia dla całego pakietu VizRS: `--add-dir /home/maciej/Nextcloud/GitHub`).
+- **Kod wyjścia 0 nie oznacza wykonania.** Przy „no output produced” `agy` też kończy się kodem 0 – zawsze sprawdzaj raport (`grep -l 'no output produced' "$S"/raport-*`) i `git status`.
+- **To samo zlecenie dla kilku repozytoriów** (np. wspólna sekcja w całym pakiecie): jeden plik zlecenia w `$S`, jedno `agy` na repo uruchomione z katalogu tego repo, równolegle (`( cd "$repo" && $A … ) &` … `wait`) – 3 repozytoria ok. 2–4 min razem. Fakty o styku podaj w zleceniu dla wszystkich stron naraz; każde repo przejrzyj i commituj osobno.
+- **Przy uzupełnianiu sekcji Gemini usuwa sąsiednie zdania**, które uzna za zbędne (2026-11-08: zdanie o protokole VizRS w README CG Playout). W zleceniu pisz „nie usuwaj istniejących zdań, tylko dopisuj”, a w przeglądzie czytaj wiersze usunięte: `git diff | grep '^-[^-]'`.
 - **`--dangerously-skip-permissions` nie używamy.**
 - Odmowa zmiany kodu to zachowanie modelu, nie blokada narzędzia – dlatego przegląd z §7 jest obowiązkowy.
 
@@ -123,6 +127,7 @@ Bez powtarzania zlecenia i bez prozy wokół wyniku.
 ## 7. Przegląd po zleceniu (Claude)
 
 - Przed zleceniem zapisz migawkę `git status --porcelain` – drzewo robocze często ma niezacommitowaną pracę.
+- Gdy pliki ze zlecenia mają już niezacommitowane zmiany, zapisz też `git diff > "$S/przed.diff"`: po zleceniu oddzielisz cudzą pracę od zmian Gemini, a commit obejmie tylko te drugie (sam fragment pliku: `git apply --cached` na wyciętym kawałku diffu, sprawdź `git diff --cached`).
 - Po zleceniu porównaj z migawką: zmienione mogą być tylko pliki ze zlecenia. Zmianę w kodzie albo w nieprzewidzianym pliku przejrzyj i usuń ręcznie; **nie** cofaj na ślepo `git checkout`/`git restore` (zniszczyłoby cudzą pracę w tym samym pliku).
 - Przejrzyj `git diff` dokumentacji: zgodność z kodem, zasady z `CLAUDE.md` (opis działania tylko w `DOKUMENTACJA.md`, README tylko wprowadza).
 - Wynik bramki z raportu przy commicie potwierdź – ostatni przebieg przed commitem musi być zielony.
