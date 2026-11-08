@@ -14,6 +14,23 @@ kopię roboczą, jedną instancję, skojarzenia plików, przeciąganie plików i
 
 Most strona–okno opiera się na komendzie Tauri `ipc` wywoływanej przez `window.__vizrsPost` i zachowuje strukturę komunikatów znaną z `vizrs-shell`.
 
+### Pakiet VizRS – zgodność aplikacji
+
+VizRS CG Artist to jedna z czterech aplikacji pakietu VizRS, które mają być **zawsze ze sobą zgodne**: bieżące wersje wszystkich aplikacji działają razem.
+
+| Repozytorium (katalogi obok, `../`) | Rola | Styk z tą aplikacją |
+|---|---|---|
+| [VizRS CG System](../../VizRS%20CG%20System) | silnik grafiki (Rust): Trio (playout stron), wyjście `/output` (też anteny kanałów `bus=ch-N`), API TCP 6100 / HTTP / SSE, serwer `vizrs`; zamrożony zapasowy Artist w przeglądarce | wysyłanie scen na serwer `vizrs` (pośrednik `/api`, `/assets`, `/events`, eksport i deploy scen oraz zasobów, format `show.json`; dostawca styku: CG System) |
+| [VizRS CG Playout](../../VirtRS%20CG%20Playout) (katalog `VirtRS CG Playout`) | grafika VizRS i sloty na żywo (live ingest RTMP/SRT) na kanałach ErsatzTV; sidecar `cg`, bez zmian w ErsatzTV | brak bezpośredniego styku – sceny z Artist trafiają na antenę przez VizRS CG System |
+| [VizRS Live](../../VizRS%20Live) | panel kanału nad ErsatzTV legacy (sterowanie kanałami, ramówką, playoutami bez web GUI legacy) | brak bezpośredniego styku – sceny idą przez CG System |
+| **VizRS CG Artist** (to repo) | samodzielny edytor grafik i animacji (Tauri 2), projektuje sceny; sceny wysyła na serwer `vizrs` (VizRS CG System); działa też bez serwera | – |
+
+Zasady zgodności:
+
+- **Styk zmienia się w obu repozytoriach naraz.** Zmiana API, formatu scen (`show.json`), protokołu lub modułów rysowania po jednej stronie wymaga dostosowania drugiej strony i jej dokumentacji, zanim wejdzie do wydania. Dostawcą styku API, formatu scen i modułów rysowania jest VizRS CG System (jego `docs/API.md` i `docs/DOKUMENTACJA.md`); w Artist – jak okno i strona z nich korzystają (§2 pośrednik, §5 pliki, §12 magazyn lokalny).
+- **Starsza wersja sąsiada nie psuje aplikacji.** W razie braku nowszych pól lub wersji API serwera `vizrs` Artist zachowuje stabilność i czytelnie informuje o błędach komunikacji lub konfliktach zamiast przerywać pracę okna.
+- **Wydania razem.** Przed wydaniem VizRS CG Artist sprawdź z bieżącymi wersjami pozostałych aplikacji pakietu; zmianę wymagającą nowszego serwera `vizrs` lub modułów CG System odnotuj w `CHANGELOG.md` z minimalną wersją.
+
 ## 2. Architektura
 
 ```
