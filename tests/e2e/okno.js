@@ -70,9 +70,10 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
       await sleep(800);
       r.assets = (await (await fetch('/api/assets')).json()).map((a) => a.name);
       r.dirty = document.querySelector('#bSave')?.classList.contains('dirty');
-      window.__vizrsCmd('close'); await sleep(50);
-      r.modal = !!document.querySelector('#nativeClose');
-      document.querySelector('[data-nc="stay"]')?.click();
+      // pytanie idzie do systemowego okna dialogowego; pod --probe okno odpowiada od razu „Anuluj”
+      window.__vizrsCmd('close'); await sleep(400);
+      r.modal = /niezapisane zmiany/.test(window.__vizrsShell?.lastDialog || '');
+      r.stayed = !document.hidden;
       (window.__vizrsPost || window.ipc.postMessage)('app:' + JSON.stringify({ t: 'nieznany' }));
       (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
     })();`), 'local');
@@ -80,7 +81,7 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
     ok(loc.state?.mode === 'local' && loc.pages === 400 && !loc.mkPage && !loc.nav, 'bez Trio: tryb lokalny, strony Trio odrzucone, brak zakładek i „Utwórz stronę”', loc);
     ok(loc.saved === 1 && showOf(data)?.scenes?.length === 1, 'zapis sceny trafia do show.json w katalogu danych', { saved: loc.saved, show: showOf(data) });
     ok(loc.assets?.includes('kropka.png') && fs.existsSync(path.join(data, 'assets', 'kropka.png')) && loc.dirty, 'plik od okna trafia do assets/ i dodaje element', loc);
-    ok(loc.modal === true, 'pytanie o niezapisane zmiany przy zamykaniu', loc);
+    ok(loc.modal === true, 'pytanie o niezapisane zmiany przy zamykaniu (systemowe okno dialogowe)', loc);
     ok(!fs.existsSync(path.join(data, '.vizrs.lock')), 'blokada katalogu zwolniona po zamknięciu okna');
     const port = loc.href ? Number(new URL(loc.href).port) : 0;
     ok(port > 0 && !(await health(port)), 'magazyn lokalny kończy się razem z oknem');

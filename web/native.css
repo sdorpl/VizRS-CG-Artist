@@ -1,0 +1,40 @@
+/* Okno natywne VizRS CG Artist (plik tego repo, nie kopia z CG System): wygląd zgodny z systemem.
+   Reguły działają tylko w oknie programu (html.native, html.os-windows | os-macos | os-linux – ustawia artist.html
+   ze znacznika okna). Kanwa (#stage) rysuje jak antena, więc zachowuje czcionkę z ui.css. */
+
+/* kontrolki silnika (pokrętła liczb, pola wyboru, lista rozwijana, suwaki, paski przewijania) w ciemnym wariancie systemu */
+html.native { color-scheme: dark; }
+/* bez „gumowego” przewijania całej strony (macOS) i bez wyciągania obrazów z okna */
+html.native, html.native body { overscroll-behavior: none; }
+html.native img, html.native a { -webkit-user-drag: none; }
+
+/* czcionka interfejsu systemu */
+html.os-windows body { font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; font-size: 12px; }
+html.os-macos body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; -webkit-font-smoothing: antialiased; }
+html.os-linux body { font-family: system-ui, Cantarell, Ubuntu, "Noto Sans", "DejaVu Sans", sans-serif; }
+html.native #stage { font: 13px/1.35 Inter, system-ui, sans-serif; }
+
+/* paski przewijania: Windows – systemowe (Fluent, nakładane; scrollbar-color wyłącza wygląd ::-webkit-scrollbar),
+   macOS – pojawiają się dopiero nad przewijanym obszarem jak paski nakładane systemu */
+html.os-windows * { scrollbar-color: #4a4f58 transparent; }
+html.os-macos :not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
+
+/* zaznaczenie tekstu w kolorze systemu (macOS: kolor wyróżnienia z Ustawień) */
+html.os-macos ::selection { background: Highlight; }
+
+/* klawiatura: obwódka fokusu tylko przy pracy klawiaturą, jak w kontrolkach systemu */
+html.native button:focus:not(:focus-visible) { outline: none; }
+html.native button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
+
+/* okno z polem tekstowym (native.js: promptBox) – wygląd okna dialogowego systemu */
+.nd-back { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: flex-start; justify-content: center; background: rgba(0, 0, 0, .35); }
+.nd { margin-top: 18vh; width: min(420px, 92vw); padding: 16px 18px 14px; background: var(--panel2, #23262c); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 12px 40px rgba(0, 0, 0, .55); }
+html.os-windows .nd { border-radius: 8px; padding: 20px 22px 16px; }
+html.os-macos .nd-back { align-items: flex-start; background: transparent; }
+html.os-macos .nd { margin-top: 0; border-top: 0; border-radius: 0 0 10px 10px; animation: nd-sheet .18s ease-out; }
+@keyframes nd-sheet { from { transform: translateY(-100%); } to { transform: none; } }
+.nd-t { font-weight: 600; font-size: 1.08em; margin-bottom: 6px; }
+.nd-m { color: var(--dim); white-space: pre-line; margin-bottom: 10px; }
+.nd-in { display: block; width: 100%; box-sizing: border-box; padding: 5px 8px; }
+.nd-b { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.nd-b button { min-width: 80px; padding: 5px 14px; }

@@ -3,7 +3,7 @@
 #   tools/sync-cg.sh [KATALOG-CG-SYSTEM]          – skopiuj moduły, fonty i fonts.css do web/
 #   tools/sync-cg.sh --check [KATALOG-CG-SYSTEM]  – sprawdź, że web/ jest identyczne ze źródłem (CI, bramka)
 # Domyślnie ../VizRS CG System. Wersja źródła: web/CG_SYSTEM (znacznik albo commit CG System). Zmiana rysowania zawsze najpierw w CG System, potem tu ten skrypt.
-# artist.html i native.js NIE są tu kopiowane – od wydzielenia (2026-11-07) należą do tego repo.
+# artist.html, native.js i native.css NIE są tu kopiowane – od wydzielenia (2026-11-07) należą do tego repo.
 set -e
 CHECK=
 [ "$1" = --check ] && { CHECK=1; shift; }

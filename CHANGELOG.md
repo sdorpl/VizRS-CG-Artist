@@ -2,6 +2,15 @@
 
 ## Niewydane
 
+- **Wygląd i zachowanie programu systemu zamiast strony WWW (Linux, Windows, macOS)** – DOKUMENTACJA §14:
+  - Pytania strony w **systemowych oknach dialogowych** (GTK, TaskDialog, NSAlert) z własnymi przyciskami – nowy komunikat mostu `dialog` (biała lista, limity, test). Zamknięcie okna ze zmianami: „Zapisz · Nie zapisuj · Anuluj” zamiast okna w stronie; przejście do innej sceny – jedno pytanie zamiast dwóch. Naprawia macOS, gdzie WKWebView nie pokazywał `confirm()` (usunięcie sceny, nadpisanie, przywrócenie kopii roboczej były niemożliwe).
+  - Pola tekstowe (nazwa sceny, markera, presetu…) w oknie w układzie przycisków systemu zamiast `prompt()` silnika z adresem `127.0.0.1` w tytule.
+  - Ciemny motyw okien systemu: pasek tytułu i menu (Windows), ciemny wariant GTK (Linux – menu, okna dialogowe, „Zapisz jako”), ciemny wygląd programu (macOS). Okno pokazuje się po wczytaniu strony – bez białego mignięcia.
+  - Menu wg konwencji systemu: macOS – menu aplikacji z Usługami i Zakończ (z pytaniem o niezapisane sceny), schowek w Edycji zamiast osobnego menu „Tekst”, menu Okno i Pomoc systemu, skróty symbolami; Windows – mnemoniki i kolumna skrótów, Zakończ bez Ctrl+Q; systemowe okno „O programie”. Nowe skróty: Importuj… (CmdOrCtrl+O), Nowe okno (CmdOrCtrl+Shift+N). „Odśwież” → „Wczytaj ponownie” z pytaniem przy niezapisanych zmianach; „Powiększ/Pomniejsz/Rozmiar 100%” → „… interfejs”.
+  - Czcionka interfejsu systemu (Segoe UI, San Francisco, czcionka GTK), ciemne kontrolki silnika (`color-scheme`), paski przewijania Fluent na Windows. Kanwa bez zmian (rysuje jak antena).
+  - Wyłączone zachowania przeglądarki: menu kontekstowe, skróty (szukaj, drukuj, odśwież, przeglądanie kursorem F7…), boczne przyciski myszy, przeciąganie obrazów, gesty powiększania, autouzupełnianie WebView2, podgląd odnośników macOS. Narzędzia deweloperskie tylko z `VIZRS_DEVTOOLS=1`.
+  - Okno „Połącz z serwerem” jako okno dialogowe: stały rozmiar, wyśrodkowane, podrzędne wobec okna Artist, bez paska menu, przyciski w kolejności systemu.
+
 ## 0.3.0 – 2026-11-07
 
 - **Przejście na Tauri 2 (wersja 0.3.0, Linux, Windows, macOS):**

@@ -2,7 +2,7 @@
 
 > Aktualizuj w tym samym commicie, który zmienia stan.
 >
-> **Ostatnia aktualizacja:** 2026-11-07
+> **Ostatnia aktualizacja:** 2026-11-09
 
 ## Bieżący etap
 **0.3 – okno na Tauri 2 (Linux, Windows, macOS)** (decyzja 2026-11-07): Artist to osobny edytor grafik i animacji pakietu VizRS, bez Trio.
@@ -20,10 +20,11 @@ Plan źródłowy: `../VizRS CG System/docs/plany/PLAN-artist-osobny.md` (A2–A6
 | S7 | Repo na GitHubie, CI z testem w działaniu, wydania (`release.yml`) | zrobione (czeka na pierwszy przebieg CI) |
 | S8 | AppImage; w CG System usunięcie Artist z `vizrs-shell` i pakietu `vizrs` (A7) | zrobione: AppImage (bundler Tauri); A7 w CG System 2026-11-07 – `vizrs-shell` tylko Trio/wyjście, `/artist` zamrożony |
 | S9 | Windows i macOS – okno na Tauri 2 zamiast GTK ([plany/RAPORT-tauri.md](plany/RAPORT-tauri.md)) | zrobione – wydanie 0.3.0 (CI zielone na Linux, Windows, macOS; AppImage sprawdzony testem dymnym) |
+| S11 | Wygląd i zachowanie programu systemu zamiast strony WWW (systemowe okna dialogowe, motyw, menu wg konwencji, czcionka, bez funkcji przeglądarki) – DOKUMENTACJA §14 | zrobione na Linuksie (zrzuty pod Xvfb, test w działaniu); Windows i macOS – kompilacja w CI, wygląd do sprawdzenia ręcznie |
 | S10 | Android (opcja, tablet) – PLAN-platformy P6 | zaplanowane na później |
 
 ## Następne zadanie
-Paczki Windows/macOS sprawdzić ręcznie na czystym systemie.
+Paczki Windows/macOS sprawdzić ręcznie na czystym systemie – także wygląd natywny (S11: ciemny pasek tytułu, TaskDialog/NSAlert z własnymi przyciskami, menu macOS, paski Fluent).
 Do decyzji: `/artist` w serwerze ze strony z wydań Artist zamiast zamrożonej (PLAN-artist-osobny §7 pkt 2).
 
 ## Blokery

@@ -32,7 +32,7 @@ vizrs-cg-artist (jeden proces Tauri 2)
 - **Magazyn lokalny** (§12) odpowiada tym samym API co serwer, więc strona nie zna różnicy poza `GET /api/state` → `mode: "local"`.
 - **Odnośniki** poza serwerem okna i nowe okna strony otwiera przeglądarka systemowa. Okno nie otwiera Trio ani wyjścia –
   należą do VizRS CG System.
-- Okno ustawia znacznik okna natywnego – strona chowa zakładki „Artist / Trio / Wyjście” i menu przeglądarki.
+- Okno ustawia znacznik okna natywnego (`__vizrsShell`, z systemem `os`) – strona chowa zakładki „Artist / Trio / Wyjście” i zachowuje się jak program, nie strona (§14).
 
 ## 3. Uruchamianie i opcje
 
@@ -48,7 +48,8 @@ vizrs-cg-artist [connect] [opcje] [PLIK]
 | `--token T` | `VIZRS_TOKEN` | token serwera (`--connect` albo dołączenie do serwera `vizrs` na katalogu danych) |
 | `--connect URL` | `VIZRS_CONNECT` | serwer zdalny (np. https://cg.example.pl) |
 | `--local` | – | praca lokalna mimo zapisanego łączenia przy uruchomieniu |
-| `--probe JS --probe-out JSON` | – | test: po wczytaniu strony wykonaj skrypt, zapisz wynik `probe:…`, zakończ |
+| `--probe JS --probe-out JSON` | – | test: po wczytaniu strony wykonaj skrypt, zapisz wynik `probe:…`, zakończ (pytania strony dostają od razu ostatni przycisk – „Anuluj”) |
+| – | `VIZRS_DEVTOOLS=1` | narzędzia deweloperskie WebView (Widok → Narzędzia deweloperskie, CmdOrCtrl+Shift+I); bez tej zmiennej tylko w kompilacji testowej |
 | `--help`, `-h` | – | pomoc |
 | `--version`, `-V` | – | wersja programu |
 
@@ -58,15 +59,19 @@ Błędne argumenty: komunikat na stderr, kod wyjścia 1.
 
 | Menu | Pozycje |
 |---|---|
-| Plik | Nowa scena · Zapisz (Ctrl+S) · Importuj… · Eksportuj scenę… · Paczka .cgpack… · Wyślij na serwer… · Połącz z serwerem… (CmdOrCtrl+Shift+K) · Nowe okno Artist · Zamknij okno (CmdOrCtrl+W) · Zakończ (CmdOrCtrl+Q) |
+| Plik | Nowe okno (CmdOrCtrl+Shift+N) · Nowa scena · Importuj… (CmdOrCtrl+O) · Zapisz (Ctrl+S) · Eksportuj scenę… · Paczka .cgpack… · Wyślij na serwer… · Połącz z serwerem… (CmdOrCtrl+Shift+K) · Zamknij okno (CmdOrCtrl+W) · Zakończ (Linux: Ctrl+Q; Windows: bez skrótu – Alt+F4 zamyka okno) |
 | Edycja | Cofnij (Ctrl+Z) · Ponów (Ctrl+Y) · Duplikuj (Ctrl+D) · Usuń (Delete) |
-| Widok | Dopasuj kanwę (Shift+1) · Kanwa 100% (Shift+2) · Kanwa do zaznaczenia (Shift+3) · Odśwież (F5) · Pełny ekran (F11) · Powiększ (CmdOrCtrl+=) · Pomniejsz (CmdOrCtrl+−) · Rozmiar 100% (CmdOrCtrl+0) · Narzędzia deweloperskie (CmdOrCtrl+Shift+I) |
+| Widok | Dopasuj kanwę (Shift+1) · Kanwa 100% (Shift+2) · Kanwa do zaznaczenia (Shift+3) · Powiększ interfejs (CmdOrCtrl+=) · Pomniejsz interfejs (CmdOrCtrl+−) · Interfejs 100% (CmdOrCtrl+0) · Wczytaj ponownie (F5; przy niezapisanych zmianach najpierw pytanie) · Pełny ekran (F11) · Narzędzia deweloperskie (tylko z `VIZRS_DEVTOOLS=1`) |
 | Scena | Odtwórz / zatrzymaj (Spacja) · Dodaj marker (M) |
 | Pomoc | Pokaż logi · Otwórz katalog danych · Sprawdź aktualizacje · O programie |
 
-Na macOS pierwsze podmenu to menu aplikacji **VizRS CG Artist** (O programie VizRS CG Artist, Ukryj, Ukryj pozostałe, Zakończ), a podmenu **Tekst** dodaje standardowe akcje edycyjne (Wytnij, Kopiuj, Wklej, Zaznacz wszystko).
+Menu trzyma się konwencji systemu:
+- **Windows:** mnemoniki (Alt+P – Plik, Alt+E – Edycja, Alt+W – Widok, Alt+S – Scena, Alt+C – Pomoc); skróty strony w kolumnie skrótów menu (etykieta z tabulatorem, jak w Win32), ciemne menu i pasek tytułu.
+- **macOS:** pierwsze podmenu to menu aplikacji **VizRS CG Artist** (O programie VizRS CG Artist, Usługi, Ukryj, Ukryj pozostałe, Pokaż wszystkie, Zakończ VizRS CG Artist ⌘Q – własna pozycja, więc niezapisane sceny dostają pytanie); Edycja ma też Wytnij, Kopiuj, Wklej, Zaznacz wszystko; menu **Okno** (Minimalizuj, Powiększ, Pełny ekran ⌃⌘F, Wszystkie na wierzch) jest menu okien systemu, Pomoc – menu pomocy (z wyszukiwaniem). Skróty strony pokazane symbolami (⌘S, ⇧1, ⌫). Zakończ i Pełny ekran F11 nie występują w Pliku/Widoku.
+- **Linux:** mnemoniki jak na Windows, skróty strony w nawiasie, ciemny wariant motywu GTK.
+- **O programie:** systemowe okno „O programie” (macOS – panel z ikoną, Linux – GtkAboutDialog, Windows – okno komunikatu): wersja, wersja modułów CG System, katalog danych, odnośnik do wydań.
 
-Pozycje strony wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, Shift+1/2/3, Spacja, M) obsługuje strona, nie powłoka okna – dzięki temu działają prawidłowo także w polach tekstowych. Cofnij / Ponów w menu synchronizują się ze stanem aktywności zgłaszanym przez stronę (`sync_menu`).
+Pozycje strony wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, Shift+1/2/3, Spacja, M) obsługuje strona, nie powłoka okna – dzięki temu działają prawidłowo także w polach tekstowych; menu je tylko pokazuje. Na macOS strona przyjmuje też ⌘ zamiast Ctrl. Cofnij / Ponów w menu synchronizują się ze stanem aktywności zgłaszanym przez stronę (`sync_menu`).
 
 ## 5. Pliki
 
@@ -77,7 +82,8 @@ Pozycje strony wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+
 
 ## 6. Zamykanie i kopia robocza
 
-- Zamknięcie okna ze zmianami pyta stronę (ona zna stan i umie zapisać); strona odpowiada `close` albo `stay`.
+- Zamknięcie okna ze zmianami pyta stronę (ona zna stan i umie zapisać); strona pokazuje **systemowe okno dialogowe**
+  „Zapisać zmiany przed zamknięciem?” (Zapisz · Nie zapisuj · Anuluj) i odpowiada `close` albo `stay`.
   Gdy strona nie odpowie w 5 s, kolejne zamknięcie nie pyta.
 - Zakończ (Ctrl+Q): okna bez zmian zamykają się od razu, ze zmianami – po kolei.
 - **Kopia robocza:** strona zapisuje niezapisaną scenę komunikatem `draft`; okno trzyma ją w `drafts/<skrót>.json` w katalogu stanu
@@ -116,11 +122,13 @@ Komenda `ipc` przekazuje komunikat do białej listy w `src/bridge.rs`:
 
 | Prefiks | Od kogo | Komunikaty |
 |---|---|---|
-| `app:` | tylko strona z serwera w oknie (magazyn lokalny albo pośrednik serwera – `http://127.0.0.1:*`) | `state` (tytuł ≤ 200 znaków, `dirty`, `undo`, `redo`, `scene` ≤ 128), `close`, `stay`, `draft` (`id` ≤ 128, `data` ≤ 16 MB albo `null` = usuń) |
+| `app:` | tylko strona z serwera w oknie (magazyn lokalny albo pośrednik serwera – `http://127.0.0.1:*`) | `state` (tytuł ≤ 200 znaków, `dirty`, `undo`, `redo`, `scene` ≤ 128), `close`, `stay`, `draft` (`id` ≤ 128, `data` ≤ 16 MB albo `null` = usuń), `dialog` (`id` u32, `kind` info/warning/error, `title` ≤ 200, `text` ≤ 4000 znaków, `buttons` 1–3 różne etykiety ≤ 40 znaków) |
 | `connect:` | tylko okno połączenia (`ui/connect.html`) | wybór, zapis i usunięcie serwera |
 | `probe:` | skrypt `--probe` | wynik testu |
 
-Wszystko inne jest ignorowane. Okno → strona: `window.__vizrsCmd(akcja[, dane])`, `window.__vizrsFile`.
+Wszystko inne jest ignorowane. Okno → strona: `window.__vizrsCmd(akcja[, dane])`, `window.__vizrsFile`, `window.__vizrsDialog(id, n)` –
+numer wybranego przycisku okna dialogowego (pierwszy = 0; zamknięcie okna dialogowego = ostatni, „anuluj”).
+Okno dialogowe (`tauri-plugin-dialog`: GTK, TaskDialog, NSAlert) jest modalne dla okna strony; pierwszy przycisk jest domyślny.
 
 ## 10. Pliki użytkownika
 
@@ -154,12 +162,12 @@ Paczki instalacyjne generowane przez bundler:
 - **Windows:** instalator NSIS (`.exe`) oraz pakiet `.msi` (WebView2).
 - **macOS:** obraz dysku `.dmg` (wymaga macOS 11.0+, WKWebView).
 
-Strona Artist leży w `web/`. `artist.html` i `native.js` rozwija to repo; reszta (moduły rysowania, `ui.css`, fonty i `fonts.css`)
+Strona Artist leży w `web/`. `artist.html`, `native.js` i `native.css` rozwija to repo; reszta (moduły rysowania, `ui.css`, fonty i `fonts.css`)
 to kopie z VizRS CG System – `tools/sync-cg.sh [katalog-CG]` kopiuje, `tools/sync-cg.sh --check` sprawdza identyczność
 (CI pobiera CG System w wersji z `web/CG_SYSTEM`). Zmiana rysowania zawsze najpierw w CG System.
 
 Bramka przed commitem: `tools/sync-cg.sh --check`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo build --release`.
-Testy jednostkowe: `cargo test` (33/33).
+Testy jednostkowe: `cargo test` (34/34).
 
 CI (`.github/workflows/ci.yml`):
 - `gate`: Ubuntu 22.04 – sprawdzenie modułów CG System, fmt, clippy, `cargo test`,
@@ -235,4 +243,23 @@ Praca lokalna → serwer `vizrs` (studio, VPS), z którego Trio wydaje grafikę:
   (`cgpack.sceneAssets`) idą przed sceną, tylko te, których na serwerze nie ma; pliku o tej samej nazwie okno nie nadpisuje.
 - Raport: wysłane sceny i zasoby, pominięte (już na serwerze), konflikty i błędy serwera (walidacja `validate.rs`).
 - Klient: HTTP/1.1 przez `ureq` z TLS rustls (`src/client.rs`), `http://` i `https://`, token w `Authorization: Bearer`, odpowiedź do 64 MB, 20 s na żądanie, bez przekierowań (czysty Rust, jednakowy na Linux, Windows i macOS).
+
+## 14. Wygląd natywny
+
+Okno ma wyglądać i zachowywać się jak program systemu, nie jak strona w przeglądarce. Co robi okno (`src/main.rs`: `native_look`,
+`build_menu`, `ask`) i strona (`web/native.js`, `web/native.css` – pliki tego repo):
+
+| Obszar | Linux (WebKitGTK) | Windows (WebView2) | macOS (WKWebView) |
+|---|---|---|---|
+| Motyw okna | ciemny wariant motywu GTK (pasek menu, okna dialogowe, „Zapisz jako”) | ciemny pasek tytułu i menu | ciemny wygląd programu (także NSAlert, NSSavePanel) |
+| Start okna | okno niewidoczne do wczytania strony (najwyżej 3 s) – bez pustej białej strony | to samo + tło okna jak strony | to samo + tło okna jak strony |
+| Pytania strony | `confirm`/`alert` → systemowe okno dialogowe z własnymi przyciskami (Zapisz / Nie zapisuj / Anuluj, Usuń…) zamiast okna silnika z adresem `127.0.0.1` w tytule; na macOS WKWebView w wry w ogóle nie pokazuje `confirm` (zwracał „Anuluj”) | | |
+| Pole tekstowe | `prompt` → okno strony w układzie przycisków systemu: Linux, macOS – Anuluj, OK; Windows – OK, Anuluj; na macOS wysuwa się spod paska tytułu jak arkusz | | |
+| Czcionka interfejsu | czcionka systemu (`system-ui`) | Segoe UI Variable / Segoe UI 12 px | San Francisco (`-apple-system`) |
+| Kontrolki | `color-scheme: dark` – pokrętła liczb, pola wyboru, listy i paski przewijania w ciemnym wariancie | | |
+| Paski przewijania | wąskie, ciemne | systemowe nakładane Fluent (Windows 11, WebView2 ≥ 125) | widoczne dopiero nad przewijanym obszarem |
+| Funkcje przeglądarki | wyłączone: menu kontekstowe silnika (poza polami tekstowymi), skróty przeglądarki (F3, F5, F7, F12, Ctrl+F/G/H/J/P/R, Ctrl+±/0, Alt+←/→), boczne przyciski myszy (Wstecz/Dalej), przeciąganie obrazów i odnośników z okna, gesty powiększania, „opuścić stronę?” przy wczytaniu ponownie; narzędzia deweloperskie tylko z `VIZRS_DEVTOOLS=1` | + autouzupełnianie formularzy WebView2 | + podgląd odnośników (Force Touch) |
+| Okno „Połącz z serwerem” | okno dialogowe: stały rozmiar, wyśrodkowane, nad oknem Artist (okno podrzędne), bez paska menu programu (Windows, Linux), kolejność przycisków systemu | | |
+
+Kanwa (`#stage`) zachowuje czcionkę i wygląd z `ui.css` – rysuje dokładnie jak antena.
 

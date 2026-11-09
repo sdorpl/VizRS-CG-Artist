@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <title>VizRS Artist</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<script>if (window.__vizrsShell) document.documentElement.classList.add('native');</script>
+<script>if (window.__vizrsShell) document.documentElement.classList.add('native', 'os-' + (window.__vizrsShell.os || 'linux'));</script>
 <link rel="stylesheet" href="/ui.css">
+<link rel="stylesheet" href="/native.css">
 <style>
   body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
   #main { flex: 1; display: grid; grid-template-columns: var(--l, 270px) 4px minmax(240px, 1fr) 4px var(--r, 350px); grid-template-rows: minmax(160px, 1fr) 4px var(--t, 260px); min-height: 0; background: #0b0c0e; }
@@ -294,7 +295,7 @@ import * as PACK from '/cgpack.js';
 import * as MO from '/motion.js';
 import { PROPS, TYPES, FONTS, OFFLINE_FONTS, EASES, ScenePlayer, propAt, trackValue, walk, listFields, variantFields, uid, fitStage, parseColor, connectEvents } from '/renderer.js';
 import { mountTickerEditor } from '/ticker-items.js';
-import { nativeBridge } from '/native.js';
+import { nativeBridge, choose, confirmBox, promptBox } from '/native.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -415,14 +416,15 @@ function openScene(s) {
 }
 async function confirmLeave() {
   if (!dirty) return true;
-  if (confirm('Scena ma niezapisane zmiany. Zapisać przed przejściem?')) { await save(); return true; }
-  return confirm('Porzucić zmiany?');
+  const c = await choose(`Scena „${scene.name}” ma niezapisane zmiany.`, { title: 'Zapisać zmiany przed przejściem?', buttons: ['Zapisz', 'Nie zapisuj', 'Anuluj'] });
+  if (c === 0) return !!(await save());
+  return c === 1;
 }
 // ostrzeżenie: zapis szablonu, który właśnie jest na antenie (brak odpowiedzi serwera nie blokuje zapisu)
 async function confirmOnAir() {
   const st = await api('GET', '/api/state').catch(() => null);
   const air = st?.layers?.filter((l) => l.page?.scene === scene.id).map((l) => l.layer) || [];
-  return !air.length || confirm(`Scena „${scene.name}” jest teraz na antenie (warstwa: ${air.join(', ')}).\n\nZapisać zmiany szablonu?`);
+  return !air.length || confirmBox(`Scena „${scene.name}” jest teraz na antenie (warstwa: ${air.join(', ')}).`, { title: 'Zapisać zmiany szablonu na antenie?', ok: 'Zapisz' });
 }
 async function save(force) {
   try {
@@ -437,7 +439,7 @@ async function save(force) {
     return true;
   } catch (e) {
     if (/^konflikt/.test(e.message)) {
-      if (confirm('Ta scena została zmieniona przez kogoś innego (lub w innym oknie).\n\nOK = nadpisz moją wersją, Anuluj = nie zapisuj.')) return save(true);
+      if (await confirmBox('Ta scena została zmieniona przez kogoś innego (lub w innym oknie).', { title: 'Nadpisać scenę swoją wersją?', ok: 'Nadpisz', cancel: 'Nie zapisuj' })) return save(true);
       toast('Konflikt zapisu – scena nie zapisana', true);
     } else toast('Błąd zapisu: ' + e.message, true);
     return false;
@@ -980,7 +982,7 @@ function seqTargets() {
   return scene.nodes;
 }
 const r2 = (v) => Math.round(v * 100) / 100;
-function seqTool(act) {
+async function seqTool(act) {
   const n = selNode();
   if (act === 'fit') return fitMotionTiming();
   if (act === 'stagger') {
@@ -1005,7 +1007,7 @@ function seqTool(act) {
   } else if (act === 'copy') {
     if (!n?.motion) return toast('Zaznacz element z ruchem do skopiowania', true);
     const list = locate(n.id).list.filter((x) => x !== n);
-    if (!list.length || !confirm(`Skopiować ruch „${n.name}” na ${list.length} element(y) obok?`)) return;
+    if (!list.length || !(await confirmBox(`Ruch „${n.name}” zastąpi ruch ${list.length} element(ów) obok.`, { title: 'Skopiować ruch?', ok: 'Kopiuj' }))) return;
     checkpoint();
     for (const x of list) {
       const m = structuredClone(n.motion); delete m.after;
@@ -1036,7 +1038,7 @@ function seqTool(act) {
     let r = MO.keysToMotion(n.anim, opt);
     if (r.skipped.length) {
       const a = MO.keysToMotion(n.anim, { ...opt, approx: true });
-      if (a.approx.length && confirm(`Części kluczy nie da się zapisać dokładnie presetem:\n${a.approx.join('\n')}\n\nZamienić w przybliżeniu?`)) r = a;
+      if (a.approx.length && await confirmBox(`Części kluczy nie da się zapisać dokładnie presetem:\n${a.approx.join('\n')}`, { title: 'Zamienić w przybliżeniu?', ok: 'Zamień' })) r = a;
     }
     if (!r.done.length) return showReport('Z kluczy – nic nie zamieniono', r.skipped);
     checkpoint();
@@ -1050,7 +1052,7 @@ function seqTool(act) {
   } else if (act === 'clear') {
     const list = n ? [n] : seqTargets();
     const withM = list.filter((x) => x.motion);
-    if (!withM.length || !confirm(`Usunąć ruch (presety, pętle, efekty tekstu) z ${withM.length} element(ów)?`)) return;
+    if (!withM.length || !(await confirmBox(`Presety, pętle i efekty tekstu zostaną usunięte z ${withM.length} element(ów).`, { title: 'Usunąć ruch?', ok: 'Usuń' }))) return;
     checkpoint();
     for (const x of withM) delete x.motion;
   }
@@ -1275,7 +1277,7 @@ $('#props').addEventListener('click', async (e) => {
   if (fb && n) {
     const p = fb.dataset.field;
     const cur = n.fields?.[p] || '';
-    const v = prompt(`Nazwa pola kontrolnego dla „${n.name}.${p}”\n(litery, cyfry, _ . -; puste = usuń)`, cur || n.name.replace(/[^\w.\-]/g, '_'));
+    const v = await promptBox(`Litery, cyfry, _ . -; puste = usuń.`, cur || n.name.replace(/[^\w.\-]/g, '_'), { title: `Pole kontrolne „${n.name}.${p}”` });
     if (v === null) return;
     checkpoint();
     n.fields ||= {};
@@ -1304,8 +1306,8 @@ $('#props').addEventListener('click', async (e) => {
   const vd = e.target.closest('[data-vdel]');
   if (vd) { checkpoint(); delete scene.fieldMeta[vd.dataset.vdel]; walk(scene.nodes, (x) => { if (x.showIf?.field === vd.dataset.vdel) delete x.showIf; }); renderProps(); refresh(); return; }
   if (e.target.id === 'addVar') {
-    const id = prompt('Nazwa pola wariantu (np. styl)', 'styl'); if (!id) return;
-    const opts = prompt('Opcje, po przecinku', 'info, pilne'); if (!opts) return;
+    const id = await promptBox('Nazwa pola wariantu (np. styl)', 'styl', { title: 'Nowy wariant' }); if (!id) return;
+    const opts = await promptBox('Opcje, po przecinku', 'info, pilne', { title: `Wariant „${id}”` }); if (!opts) return;
     checkpoint();
     scene.fieldMeta ||= {};
     const o = opts.split(',').map((s) => s.trim()).filter(Boolean);
@@ -1389,10 +1391,10 @@ $('#tree').addEventListener('click', (e) => {
   if (lock) { const n = locate(lock.dataset.lock)?.node; if (n) { checkpoint(); if (n.locked) delete n.locked; else n.locked = true; renderTree(); } return; }
   const it = e.target.closest('.item'); if (it) select(it.dataset.id);
 });
-$('#tree').addEventListener('dblclick', (e) => {
+$('#tree').addEventListener('dblclick', async (e) => {
   const it = e.target.closest('.item'); if (!it?.dataset.id) return;
   const n = locate(it.dataset.id).node;
-  const v = prompt('Nazwa kontenera', n.name); if (v === null) return;
+  const v = await promptBox('Nazwa kontenera', n.name, { title: 'Zmień nazwę', ok: 'Zmień' }); if (v === null) return;
   checkpoint(); n.name = v; renderTree(); renderProps();
 });
 
@@ -1763,11 +1765,11 @@ $('#tl').addEventListener('mousedown', (e) => {
     addEventListener('mousemove', mv); addEventListener('mouseup', up);
   }
 });
-$('#tl').addEventListener('dblclick', (e) => {
+$('#tl').addEventListener('dblclick', async (e) => {
   const mk = e.target.closest('.mkm');
   if (mk) {
     const m = scene.markers[+mk.dataset.mk];
-    const v = prompt('Nazwa markera (puste = usuń)', m.name || ''); if (v === null) return;
+    const v = await promptBox('Puste = usuń marker.', m.name || '', { title: 'Nazwa markera' }); if (v === null) return;
     checkpoint(); if (v.trim()) m.name = v.trim(); else scene.markers.splice(+mk.dataset.mk, 1);
     renderTimeline(); if (!selId) renderProps(); return;
   }
@@ -1804,8 +1806,8 @@ function deleteSelKey() {
 $('#keyed').addEventListener('click', (e) => { if (e.target.id === 'kdel') deleteSelKey(); });
 
 // ------------------------------------------------------------ markery, zoom, kopiuj/wklej klucze
-function addMarker(at, name) {
-  const v = name ?? prompt('Nazwa markera', 'marker' + ((scene.markers?.length || 0) + 1)); if (v === null || !v.trim()) return;
+async function addMarker(at, name) {
+  const v = name ?? await promptBox('Nazwa markera', 'marker' + ((scene.markers?.length || 0) + 1), { title: 'Nowy marker', ok: 'Dodaj' }); if (v === null || !v.trim()) return;
   checkpoint(); (scene.markers ||= []).push({ t: Math.max(0, Math.min(scene.duration, +at.toFixed(3))), name: v.trim() });
   scene.markers.sort((a, b) => a.t - b.t); renderTimeline(); if (!selId) renderProps();
 }
@@ -1922,7 +1924,7 @@ $('#props').addEventListener('click', async (e) => {
   const act = b.dataset.ap;
   try {
     if (act === 'save') {
-      const name = prompt('Nazwa presetu animacji', n.name + ' – animacja'); if (!name) return;
+      const name = await promptBox('Nazwa presetu animacji', n.name + ' – animacja', { title: 'Zapisz preset', ok: 'Zapisz' }); if (!name) return;
       const pr = presetFromNode(n, name);
       if (!pr) return toast('Węzeł nie ma kluczy animacji', true);
       animPresets.push(pr); await savePresets(); renderProps(); toast(`Zapisano preset „${name}”`);
@@ -1934,7 +1936,7 @@ $('#props').addEventListener('click', async (e) => {
         if (!used) { undo.pop(); return toast('Ten węzeł nie ma właściwości z presetu', true); }
         player.setScene(scene); player.seek(t); renderTimeline(); renderTree(); syncProps(); toast(`Zastosowano preset „${pr.name}” od ${t.toFixed(2)}s`);
       } else if (act === 'del') {
-        if (!pr || !confirm(`Usunąć preset „${pr.name}”?`)) return;
+        if (!pr || !(await confirmBox(`Preset „${pr.name}” zostanie usunięty.`, { title: 'Usunąć preset?', ok: 'Usuń' }))) return;
         animPresets = animPresets.filter((x) => x.id !== pr.id); await savePresets(); renderProps();
       } else if (act === 'export') {
         if (!pr) return toast('Wybierz preset', true);
@@ -1964,7 +1966,7 @@ $('#bUndo').onclick = doUndo;
 $('#bRedo').onclick = doRedo;
 $('#bNew').onclick = async () => {
   if (!(await confirmLeave())) return;
-  const n = prompt('Nazwa nowej sceny', 'Scena' + (scenes.length + 1)); if (!n) return;
+  const n = await promptBox('Nazwa nowej sceny', 'Scena' + (scenes.length + 1), { title: 'Nowa scena', ok: 'Utwórz' }); if (!n) return;
   newScene(n);
 };
 $('#bDup').onclick = async () => {
@@ -1972,7 +1974,7 @@ $('#bDup').onclick = async () => {
   const c = structuredClone(scene); c.name += ' kopia'; newScene(null, c);
 };
 $('#bDel').onclick = async () => {
-  if (!confirm(`Usunąć scenę „${scene.name}”?\nStrony w Trio korzystające z tego szablonu też zostaną usunięte.`)) return;
+  if (!(await confirmBox('Strony w Trio korzystające z tego szablonu też zostaną usunięte.', { title: `Usunąć scenę „${scene.name}”?`, ok: 'Usuń' }))) return;
   try {
     await api('DELETE', '/api/scenes/' + encodeURIComponent(scene.id));
     scenes = scenes.filter((s) => s.id !== scene.id); setDirty(false);
@@ -2183,7 +2185,8 @@ addEventListener('keydown', (e) => {
     refresh(); syncProps();
   }
 });
-addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+// w oknie natywnym zamknięcie i ponowne wczytanie pyta okno (systemowe pytanie), nie przeglądarka
+addEventListener('beforeunload', (e) => { if (dirty && !window.__vizrsShell) { e.preventDefault(); e.returnValue = ''; } });
 
 // pętla UI: śledzenie odtwarzania i ramki zaznaczenia
 let lastSync = 0;
@@ -2225,11 +2228,6 @@ for (const g of document.querySelectorAll('.gutter')) {
   g.addEventListener('dblclick', () => { setLay(k, LAY[k][0]); saveLay(); });
 }
 
-// okno natywne: bez przeglądarkowego menu pod prawym przyciskiem (Wstecz/Odśwież…); w polach tekstowych zostaje (kopiuj, wklej, pisownia)
-if (document.documentElement.classList.contains('native')) {
-  addEventListener('contextmenu', (e) => { if (!e.target.closest('input, textarea, [contenteditable]')) e.preventDefault(); });
-}
-
 // ------------------------------------------------------------ okno natywne: stan dla powłoki, komendy menu, kopia robocza
 const click = (id) => () => $(id).click();
 const native = nativeBridge({
@@ -2248,7 +2246,7 @@ const native = nativeBridge({
       await loaded;
       let d; try { d = JSON.parse(text); } catch { return; }
       if (d.id !== scene?.id || !Array.isArray(d.nodes) || text === JSON.stringify(scene)) return;
-      if (confirm(`Znaleziono niezapisaną kopię roboczą sceny „${d.name}” (np. po awarii).\n\nOK = przywróć, Anuluj = pomiń.`)) {
+      if (await confirmBox(`Znaleziono niezapisaną kopię roboczą sceny „${d.name}” (np. po awarii).`, { title: 'Przywrócić kopię roboczą?', ok: 'Przywróć', cancel: 'Pomiń', kind: 'info' })) {
         checkpoint(); scene = { ...d, rev: scene.rev }; player.setScene(scene); player.seek(t); renderAll();
       }
     },
@@ -2324,7 +2322,7 @@ async function deployDialog() {
     if (e.target.id !== 'dpGo' || !checked) return;
     const blocked = checked.scenes.filter((sc) => (sc.status === 'changed' || sc.status === 'foreign') && !d.querySelector(`[data-over="${CSS.escape(sc.id)}"]`)?.checked);
     const air = checked.scenes.filter((sc) => sc.onAir?.length);
-    if (air.length && !confirm(`Na antenie: ${air.map((sc) => sc.name).join(', ')}.\n\nWysłać mimo to? Grafika na wizji zmieni się przy następnym TAKE/aktualizacji.`)) return;
+    if (air.length && !(await confirmBox(`Na antenie: ${air.map((sc) => sc.name).join(', ')}.\nGrafika na wizji zmieni się przy następnym TAKE/aktualizacji.`, { title: 'Wysłać sceny będące na antenie?', ok: 'Wyślij' }))) return;
     const send = checked.scenes.filter((sc) => !blocked.includes(sc)).map((sc) => ({
       id: sc.id, assets: PACK.sceneAssets(scenes.find((s) => s.id === sc.id) || {}, known),
       overwrite: !!d.querySelector(`[data-over="${CSS.escape(sc.id)}"]`)?.checked,

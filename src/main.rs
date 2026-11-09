@@ -24,12 +24,17 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::webview::{DownloadEvent, PageLoadEvent};
+#[cfg(not(target_os = "linux"))]
+use tauri::window::Color;
 use tauri::{
-    AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+    AppHandle, Manager, RunEvent, Theme, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    WindowEvent,
 };
-use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_dialog::{
+    DialogExt, MessageDialogButtons, MessageDialogKind, MessageDialogResult,
+};
 
 /// Największy plik przekazywany stronie (paczka, obraz).
 const MAX_FILE: u64 = 512 * 1024 * 1024;
@@ -41,29 +46,59 @@ const STATE_KEY: &str = "cg-artist";
 const CONNECT: &str = "connect";
 const LOCAL_NOTE: &str = "praca lokalna (bez serwera)";
 const NOT_CONNECTED: &str = "nie połączono – wybierz serwer (Plik → Połącz z serwerem)";
-/// Komendy menu wysyłane do strony (`__vizrsCmd`): akcja, etykieta (skróty edycji obsługuje strona).
-const PAGE_CMDS: &[(&str, &str)] = &[
-    ("new", "Nowa scena"),
-    ("save", "Zapisz (Ctrl+S)"),
-    ("export", "Eksportuj scenę…"),
-    ("pack", "Paczka .cgpack…"),
-    ("deploy", "Wyślij na serwer…"),
-    ("undo", "Cofnij (Ctrl+Z)"),
-    ("redo", "Ponów (Ctrl+Y)"),
-    ("dup", "Duplikuj (Ctrl+D)"),
-    ("del", "Usuń (Delete)"),
-    ("fit", "Dopasuj kanwę (Shift+1)"),
-    ("z100", "Kanwa 100% (Shift+2)"),
-    ("zsel", "Kanwa do zaznaczenia (Shift+3)"),
-    ("play", "Odtwórz / zatrzymaj (Spacja)"),
-    ("marker", "Dodaj marker (M)"),
+/// Komendy menu wysyłane do strony (`__vizrsCmd`): akcja, etykieta, skrót. Skróty obsługuje strona (akcelerator
+/// menu przechwyciłby je też w polach tekstowych), więc menu tylko je pokazuje – w sposób danego systemu (`shortcut_label`).
+const PAGE_CMDS: &[(&str, &str, &str)] = &[
+    ("new", "Nowa scena", ""),
+    ("save", "Zapisz", "Ctrl+S"),
+    ("export", "Eksportuj scenę…", ""),
+    ("pack", "Paczka .cgpack…", ""),
+    ("deploy", "Wyślij na serwer…", ""),
+    ("undo", "Cofnij", "Ctrl+Z"),
+    ("redo", "Ponów", "Ctrl+Y"),
+    ("dup", "Duplikuj", "Ctrl+D"),
+    ("del", "Usuń", "Delete"),
+    ("fit", "Dopasuj kanwę", "Shift+1"),
+    ("z100", "Kanwa 100%", "Shift+2"),
+    ("zsel", "Kanwa do zaznaczenia", "Shift+3"),
+    ("play", "Odtwórz / zatrzymaj", "Spacja"),
+    ("marker", "Dodaj marker", "M"),
 ];
+/// Tło okna przed wczytaniem strony (jak `--bg` strony) – bez białego błysku (Windows, macOS).
+#[cfg(not(target_os = "linux"))]
+const BACKGROUND: Color = Color(0x15, 0x17, 0x1a, 0xff);
 /// Most strony: `window.__vizrsPost(tekst)` → komenda `ipc`. `window.ipc` należy w Tauri do wry/Tauri
 /// (niezapisywalny), więc strona (`web/native.js`) i okno połączenia wołają `__vizrsPost`.
+/// `os` – strona dobiera do systemu czcionkę, przyciski okien i paski przewijania.
 const IPC_SHIM: &str = r#"(() => {
   window.__vizrsPost = (m) => { window.__TAURI_INTERNALS__.invoke('ipc', { body: String(m) }).catch((e) => console.error('ipc', e)); };
-  window.__vizrsShell = { version: '__VERSION__', app: 'cg-artist' };
+  window.__vizrsShell = { version: '__VERSION__', app: 'cg-artist', os: '__OS__' };
 })();"#;
+
+/// Skrót w etykiecie menu tak, jak pokazuje go system: Windows – w kolumnie skrótów (tabulator, jak w Win32),
+/// macOS – symbolami (⌘ ⇧ ⌫), Linux – w nawiasie.
+fn shortcut_label(label: &str, keys: &str) -> String {
+    if keys.is_empty() {
+        return label.to_string();
+    }
+    if cfg!(target_os = "windows") {
+        format!("{label}\t{keys}")
+    } else if cfg!(target_os = "macos") {
+        let k = keys
+            .replace("Ctrl+", "⌘")
+            .replace("Shift+", "⇧")
+            .replace("Delete", "⌫");
+        format!("{label}   {k}")
+    } else {
+        format!("{label} ({keys})")
+    }
+}
+
+/// Narzędzia deweloperskie WebView: w kompilacji testowej albo z `VIZRS_DEVTOOLS=1` (w zwykłym programie
+/// nie ma ich w menu ani w menu kontekstowym – to część przeglądarki, nie edytora).
+fn devtools_enabled() -> bool {
+    cfg!(debug_assertions) || std::env::var("VIZRS_DEVTOOLS").is_ok_and(|v| v == "1")
+}
 
 /// Kodowanie identyfikatora w adresie.
 fn url_escape(s: &str) -> String {
@@ -103,6 +138,8 @@ struct Win {
     /// strona zgodziła się zamknąć okno
     closing: bool,
     zoom: f64,
+    /// okno ma się pokazać zmaksymalizowane (tworzone niewidoczne – Windows gubi maksymalizację przy pokazaniu)
+    maximize: bool,
 }
 
 struct App {
@@ -198,7 +235,75 @@ fn error(app: &AppHandle, msg: &str) {
     app.dialog()
         .message(msg.to_string())
         .title("VizRS CG Artist")
+        .kind(MessageDialogKind::Error)
         .show(|_| {});
+}
+
+/// Pytanie strony w systemowym oknie dialogowym (modalnym dla okna strony). Odpowiedź: numer przycisku
+/// (`window.__vizrsDialog(id, n)`); zamknięcie okna dialogowego = ostatni przycisk („anuluj”).
+fn ask(
+    app: &AppHandle,
+    label: &str,
+    id: u32,
+    kind: bridge::Kind,
+    title: String,
+    text: String,
+    buttons: Vec<String>,
+) {
+    let last = buttons.len().saturating_sub(1);
+    let reply = {
+        let app = app.clone();
+        let label = label.to_string();
+        move |n: usize| {
+            eval_in(
+                &app,
+                &label,
+                &format!("window.__vizrsDialog && window.__vizrsDialog({id}, {n})"),
+            )
+        }
+    };
+    // test w działaniu: nikt nie kliknie – odpowiedź „anuluj” od razu
+    if state(app).probe.is_some() {
+        return reply(last);
+    }
+    let title = if title.is_empty() {
+        "VizRS CG Artist".to_string()
+    } else {
+        title
+    };
+    let mut b = buttons.clone().into_iter();
+    let first = b.next().unwrap_or_else(|| "OK".into());
+    let kinds = match buttons.len() {
+        1 => MessageDialogButtons::OkCustom(first),
+        2 => MessageDialogButtons::OkCancelCustom(first, b.next().unwrap_or_default()),
+        _ => MessageDialogButtons::YesNoCancelCustom(
+            first,
+            b.next().unwrap_or_default(),
+            b.next().unwrap_or_default(),
+        ),
+    };
+    let mut d = app
+        .dialog()
+        .message(text)
+        .title(title)
+        .kind(match kind {
+            bridge::Kind::Info => MessageDialogKind::Info,
+            bridge::Kind::Warning => MessageDialogKind::Warning,
+            bridge::Kind::Error => MessageDialogKind::Error,
+        })
+        .buttons(kinds);
+    if let Some(w) = app.get_webview_window(label) {
+        d = d.parent(&w);
+    }
+    d.show_with_result(move |r| {
+        let n = match r {
+            MessageDialogResult::Custom(s) => buttons.iter().position(|b| *b == s).unwrap_or(last),
+            MessageDialogResult::Ok | MessageDialogResult::Yes => 0,
+            MessageDialogResult::No if buttons.len() == 3 => 1,
+            _ => last,
+        };
+        reply(n);
+    });
 }
 
 /// Adres albo katalog w programie systemowym.
@@ -349,7 +454,44 @@ fn start_remote(
 // ------------------------------------------------------------------ okna
 
 fn script() -> String {
-    IPC_SHIM.replace("__VERSION__", env!("CARGO_PKG_VERSION"))
+    IPC_SHIM
+        .replace("__VERSION__", env!("CARGO_PKG_VERSION"))
+        .replace("__OS__", std::env::consts::OS)
+}
+
+/// Wygląd okna zgodny z systemem: ciemny pasek tytułu i menu (Windows: tryb ciemny DWM, Linux: ciemny wariant
+/// motywu GTK, macOS: ciemny wygląd okna), tło jak strona, bez funkcji przeglądarki (autouzupełnianie WebView2,
+/// podgląd odnośników na macOS); Windows – nakładane paski przewijania Fluent (Windows 11).
+fn native_look<'a>(
+    b: WebviewWindowBuilder<'a, tauri::Wry, AppHandle>,
+) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
+    let b = b
+        .theme(Some(Theme::Dark))
+        .devtools(devtools_enabled())
+        .general_autofill_enabled(false);
+    // Linux: kolor tła okna GTK zamalowałby też pasek menu motywu (przy motywie bez ciemnego wariantu – ciemny
+    // tekst na ciemnym tle); przed mignięciem chroni tam ukrycie okna do wczytania strony
+    #[cfg(not(target_os = "linux"))]
+    let b = b.background_color(BACKGROUND);
+    #[cfg(windows)]
+    let b = b.scroll_bar_style(tauri::webview::ScrollBarStyle::FluentOverlay);
+    #[cfg(target_os = "macos")]
+    let b = b.allow_link_preview(false);
+    b
+}
+
+/// Pokaż okno Artist (tworzone niewidoczne, żeby nie mignęło pustą stroną).
+fn reveal(app: &AppHandle, label: &str) {
+    let maximize = state(app).wins.get(label).is_some_and(|w| w.maximize);
+    if let Some(w) = app.get_webview_window(label) {
+        if !w.is_visible().unwrap_or(true) {
+            let _ = w.show();
+            if maximize {
+                let _ = w.maximize();
+            }
+            let _ = w.set_focus();
+        }
+    }
 }
 
 fn open_artist(app: &AppHandle, pending: Option<PathBuf>) {
@@ -372,26 +514,35 @@ fn open_artist(app: &AppHandle, pending: Option<PathBuf>) {
         (url, a.title(), label)
     };
     let st = paths::load(STATE_KEY);
+    // Artist to stanowisko pracy – bez zapisanego wyglądu od razu na cały ekran
+    let maximize = st.maximized.unwrap_or(true);
+    if let Some(win) = state(app).wins.get_mut(&label) {
+        win.maximize = maximize;
+    }
     let parsed = match url.parse() {
         Ok(u) => u,
         Err(_) => return error(app, "zły adres strony"),
     };
     let (w, h) = st.size.unwrap_or((1600.0, 900.0));
     let app_dl = app.clone();
-    let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(parsed))
-        .title(&title)
-        .inner_size(w, h)
-        // Artist to stanowisko pracy – bez zapisanego wyglądu od razu na cały ekran
-        .maximized(st.maximized.unwrap_or(true))
-        .initialization_script(script())
-        .devtools(true)
-        .on_download(move |_, ev| on_download(&app_dl, ev))
-        .on_page_load(|w, p| {
-            if p.event() == PageLoadEvent::Finished {
-                page_loaded(w.app_handle(), w.label());
-            }
-        })
-        .build();
+    let built = native_look(WebviewWindowBuilder::new(
+        app,
+        &label,
+        WebviewUrl::External(parsed),
+    ))
+    .title(&title)
+    .inner_size(w, h)
+    .min_inner_size(800.0, 500.0)
+    .maximized(maximize)
+    .visible(false)
+    .initialization_script(script())
+    .on_download(move |_, ev| on_download(&app_dl, ev))
+    .on_page_load(|w, p| {
+        if p.event() == PageLoadEvent::Finished {
+            page_loaded(w.app_handle(), w.label());
+        }
+    })
+    .build();
     match built {
         Ok(w) => {
             if let Some(z) = st.zoom.filter(|z| (*z - 1.0).abs() > 0.01) {
@@ -400,8 +551,16 @@ fn open_artist(app: &AppHandle, pending: Option<PathBuf>) {
                     win.zoom = z;
                 }
             }
-            let _ = w.set_focus();
             spell_pl(&w);
+            // Linux: nowe okno tao ustawia wariant GTK z ustawień systemu (portal) – przywróć ciemny
+            app.set_theme(Some(Theme::Dark));
+            // strona nie wczytała się szybko (wolny dysk, błąd) – okno i tak się pokazuje
+            let (app2, l2) = (app.clone(), label.clone());
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_secs(3));
+                let app3 = app2.clone();
+                let _ = app2.run_on_main_thread(move || reveal(&app3, &l2));
+            });
         }
         Err(e) => {
             state(app).wins.remove(&label);
@@ -425,6 +584,7 @@ fn spell_pl(w: &WebviewWindow) {
 }
 
 fn page_loaded(app: &AppHandle, label: &str) {
+    reveal(app, label);
     let (probe, pending) = {
         let mut a = state(app);
         let probe = a.probe.as_ref().map(|(c, _)| c.clone());
@@ -453,13 +613,33 @@ fn open_connect(app: &AppHandle) {
         };
         connect::page_data(&connect::Saved::load(), &current, token.as_deref(), local)
     };
-    let built = WebviewWindowBuilder::new(app, CONNECT, WebviewUrl::App("connect.html".into()))
-        .title("VizRS CG Artist – połącz z serwerem")
-        .inner_size(560.0, 600.0)
-        .initialization_script(format!("{}\n{data}", script()))
-        .build();
-    match built {
+    // okno dialogowe: stały rozmiar, bez maksymalizacji, nad oknem Artist (jeśli jest), bez paska menu programu
+    let parent = state(app)
+        .target_label()
+        .and_then(|l| app.get_webview_window(&l));
+    let mut b = native_look(WebviewWindowBuilder::new(
+        app,
+        CONNECT,
+        WebviewUrl::App("connect.html".into()),
+    ))
+    .title("Połącz z serwerem")
+    .inner_size(520.0, 520.0)
+    .resizable(false)
+    .maximizable(false)
+    .minimizable(parent.is_none())
+    .center()
+    .initialization_script(format!("{}\n{data}", script()));
+    if let Some(p) = &parent {
+        b = match b.parent(p) {
+            Ok(b) => b,
+            Err(e) => return error(app, &format!("Nie udało się otworzyć okna połączenia: {e}")),
+        };
+    }
+    match b.build() {
         Ok(w) => {
+            #[cfg(not(target_os = "macos"))]
+            let _ = w.remove_menu();
+            app.set_theme(Some(Theme::Dark));
             let _ = w.set_focus();
             let probe = state(app).probe.as_ref().map(|(c, _)| c.clone());
             if let Some(code) = probe {
@@ -685,6 +865,13 @@ fn ipc(app: AppHandle, webview: tauri::Webview, body: String) {
                 w.asked = None;
             }
         }
+        bridge::Msg::Dialog {
+            id,
+            kind,
+            title,
+            text,
+            buttons,
+        } => ask(&app, &label, id, kind, title, text, buttons),
         bridge::Msg::Draft { id, data } => {
             let p = bridge::draft_path(&key, &id);
             match data {
@@ -944,111 +1131,183 @@ fn on_download(app: &AppHandle, ev: DownloadEvent<'_>) -> bool {
 
 fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     type Item = dyn tauri::menu::IsMenuItem<tauri::Wry>;
+    let mac = cfg!(target_os = "macos");
     let item =
         |id: &str, label: &str, accel: Option<&str>| MenuItem::with_id(app, id, label, true, accel);
     let cmd = |id: &str| -> tauri::Result<MenuItem<tauri::Wry>> {
-        let label = PAGE_CMDS
+        let (label, keys) = PAGE_CMDS
             .iter()
-            .find(|(i, _)| *i == id)
-            .map(|(_, l)| *l)
-            .unwrap_or(id);
-        item(&format!("page:{id}"), label, None)
+            .find(|(i, ..)| *i == id)
+            .map(|(_, l, k)| (*l, *k))
+            .unwrap_or((id, ""));
+        item(&format!("page:{id}"), &shortcut_label(label, keys), None)
     };
     let sep = || PredefinedMenuItem::separator(app);
+    let about_meta = AboutMetadata {
+        name: Some("VizRS CG Artist".into()),
+        version: Some(env!("CARGO_PKG_VERSION").into()),
+        comments: Some(format!(
+            "Edytor grafik i animacji VizRS\nModuły rysowania: VizRS CG System {}\nDane: {}",
+            web::cg_version(),
+            state(app).data.display()
+        )),
+        copyright: Some("VizRS".into()),
+        website: Some(RELEASES.into()),
+        website_label: Some("Wydania na GitHubie".into()),
+        icon: app.default_window_icon().cloned(),
+        ..Default::default()
+    };
+    // macOS: „O programie” i „Zakończ” są w menu aplikacji; Windows/Linux – w Pomocy i w Pliku.
+    // Zakończ to własna pozycja (nie systemowa), żeby niezapisane sceny dostały pytanie.
+    let about = PredefinedMenuItem::about(
+        app,
+        Some(if mac {
+            "O programie VizRS CG Artist"
+        } else {
+            "O programie"
+        }),
+        Some(about_meta),
+    )?;
+    // Windows zamyka program Alt+F4 (system); Ctrl+Q to zwyczaj Linuksa, Cmd+Q – macOS
+    let quit_accel = if cfg!(target_os = "windows") {
+        None
+    } else {
+        Some("CmdOrCtrl+Q")
+    };
+    let quit = item(
+        "quit",
+        if mac {
+            "Zakończ VizRS CG Artist"
+        } else {
+            "Zakończ"
+        },
+        quit_accel,
+    )?;
+
     let (new, save, import, export, pack, deploy) = (
         cmd("new")?,
         cmd("save")?,
-        item("import", "Importuj…", None)?,
+        item("import", "Importuj…", Some("CmdOrCtrl+O"))?,
         cmd("export")?,
         cmd("pack")?,
         cmd("deploy")?,
     );
     let connect = item("connect", "Połącz z serwerem…", Some("CmdOrCtrl+Shift+K"))?;
-    let new_window = item("new-window", "Nowe okno Artist", None)?;
+    let new_window = item("new-window", "Nowe okno", Some("CmdOrCtrl+Shift+N"))?;
     let close = item("close", "Zamknij okno", Some("CmdOrCtrl+W"))?;
-    let quit = item("quit", "Zakończ", Some("CmdOrCtrl+Q"))?;
     let (s1, s2, s3, s4) = (sep()?, sep()?, sep()?, sep()?);
-    let file: [&Item; 14] = [
+    let mut file: Vec<&Item> = vec![
+        &new_window,
         &new,
-        &save,
+        &s1,
         &import,
+        &s2,
+        &save,
         &export,
         &pack,
         &deploy,
-        &s1,
-        &connect,
-        &s2,
-        &new_window,
         &s3,
-        &close,
+        &connect,
         &s4,
-        &quit,
+        &close,
     ];
+    let s_quit = sep()?;
+    if !mac {
+        file.extend([&s_quit as &Item, &quit]);
+    }
+
     let (undo, redo, dup, del) = (cmd("undo")?, cmd("redo")?, cmd("dup")?, cmd("del")?);
     let s5 = sep()?;
-    let edit: [&Item; 5] = [&undo, &redo, &s5, &dup, &del];
+    let mut edit: Vec<&Item> = vec![&undo, &redo, &s5, &dup, &del];
+    // macOS: schowek w Edycji (standard systemu; działa w polach tekstowych strony)
+    let (cut, copy, paste, all, s_clip) = (
+        PredefinedMenuItem::cut(app, Some("Wytnij"))?,
+        PredefinedMenuItem::copy(app, Some("Kopiuj"))?,
+        PredefinedMenuItem::paste(app, Some("Wklej"))?,
+        PredefinedMenuItem::select_all(app, Some("Zaznacz wszystko"))?,
+        sep()?,
+    );
+    if mac {
+        edit.splice(2..2, [&s_clip as &Item, &cut, &copy, &paste, &all]);
+    }
+
     let (fit, z100, zsel) = (cmd("fit")?, cmd("z100")?, cmd("zsel")?);
-    let reload = item("reload", "Odśwież", Some("F5"))?;
+    let reload = item("reload", "Wczytaj ponownie", Some("F5"))?;
     let full = item("fullscreen", "Pełny ekran", Some("F11"))?;
-    let zin = item("zoom-in", "Powiększ", Some("CmdOrCtrl+="))?;
-    let zout = item("zoom-out", "Pomniejsz", Some("CmdOrCtrl+-"))?;
-    let z0 = item("zoom-reset", "Rozmiar 100%", Some("CmdOrCtrl+0"))?;
+    let zin = item("zoom-in", "Powiększ interfejs", Some("CmdOrCtrl+="))?;
+    let zout = item("zoom-out", "Pomniejsz interfejs", Some("CmdOrCtrl+-"))?;
+    let z0 = item("zoom-reset", "Interfejs 100%", Some("CmdOrCtrl+0"))?;
     let dev = item(
         "devtools",
         "Narzędzia deweloperskie",
         Some("CmdOrCtrl+Shift+I"),
     )?;
     let (s6, s7, s8) = (sep()?, sep()?, sep()?);
-    let view: [&Item; 12] = [
-        &fit, &z100, &zsel, &s6, &reload, &full, &s7, &zin, &zout, &z0, &s8, &dev,
-    ];
+    let mut view: Vec<&Item> = vec![&fit, &z100, &zsel, &s6, &zin, &zout, &z0, &s7, &reload];
+    // macOS: pełny ekran jest w menu Okno (systemowy, ⌃⌘F)
+    if !mac {
+        view.push(&full);
+    }
+    if devtools_enabled() {
+        view.extend([&s8 as &Item, &dev]);
+    }
+
     let (play, marker) = (cmd("play")?, cmd("marker")?);
     let logs = item("logs", "Pokaż logi", None)?;
     let data_dir = item("data-dir", "Otwórz katalog danych", None)?;
     let updates = item("updates", "Sprawdź aktualizacje", None)?;
-    let about = item("about", "O programie", None)?;
-    let s9 = sep()?;
-    let help: [&Item; 5] = [&logs, &data_dir, &s9, &updates, &about];
-    // lista rośnie tylko na macOS (menu aplikacji, „Tekst”)
-    #[allow(unused_mut, clippy::useless_vec)]
+    let (s9, s10) = (sep()?, sep()?);
+    let mut help: Vec<&Item> = vec![&logs, &data_dir, &s9, &updates];
+    if !mac {
+        help.extend([&s10 as &Item, &about]);
+    }
+
+    // „&” – mnemonik (Alt+litera) na Windows i Linuksie; macOS go pomija
+    let help_menu = Submenu::with_items(app, "Pomo&c", true, &help)?;
+    #[allow(unused_mut)]
     let mut subs = vec![
-        Submenu::with_items(app, "Plik", true, &file)?,
-        Submenu::with_items(app, "Edycja", true, &edit)?,
-        Submenu::with_items(app, "Widok", true, &view)?,
-        Submenu::with_items(app, "Scena", true, &[&play as &Item, &marker])?,
-        Submenu::with_items(app, "Pomoc", true, &help)?,
+        Submenu::with_items(app, "&Plik", true, &file)?,
+        Submenu::with_items(app, "&Edycja", true, &edit)?,
+        Submenu::with_items(app, "&Widok", true, &view)?,
+        Submenu::with_items(app, "&Scena", true, &[&play as &Item, &marker])?,
     ];
-    // macOS: pierwsze podmenu to menu aplikacji (O programie, Ukryj, Zakończ) + standardowa edycja tekstu
     #[cfg(target_os = "macos")]
     {
-        let about_mac = item("about", "O programie VizRS CG Artist", None)?;
         let app_menu = Submenu::with_items(
             app,
             "VizRS CG Artist",
             true,
             &[
-                &about_mac as &Item,
+                &about as &Item,
                 &PredefinedMenuItem::separator(app)?,
-                &PredefinedMenuItem::hide(app, None)?,
-                &PredefinedMenuItem::hide_others(app, None)?,
+                &PredefinedMenuItem::services(app, Some("Usługi"))?,
                 &PredefinedMenuItem::separator(app)?,
-                &PredefinedMenuItem::quit(app, None)?,
+                &PredefinedMenuItem::hide(app, Some("Ukryj VizRS CG Artist"))?,
+                &PredefinedMenuItem::hide_others(app, Some("Ukryj pozostałe"))?,
+                &PredefinedMenuItem::show_all(app, Some("Pokaż wszystkie"))?,
+                &PredefinedMenuItem::separator(app)?,
+                &quit,
             ],
         )?;
-        let text = Submenu::with_items(
+        let window_menu = Submenu::with_items(
             app,
-            "Tekst",
+            "Okno",
             true,
             &[
-                &PredefinedMenuItem::cut(app, None)? as &Item,
-                &PredefinedMenuItem::copy(app, None)?,
-                &PredefinedMenuItem::paste(app, None)?,
-                &PredefinedMenuItem::select_all(app, None)?,
+                &PredefinedMenuItem::minimize(app, Some("Minimalizuj"))? as &Item,
+                &PredefinedMenuItem::maximize(app, Some("Powiększ"))?,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::fullscreen(app, Some("Pełny ekran"))?,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::bring_all_to_front(app, Some("Wszystkie na wierzch"))?,
             ],
         )?;
+        window_menu.set_as_windows_menu_for_nsapp()?;
+        help_menu.set_as_help_menu_for_nsapp()?;
         subs.insert(0, app_menu);
-        subs.insert(3, text);
+        subs.push(window_menu);
     }
+    subs.push(help_menu);
     {
         let mut a = state(app);
         a.undo_item = Some(undo.clone());
@@ -1130,9 +1389,32 @@ fn on_menu(app: &AppHandle, id: &str) {
         "zoom-out" => zoom(|z| z / 1.1),
         "zoom-reset" => zoom(|_| 1.0),
         "reload" => {
-            if let Some(w) = win {
+            // wczytanie strony od nowa porzuca niezapisane zmiany – najpierw systemowe pytanie
+            let dirty = target
+                .as_deref()
+                .and_then(|l| state(app).wins.get(l).map(|w| w.dirty))
+                .unwrap_or(false);
+            let Some(w) = win else { return };
+            if !dirty {
                 let _ = w.eval("location.reload()");
+                return;
             }
+            app.dialog()
+                .message("Niezapisane zmiany sceny zostaną utracone.")
+                .title("Wczytać scenę ponownie?")
+                .kind(MessageDialogKind::Warning)
+                .buttons(MessageDialogButtons::OkCancelCustom(
+                    "Wczytaj ponownie".into(),
+                    "Anuluj".into(),
+                ))
+                .parent(&w)
+                .show_with_result(move |r| {
+                    if r == MessageDialogResult::Custom("Wczytaj ponownie".into())
+                        || r == MessageDialogResult::Ok
+                    {
+                        let _ = w.eval("location.reload()");
+                    }
+                });
         }
         "fullscreen" => {
             if let Some(w) = win {
@@ -1151,20 +1433,6 @@ fn on_menu(app: &AppHandle, id: &str) {
             open_external(&std::fs::canonicalize(&d).unwrap_or(d).to_string_lossy());
         }
         "updates" => open_external(RELEASES),
-        "about" => {
-            let msg = {
-                let a = state(app);
-                format!(
-                    "VizRS CG Artist {} (Tauri {})\nModuły rysowania: VizRS CG System {}\n{}\nDane: {}",
-                    env!("CARGO_PKG_VERSION"),
-                    tauri::VERSION,
-                    web::cg_version(),
-                    a.note,
-                    a.data.display()
-                )
-            };
-            app.dialog().message(msg).title("O programie").show(|_| {});
-        }
         _ => {}
     }
 }
@@ -1229,6 +1497,10 @@ fn main() {
         .invoke_handler(tauri::generate_handler![ipc])
         .setup(move |app| {
             let h = app.handle().clone();
+            // interfejs jest ciemny, więc i to, co rysuje system: Linux – ciemny wariant motywu GTK (pasek menu,
+            // okna dialogowe, „Zapisz jako”; tao stosuje go tylko dla całego programu), Windows – ciemne menu
+            // i paski tytułu, macOS – ciemny wygląd programu (także NSAlert, NSSavePanel)
+            h.set_theme(Some(Theme::Dark));
             let menu = build_menu(&h)?;
             app.set_menu(menu)?;
             app.on_menu_event(|app, ev| on_menu(app, ev.id().as_ref()));
