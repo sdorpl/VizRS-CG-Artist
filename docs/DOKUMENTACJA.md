@@ -8,7 +8,7 @@ repozytorium **VizRS CG System** (`docs/DOKUMENTACJA.md`).
 Samodzielny edytor grafik i animacji pakietu VizRS – odpowiednik Viz Artist. Projektuje sceny (szablony) z animacją;
 na antenę wydaje je Trio z VizRS CG System, które **nie jest dostarczane z Artist**.
 
-Natywny program wieloplatformowy na **Tauri 2** (Linux, Windows, macOS; silniki WebView: Linux – WebKitGTK 4.1 przez wry, Windows – WebView2, macOS – WKWebView; wersja 0.3.0). Strona **Artist** (kanwa, panele) jest wkompilowana w binarkę i domyślnie
+Natywny program wieloplatformowy na **Tauri 2** (Linux, Windows, macOS; silniki WebView: Linux – WebKitGTK 4.1 przez wry, Windows – WebView2, macOS – WKWebView; od wersji 0.3.0). Strona **Artist** (kanwa, panele) jest wkompilowana w binarkę i domyślnie
 pracuje **bez serwera** – na magazynie lokalnym w katalogu danych. Okno dodaje menu, „Zapisz jako”, pytanie przy zamknięciu,
 kopię roboczą, jedną instancję, skojarzenia plików, przeciąganie plików i połączenie z serwerem `vizrs` (lokalnym albo VPS).
 

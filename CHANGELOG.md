@@ -2,6 +2,8 @@
 
 ## Niewydane
 
+## 0.3.1 – 2026-11-09
+
 - **Wygląd i zachowanie programu systemu zamiast strony WWW (Linux, Windows, macOS)** – DOKUMENTACJA §14:
   - Pytania strony w **systemowych oknach dialogowych** (GTK, TaskDialog, NSAlert) z własnymi przyciskami – nowy komunikat mostu `dialog` (biała lista, limity, test). Zamknięcie okna ze zmianami: „Zapisz · Nie zapisuj · Anuluj” zamiast okna w stronie; przejście do innej sceny – jedno pytanie zamiast dwóch. Naprawia macOS, gdzie WKWebView nie pokazywał `confirm()` (usunięcie sceny, nadpisanie, przywrócenie kopii roboczej były niemożliwe).
   - Pola tekstowe (nazwa sceny, markera, presetu…) w oknie w układzie przycisków systemu zamiast `prompt()` silnika z adresem `127.0.0.1` w tytule.
