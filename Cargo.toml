@@ -1,6 +1,6 @@
 [package]
 name = "vizrs-cg-artist"
-version = "26.11.1"
+version = "26.11.2"
 edition = "2021"
 description = "VizRS CG Artist – edytor grafik i animacji VizRS (Tauri 2: Linux, Windows, macOS)"
 repository = "https://github.com/sdorpl/VizRS-CG-Artist"

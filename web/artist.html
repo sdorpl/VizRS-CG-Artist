@@ -587,7 +587,7 @@ function renderTree() {
 
 function inputFor(p, d) {
   switch (d.t) {
-    case 'num': return `<input type="number" data-p="${p}" step="${d.step || 1}" ${d.min != null ? `min="${d.min}"` : ''} ${d.max != null ? `max="${d.max}"` : ''}>`;
+    case 'num': return `<input type="number" data-p="${p}" step="${d.step || 1}" ${d.min != null ? `min="${d.min}"` : ''} ${d.max != null ? `max="${d.max}"` : ''}${d.auto != null ? ' placeholder="auto"' : ''}>`;
     case 'color': return `<div class="row"><input type="color" data-pc="${p}"><input data-p="${p}" class="grow mono" placeholder="#rrggbbaa"></div>`;
     case 'text': return `<textarea data-p="${p}" rows="2"></textarea>`;
     case 'string': return `<input data-p="${p}">`;
@@ -609,7 +609,8 @@ const FOLD0 = new Set(['Maska / efekty', 'Autofollow']);
 const folded = (g) => pui.fold[g] ?? FOLD0.has(g);
 /** Właściwości zaawansowane: w trybie „Podstawowe” widoczne tylko, gdy są użyte (wartość, klucz, pole kontrolne). */
 const ADV = new Set(['skewX', 'blink', 'blur', 'clipL', 'clipR', 'clipT', 'clipB', 'followMin', 'fillSqueeze', 'squeezeMin', 'lineBreak', 'hlColor', 'hlText',
-  'cycle', 'gleam', 'labelSize', 'labelWeight', 'sepColor', 'sepStyle', 'crawlFrom', 'tz', 'shadow']);
+  'cycle', 'gleam', 'labelSize', 'labelWeight', 'sepColor', 'sepStyle', 'crawlFrom', 'tz', 'shadow',
+  'radiusTL', 'radiusTR', 'radiusBR', 'radiusBL', 'radiusL', 'radiusR', 'radiusT', 'radiusB']);
 /** Widoczność warunkowa: właściwość nie działa przy obecnych ustawieniach węzła (nadal widoczna, gdy jest użyta). */
 const VIDEO_RE = /\.(mp4|webm|mov|m4v)$/i;
 const WHEN = {
@@ -636,6 +637,8 @@ const COMBOS = [
   { props: ['color', 'color2', 'gradAngle'], short: ['kolor', 'kolor 2', 'kąt'], kind: 'fill' },
   { props: ['borderWidth', 'borderColor'], short: ['ramka px', 'kolor ramki'] },
   { props: ['radius', 'shadow'], short: ['zaokr.', 'cień'] },
+  { props: ['radiusTL', 'radiusTR', 'radiusBR', 'radiusBL'], short: ['↖', '↗', '↘', '↙'], label: 'zaokr. rogów (puste = jak zaokr.)' },
+  { props: ['radiusL', 'radiusR', 'radiusT', 'radiusB'], short: ['L', 'P', 'G', 'D'], label: 'zaokr. boków (puste = jak zaokr.)' },
   { props: ['font', 'weight'], short: ['font', 'grubość'], kind: 'wide1' },
   { props: ['size', 'spacing', 'lineHeight'], short: ['rozmiar', 'odstęp', 'interl.'] },
   { props: ['italic', 'upper'], kind: 'bools', label: 'styl' },
@@ -887,7 +890,7 @@ function syncProps(force) {
     let v = propAt(n, p, t, null);
     const d = PROPS[p];
     if (inp.type === 'checkbox') inp.checked = !!v;
-    else if (d.t === 'num') inp.value = Math.round(v * 1000) / 1000;
+    else if (d.t === 'num') inp.value = d.auto != null && +v < 0 ? '' : Math.round(v * 1000) / 1000;
     else {
       if (inp.tagName === 'SELECT' && v && ![...inp.options].some((o) => o.value === v)) inp.add(new Option(v, v));
       inp.value = v ?? '';
@@ -1237,7 +1240,7 @@ function parseVal(p, inp) {
   if (d.t === 'bool') return inp.checked;
   if (d.t === 'num') {
     let v = parseFloat(inp.value);
-    if (isNaN(v)) v = 0;
+    if (isNaN(v)) v = d.auto ?? 0; // puste pole właściwości z „auto” = brak nadpisania
     if (d.min != null) v = Math.max(d.min, v); if (d.max != null) v = Math.min(d.max, v);
     return v;
   }
@@ -1461,7 +1464,9 @@ $('#props').addEventListener('mousedown', (e) => {
   if (!lb || !lb.dataset.scrub || !n) return;
   e.preventDefault();
   const p = lb.dataset.scrub, d = PROPS[p];
-  const start = propAt(n, p, t, null), sx = e.clientX;
+  let start = propAt(n, p, t, null); const sx = e.clientX;
+  // „auto” (róg/bok jak zaokrąglenie): przeciąganie zaczyna od wartości, którą element ma teraz
+  if (d.auto != null && start < 0) start = /^radius./.test(p) ? Math.max(0, +propAt(n, 'radius', t, null) || 0) : 0;
   let moved = false;
   const mv = (ev) => {
     if (!moved) { checkpoint(); moved = true; }

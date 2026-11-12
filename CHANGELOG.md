@@ -2,6 +2,10 @@
 
 ## Niewydane
 
+## 26.11.2 – 2026-11-12
+
+- **Zaokrąglenie osobno dla każdego rogu i każdego boku:** w panelu Właściwości (Wygląd) nowe wiersze „zaokr. rogów” (↖ ↗ ↘ ↙) i „zaokr. boków” (L P G D) obok dotychczasowego „zaokr.” dla wszystkich rogów – dla prostokąta, kodu QR i obrazu. Dwa boki przy rogu dają róg eliptyczny; puste pole = jak „zaokr.”, więc dawne sceny bez zmian. `renderer.js` z CG System `5eb8463` (właściwości `radiusTL`…, `radiusT`…). DOKUMENTACJA §4.
+
 ## 26.11.1 – 2026-11-12
 
 Pierwsze wydanie w numeracji rok.miesiąc.rewizja (`26.11.1` = listopad 2026, wydanie 1). Gałąź `main` = dawna `main` (0.3.1) scalona z `next-v`; poprzednia `main` zachowana jako `main-oldstable`.
