@@ -2,6 +2,7 @@
 
 ## Niewydane
 
+- **Artist w wyglądzie VizRS Live:** strona ładuje wspólny rdzeń `vizrs-ui.css` (tokeny i kontrolki panelu VizRS Live) przed `ui.css`; pasek górny z logo, pola, przyciski, pigułki stanu, okna pytań (także okno z polem tekstowym z `native.css`) jak w Live. Czcionka interfejsu to Inter na wszystkich systemach (dawniej czcionka systemu). Strona z CG System `4addb2c` (`ui.css` już tylko ze stylami Trio/Artist). DOKUMENTACJA §14.
 - **Strona z CG System `1b03bdd`:** wspólny rdzeń wyglądu rodziny VizRS `vizrs-ui.css` (tokeny i kontrolki panelu VizRS Live; Artist przejdzie na niego w etapie W3 planu wyglądu), `ticker-items.js` i `ui.css` z jednej strony Trio (okna pytań na telefonie). `tools/sync-cg.sh` zapisuje w `web/CG_SYSTEM` pełny commit CG System (CI pobiera go do `--check`).
 
 ## 26.11.2 – 2026-11-12

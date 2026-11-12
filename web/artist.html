@@ -5,11 +5,12 @@
 <title>VizRS Artist</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <script>if (window.__vizrsShell) document.documentElement.classList.add('native', 'os-' + (window.__vizrsShell.os || 'linux'));</script>
+<link rel="stylesheet" href="/vizrs-ui.css">
 <link rel="stylesheet" href="/ui.css">
 <link rel="stylesheet" href="/native.css">
 <style>
   body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-  #main { flex: 1; display: grid; grid-template-columns: var(--l, 270px) 4px minmax(240px, 1fr) 4px var(--r, 350px); grid-template-rows: minmax(160px, 1fr) 4px var(--t, 260px); min-height: 0; background: #0b0c0e; }
+  #main { flex: 1; display: grid; grid-template-columns: var(--l, 270px) 4px minmax(240px, 1fr) 4px var(--r, 350px); grid-template-rows: minmax(160px, 1fr) 4px var(--t, 260px); min-height: 0; background: var(--bg-deep); }
   #treeP { grid-area: 1 / 1 / 2 / 2; }
   #gL { grid-area: 1 / 2 / 2 / 3; cursor: col-resize; }
   #canvasP { grid-area: 1 / 3 / 2 / 4; }
@@ -20,11 +21,11 @@
   /* panele zadokowane jak w programie desktopowym: bez zaokrągleń i odstępów, rozdzielacze do przeciągania */
   #main > .panel { border-radius: 0; border: none; }
   #main > .panel > header { min-height: 30px; padding: 3px 6px; }
-  .gutter { background: #0b0c0e; touch-action: none; }
+  .gutter { background: var(--bg-deep); touch-action: none; }
   .gutter:hover, .gutter.drag { background: var(--acc-d); }
   .topbar { padding: 4px 8px; gap: 6px; }
   #box { position: relative; flex: 1; overflow: hidden; }
-  #stage { position: absolute; left: 0; top: 0; outline: 1px solid #3a3f48; }
+  #stage { position: absolute; left: 0; top: 0; outline: 1px solid var(--line-strong); }
   #stage .vz-node { cursor: move; }
   #stage .vz-node[data-over] { outline: 2px dashed #ff4d4d; outline-offset: 2px; }
   .sqinfo { padding: 0 10px 4px 110px; font: 11px ui-monospace, monospace; color: #8b93a1; display: flex; flex-wrap: wrap; gap: 8px; }
@@ -44,7 +45,7 @@
   #guides .snap { stroke: #ff3df0; stroke-width: 1; vector-effect: non-scaling-stroke; }
   .selx { position: absolute; border: 1px dashed var(--acc); pointer-events: none; z-index: 5; }
   #tree .item.sel2 { background: #223049; }
-  .vpop { position: absolute; right: 8px; top: 34px; z-index: 9; background: #1d2024; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; box-shadow: 0 6px 24px rgba(0,0,0,.5); font-size: 12px; min-width: 250px; }
+  .vpop { position: absolute; right: 8px; top: 34px; z-index: 9; background: var(--panel-h); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; box-shadow: 0 6px 24px rgba(0,0,0,.5); font-size: 12px; min-width: 250px; }
   .vpop[hidden] { display: none; }
   .vpop h4 { margin: 6px 0 4px; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--acc); }
   .vpop label { display: flex; gap: 6px; align-items: center; padding: 2px 0; cursor: pointer; }
@@ -73,7 +74,7 @@
   .ptools[hidden] { display: none; }
   .ptabs { display: flex; gap: 2px; }
   .ptabs button { flex: 1; padding: 3px 4px; font-size: 12px; position: relative; }
-  .ptabs button.on { background: var(--acc); color: #1a1100; border-color: var(--acc); }
+  .ptabs button.on { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); }
   .ptabs button.dot::after { content: '•'; position: absolute; right: 4px; top: -1px; color: var(--blue); font-size: 14px; }
   #pall.on { border-color: var(--acc); color: var(--acc); }
   button.pgroup { display: flex; width: 100%; gap: 4px; align-items: center; background: none; border: none; border-top: 1px solid var(--line); border-radius: 0; text-align: left; cursor: pointer; }
@@ -114,7 +115,7 @@
   .segb { display: inline-flex; }
   .segb button { border-radius: 0; padding: 0 7px; height: 22px; min-width: 24px; font-size: 13px; line-height: 20px; }
   .segb button:first-child { border-radius: 4px 0 0 4px; } .segb button:last-child { border-radius: 0 4px 4px 0; }
-  .segb button.on { background: var(--acc); color: #1a1100; border-color: var(--acc); }
+  .segb button.on { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); }
   .chk { font-size: 12px; display: inline-flex; align-items: center; gap: 3px; }
   .pmore { padding: 6px 8px; } .pmore button { width: 100%; font-size: 12px; }
   .pnote { padding: 2px 10px; font-size: 12px; line-height: 1.5; }
@@ -126,7 +127,7 @@
   .pr .pin input:not([type=checkbox]):not([type=color]), .pr .pin select, .pr .pin textarea { width: 100%; }
   .kbtn { color: #555b66; font-size: 11px; }
   .kbtn.has { color: var(--acc); }
-  .kbtn.on { background: var(--acc); color: #1a1100; border-color: var(--acc); }
+  .kbtn.on { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); }
   .fbtn { color: #555b66; font-size: 11px; }
   .fbtn.on { background: var(--blue); border-color: var(--blue); color: #fff; }
   .sp { display: grid; grid-template-columns: 110px 1fr; gap: 6px; align-items: center; padding: 3px 10px; }
@@ -141,7 +142,7 @@
   .mohint { padding: 2px 10px 4px; font-size: 11px; color: var(--warn, #e8b04b); }
   .help { padding: 10px; color: var(--dim); font-size: 12px; line-height: 1.5; border-top: 1px solid var(--line); margin-top: 8px; }
   .ftable { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .ftable td { padding: 3px 6px; border-bottom: 1px solid #23262c; }
+  .ftable td { padding: 3px 6px; border-bottom: 1px solid var(--line-soft); }
   .ftable input { width: 100%; }
   .rules { display: grid; grid-template-columns: 150px 1fr; gap: 4px 8px; padding: 6px 4px 8px; background: #17191d; border-radius: 4px; align-items: center; }
   .rules .rchks { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 14px; }
@@ -152,12 +153,12 @@
   .tl-in { position: relative; min-height: 100%; }
   .tl-row { display: flex; height: 22px; border-bottom: 1px solid #22252a; }
   .tl-row.sel { background: #1c2533; }
-  .tl-row.ruler { position: sticky; top: 0; z-index: 3; background: #1d2024; height: 24px; border-bottom: 1px solid var(--line); }
+  .tl-row.ruler { position: sticky; top: 0; z-index: 3; background: var(--panel-h); height: 24px; border-bottom: 1px solid var(--line); }
   .tl-lbl { position: sticky; left: 0; z-index: 2; width: 190px; min-width: 190px; padding: 0 8px; display: flex; align-items: center; gap: 4px; background: var(--panel); border-right: 1px solid var(--line); font-size: 12px; overflow: hidden; white-space: nowrap; cursor: pointer; }
   .tl-row.sel .tl-lbl { background: #1c2533; }
-  .tl-row.ruler .tl-lbl { background: #1d2024; cursor: default; z-index: 4; }
+  .tl-row.ruler .tl-lbl { background: var(--panel-h); cursor: default; z-index: 4; }
   .tl-area { position: relative; flex: none; cursor: text; }
-  .tick { position: absolute; top: 14px; bottom: 0; border-left: 1px solid #3a3f48; font-size: 10px; color: var(--dim); }
+  .tick { position: absolute; top: 14px; bottom: 0; border-left: 1px solid var(--line-strong); font-size: 10px; color: var(--dim); }
   .tick.maj { top: 4px; border-color: #59606d; padding-left: 3px; }
   .mkm { position: absolute; top: 12px; transform: translateX(-4px); color: #5fd4a0; font-size: 9px; cursor: pointer; line-height: 1; white-space: nowrap; z-index: 2; }
   .mkm span { font-size: 10px; margin-left: 2px; color: #9bdcc0; }
@@ -183,7 +184,7 @@
   .mb.sel { outline: 1px solid #fff; }
   #seqMode.on { background: var(--acc); color: #000; }
   /* narzędzia trybu sekwencji – pasek kontekstowy pod paskiem osi czasu */
-  #seqTools { display: none; gap: 4px; align-items: center; padding: 3px 8px; background: #1d2024; border-bottom: 1px solid var(--line); flex: none; }
+  #seqTools { display: none; gap: 4px; align-items: center; padding: 3px 8px; background: var(--panel-h); border-bottom: 1px solid var(--line); flex: none; }
   #timeP header > input, #timeP header > button { flex: none; }
   #timeP > header { flex-wrap: wrap; row-gap: 3px; gap: 4px; }
   #timeP > header label { font-size: 12px; }
@@ -191,7 +192,7 @@
   body.seq #keyed, body.seq #keyCopy, body.seq #keyPaste { display: none; }
   /* pasek zaznaczonego klucza – stały (bez przeskakiwania osi czasu); w trybie sekwencji w tym miejscu są narzędzia sekwencji */
   #keyed, #seqTools { min-height: 30px; }
-  #keyed { display: flex; gap: 6px; align-items: center; padding: 3px 8px; background: #1d2024; border-bottom: 1px solid var(--line); flex: none; }
+  #keyed { display: flex; gap: 6px; align-items: center; padding: 3px 8px; background: var(--panel-h); border-bottom: 1px solid var(--line); flex: none; }
   #keyed input { width: 72px; }
   #keyed select { width: 90px; }
   #tc { width: 76px; font-family: var(--mono); text-align: right; }
@@ -202,11 +203,14 @@
   .prtk .prtk-h { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 3px; }
   .prtk .tkx-row { grid-template-columns: 18px 18px minmax(52px, 80px) 1fr auto auto auto auto; gap: 3px; }
   .prtk .tkx-txt { font-size: 13px; padding: 2px 4px; }
+  /* nagłówek drzewa: tytuł nie znika za listą „Dodaj…” */
+  #treeP > header h3 { flex: 0 1 auto; }
+  #addSel { flex: 1 1 0; min-width: 0; max-width: 150px; margin-left: auto; }
 </style>
 </head>
 <body>
 <div class="topbar tb">
-  <span class="brand">Viz<b>RS</b> Artist</span>
+  <span class="brand">Viz<b>RS</b><span>Artist</span></span>
   <span class="sep navsep"></span>
   <label>Scena</label>
   <select id="sceneSel" style="min-width:180px"></select>

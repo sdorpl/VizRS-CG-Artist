@@ -304,11 +304,11 @@ Okno ma wyglądać i zachowywać się jak program systemu, nie jak strona w prze
 | Start okna | okno niewidoczne do wczytania strony (najwyżej 3 s) – bez pustej białej strony | to samo + tło okna jak strony | to samo + tło okna jak strony |
 | Pytania strony | `confirm`/`alert` → systemowe okno dialogowe z własnymi przyciskami (Zapisz / Nie zapisuj / Anuluj, Usuń…) zamiast okna silnika z adresem `127.0.0.1` w tytule; na macOS WKWebView w wry w ogóle nie pokazuje `confirm` (zwracał „Anuluj”) | | |
 | Pole tekstowe | `prompt` → okno strony w układzie przycisków systemu: Linux, macOS – Anuluj, OK; Windows – OK, Anuluj; na macOS wysuwa się spod paska tytułu jak arkusz | | |
-| Czcionka interfejsu | czcionka systemu (`system-ui`) | Segoe UI Variable / Segoe UI 12 px | San Francisco (`-apple-system`) |
+| Wygląd i czcionka interfejsu | jak panel VizRS Live (rdzeń `vizrs-ui.css` z CG System + `ui.css`): ciemne powierzchnie, bursztynowy akcent, pigułki stanu z kropką, okna jak w Live; czcionka Inter jak w przeglądarce | | |
 | Kontrolki | `color-scheme: dark` – pokrętła liczb, pola wyboru, listy i paski przewijania w ciemnym wariancie | | |
 | Paski przewijania | wąskie, ciemne | systemowe nakładane Fluent (Windows 11, WebView2 ≥ 125) | widoczne dopiero nad przewijanym obszarem |
 | Funkcje przeglądarki | wyłączone: menu kontekstowe silnika (poza polami tekstowymi), skróty przeglądarki (F3, F5, F7, F12, Ctrl+F/G/H/J/P/R, Ctrl+±/0, Alt+←/→), boczne przyciski myszy (Wstecz/Dalej), przeciąganie obrazów i odnośników z okna, gesty powiększania, „opuścić stronę?” przy wczytaniu ponownie; narzędzia deweloperskie tylko z `VIZRS_DEVTOOLS=1` | + autouzupełnianie formularzy WebView2 | + podgląd odnośników (Force Touch) |
 | Okno „Połącz z serwerem” | okno dialogowe: stały rozmiar, wyśrodkowane, nad oknem Artist (okno podrzędne), bez paska menu programu (Windows, Linux), kolejność przycisków systemu | | |
 
-Kanwa (`#stage`) zachowuje czcionkę i wygląd z `ui.css` – rysuje dokładnie jak antena.
+Kanwa (`#stage`) rysuje dokładnie jak antena (`renderer.js`); wygląd interfejsu wokół niej daje rdzeń `vizrs-ui.css`.
 
