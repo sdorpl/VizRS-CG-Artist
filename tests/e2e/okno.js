@@ -189,6 +189,23 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
   r.dialog = document.querySelector('#deployDlg [data-row="dep1"] .dpSt')?.textContent;`);
         ok(d2.status === 'changed' && d2.plain?.conflict === true && d2.over?.ok && d2.after === 'same', 'wysyłka: zmiana na serwerze = konflikt; „nadpisz” zastępuje', d2);
         ok(/bez zmian na serwerze/.test(d2.dialog || ''), 'okno „Wyślij na serwer” (menu) pokazuje stan sceny', d2.dialog);
+        // reguły plików paczki: zajęta nazwa z inną treścią → nazwa_2 i przepisany odnośnik; ponowna wysyłka – bez kolejnej kopii
+        await new Promise((res) => {
+          const req = http.request(`${SRV}/api/assets?name=tlo.png`, { method: 'POST', headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Length': 5 } }, (r) => { r.resume(); r.on('end', res); });
+          req.end('STARE');
+        });
+        const d3 = dep('deploy3', `
+  await fetch('/api/assets?name=tlo.png', { method: 'POST', body: 'NOWE' });
+  await j('PUT', '/api/scenes/dep2', { name: 'Tło', layer: 'main', nodes: [{ id: 'i', type: 'image', props: { src: 'tlo.png' } }] });
+  r.first = (await j('POST', '/api/deploy', { server: '${SRV}', scenes: [{ id: 'dep2', assets: ['tlo.png'] }] })).results?.[0];
+  await j('PUT', '/api/scenes/dep2', { ...(await j('GET', '/api/show')).scenes.find((x) => x.id === 'dep2'), name: 'Tło 2' });
+  r.again = (await j('POST', '/api/deploy', { server: '${SRV}', scenes: [{ id: 'dep2', assets: ['tlo.png'] }] })).results?.[0];
+  r.local = (await j('GET', '/api/show')).scenes.find((x) => x.id === 'dep2')?.nodes[0].props.src;`);
+        const remote2 = await new Promise((res) => http.get(`${SRV}/api/show`, { headers: { Authorization: `Bearer ${TOKEN}` } }, (r) => { let b = ''; r.on('data', (c) => (b += c)); r.on('end', () => res(JSON.parse(b))); }));
+        const old = await new Promise((res) => http.get(`${SRV}/assets/tlo.png`, { headers: { Authorization: `Bearer ${TOKEN}` } }, (r) => { let b = ''; r.on('data', (c) => (b += c)); r.on('end', () => res(b)); }));
+        ok(d3.first?.ok && d3.first.renamed?.[0]?.[1] === 'tlo_2.png' && remote2.scenes.find((x) => x.id === 'dep2')?.nodes[0].props.src === 'tlo_2.png' && old === 'STARE' && d3.local === 'tlo.png',
+          'wysyłka: zajęta nazwa → tlo_2.png na serwerze, odnośnik przepisany, stary plik i scena lokalna bez zmian', { d3, old, src: remote2.scenes.find((x) => x.id === 'dep2')?.nodes[0].props.src });
+        ok(d3.again?.ok && !d3.again.uploaded.length && d3.again.skipped?.[0] === 'tlo_2.png', 'ponowna wysyłka używa tlo_2.png (bez tlo_3.png)', d3.again);
       } finally {
         remote.kill();
       }

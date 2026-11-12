@@ -13,7 +13,7 @@ SRC="$CG/source/web"
 FD="$CG/source/src/fonts_data.rs"
 [ -f "$SRC/renderer.js" ] && [ -f "$FD" ] || { echo "Brak źródła CG System: $CG" >&2; exit 2; }
 DST="$TOP/web"
-SHARED="renderer.js motion.js qr.js richtext.js ticker-model.js ticker-items.js color-picker.js btb-io.js cgpack.js ui.css"
+SHARED="renderer.js motion.js qr.js richtext.js ticker-model.js ticker-items.js color-picker.js cgpack.js ui.css"
 
 # fonts.css – to samo, co serwer `vizrs` podaje pod /fonts/fonts.css (src/fonts.rs + fonts_data.rs)
 fonts_css() {

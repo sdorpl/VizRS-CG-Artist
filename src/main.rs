@@ -51,7 +51,7 @@ const NOT_CONNECTED: &str = "nie połączono – wybierz serwer (Plik → Połą
 const PAGE_CMDS: &[(&str, &str, &str)] = &[
     ("new", "Nowa scena", ""),
     ("save", "Zapisz", "Ctrl+S"),
-    ("export", "Eksportuj scenę…", ""),
+    ("export", "Eksportuj scenę (.cgpack)…", ""),
     ("pack", "Paczka .cgpack…", ""),
     ("deploy", "Wyślij na serwer…", ""),
     ("undo", "Cofnij", "Ctrl+Z"),
@@ -340,7 +340,7 @@ struct Args {
 fn help() -> &'static str {
     "vizrs-cg-artist – VizRS CG Artist, edytor grafik i animacji VizRS (Tauri 2)
 
-Użycie: vizrs-cg-artist [connect] [opcje] [PLIK]   (connect – najpierw wybór serwera; PLIK .cgpack albo .vizrs.json – import)
+Użycie: vizrs-cg-artist [connect] [opcje] [PLIK]   (connect – najpierw wybór serwera; PLIK .cgpack albo dawny .vizrs.json – import)
 
   --data KAT      katalog danych Artist (VIZRS_ARTIST_DATA; domyślnie katalog danych użytkownika/vizrs-cg-artist)
   --token T       token serwera (VIZRS_TOKEN)

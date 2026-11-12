@@ -14,6 +14,23 @@ kopię roboczą, jedną instancję, skojarzenia plików, przeciąganie plików i
 
 Most strona–okno opiera się na komendzie Tauri `ipc` wywoływanej przez `window.__vizrsPost` i zachowuje strukturę komunikatów znaną z `vizrs-shell`.
 
+### Pakiet VizRS – zgodność aplikacji
+
+VizRS CG Artist to jedna z czterech aplikacji pakietu VizRS, które mają być **zawsze ze sobą zgodne**: bieżące wersje wszystkich aplikacji działają razem.
+
+| Repozytorium (katalogi obok, `../`) | Rola | Styk z tą aplikacją |
+|---|---|---|
+| [VizRS CG System](../../VizRS%20CG%20System) | silnik grafiki (Rust): Trio (playout stron), wyjście `/output` (też anteny kanałów `bus=ch-N`), API TCP 6100 / HTTP / SSE, serwer `vizrs`; zamrożony zapasowy Artist w przeglądarce | wysyłanie scen na serwer `vizrs` (pośrednik `/api`, `/assets`, `/events`, eksport i deploy scen oraz zasobów, format `show.json`; dostawca styku: CG System) |
+| [VizRS CG Playout](../../VirtRS%20CG%20Playout) (katalog `VirtRS CG Playout`) | grafika VizRS i sloty na żywo (live ingest RTMP/SRT) na kanałach ErsatzTV; sidecar `cg`, bez zmian w ErsatzTV | brak bezpośredniego styku – sceny z Artist trafiają na antenę przez VizRS CG System |
+| [VizRS Live](../../VizRS%20Live) | panel kanału nad ErsatzTV legacy (sterowanie kanałami, ramówką, playoutami bez web GUI legacy) | brak bezpośredniego styku – sceny idą przez CG System |
+| **VizRS CG Artist** (to repo) | samodzielny edytor grafik i animacji (Tauri 2), projektuje sceny; sceny wysyła na serwer `vizrs` (VizRS CG System); działa też bez serwera | – |
+
+Zasady zgodności:
+
+- **Styk zmienia się w obu repozytoriach naraz.** Zmiana API, formatu scen (`show.json`), protokołu lub modułów rysowania po jednej stronie wymaga dostosowania drugiej strony i jej dokumentacji, zanim wejdzie do wydania. Dostawcą styku API, formatu scen i modułów rysowania jest VizRS CG System (jego `docs/API.md` i `docs/DOKUMENTACJA.md`); w Artist – jak okno i strona z nich korzystają (§2 pośrednik, §5 pliki, §12 magazyn lokalny).
+- **Starsza wersja sąsiada nie psuje aplikacji.** W razie braku nowszych pól lub wersji API serwera `vizrs` Artist zachowuje stabilność i czytelnie informuje o błędach komunikacji lub konfliktach zamiast przerywać pracę okna.
+- **Wydania razem.** Przed wydaniem VizRS CG Artist sprawdź z bieżącymi wersjami pozostałych aplikacji pakietu; zmianę wymagającą nowszego serwera `vizrs` lub modułów CG System odnotuj w `CHANGELOG.md` z minimalną wersją.
+
 ## 2. Architektura
 
 ```
@@ -43,7 +60,7 @@ vizrs-cg-artist [connect] [opcje] [PLIK]
 | Opcja | Zmienna | Znaczenie |
 |---|---|---|
 | `connect` | – | najpierw okno wyboru serwera; magazyn lokalny powstaje dopiero po wyborze „Praca lokalna (bez serwera)” |
-| `PLIK` | – | `.cgpack` albo `.vizrs.json` (też obraz, czcionka) – import w oknie Artist |
+| `PLIK` | – | `.cgpack` albo dawny `.vizrs.json` – tylko odczyt (też obraz, czcionka) – import w oknie Artist |
 | `--data KAT` | `VIZRS_ARTIST_DATA` | katalog danych Artist; domyślnie katalog danych użytkownika/vizrs-cg-artist |
 | `--token T` | `VIZRS_TOKEN` | token serwera (`--connect` albo dołączenie do serwera `vizrs` na katalogu danych) |
 | `--connect URL` | `VIZRS_CONNECT` | serwer zdalny (np. https://cg.example.pl) |
@@ -59,7 +76,7 @@ Błędne argumenty: komunikat na stderr, kod wyjścia 1.
 
 | Menu | Pozycje |
 |---|---|
-| Plik | Nowe okno (CmdOrCtrl+Shift+N) · Nowa scena · Importuj… (CmdOrCtrl+O) · Zapisz (Ctrl+S) · Eksportuj scenę… · Paczka .cgpack… · Wyślij na serwer… · Połącz z serwerem… (CmdOrCtrl+Shift+K) · Zamknij okno (CmdOrCtrl+W) · Zakończ (Linux: Ctrl+Q; Windows: bez skrótu – Alt+F4 zamyka okno) |
+| Plik | Nowe okno (CmdOrCtrl+Shift+N) · Nowa scena · Importuj… (CmdOrCtrl+O) · Zapisz (Ctrl+S) · Eksportuj scenę (.cgpack)… · Paczka .cgpack… · Wyślij na serwer… · Połącz z serwerem… (CmdOrCtrl+Shift+K) · Zamknij okno (CmdOrCtrl+W) · Zakończ (Linux: Ctrl+Q; Windows: bez skrótu – Alt+F4 zamyka okno) |
 | Edycja | Cofnij (Ctrl+Z) · Ponów (Ctrl+Y) · Duplikuj (Ctrl+D) · Usuń (Delete) |
 | Widok | Dopasuj kanwę (Shift+1) · Kanwa 100% (Shift+2) · Kanwa do zaznaczenia (Shift+3) · Powiększ interfejs (CmdOrCtrl+=) · Pomniejsz interfejs (CmdOrCtrl+−) · Interfejs 100% (CmdOrCtrl+0) · Wczytaj ponownie (F5; przy niezapisanych zmianach najpierw pytanie) · Pełny ekran (F11) · Narzędzia deweloperskie (tylko z `VIZRS_DEVTOOLS=1`) |
 | Scena | Odtwórz / zatrzymaj (Spacja) · Dodaj marker (M) |
@@ -71,6 +88,24 @@ Menu trzyma się konwencji systemu:
 - **Linux:** mnemoniki jak na Windows, skróty strony w nawiasie, ciemny wariant motywu GTK.
 - **O programie:** systemowe okno „O programie” (macOS – panel z ikoną, Linux – GtkAboutDialog, Windows – okno komunikatu): wersja, wersja modułów CG System, katalog danych, odnośnik do wydań.
 
+### Drzewo sceny i kanwa (skróty strony)
+
+| Działanie | Drzewo | Kanwa |
+|---|---|---|
+| Zaznacz kilka | Ctrl+klik (dodaj / zdejmij), Shift+klik (zakres) | Ctrl / Shift+klik |
+| Grupuj / rozgrupuj | Ctrl+G / Ctrl+Shift+G, przyciski ⊞ / ⊟ | jak w drzewie |
+| Przesuń | przeciągnij wiersz (kolejność, rodzic), ⇥ / ⇤ (włóż / wyjmij) | przeciągnij; strzałki = 1 px (Shift = 10 px) |
+| Grupa nadrzędna | – | dwuklik (kolejny dwuklik – poziom wyżej); klik w element zaznaczonej grupy przesuwa grupę, klik bez ruchu zaznacza sam element |
+| Odznacz | – | Esc albo klik w puste miejsce |
+
+- **Położenie przy zmianie rodzica** (przeciągnięcie w drzewie, ⇥ / ⇤, grupowanie, rozgrupowanie, ⤢ dopasowanie grupy) zostaje na ekranie bez zmian: liczone z punktem zaczepienia grupy (`anchorX` / `anchorY`) i wartościami w bieżącym czasie; klucze animacji `x` / `y` przesuwają się razem z wartością. Obrót i skala grupy nie są przenoszone na element (komunikat).
+- **⤢ Dopasuj grupę**: wymiar = obrys zawartości (także elementy obrócone, przeskalowane i na ujemnych współrzędnych); początek grupy przechodzi na lewy górny róg zawartości, dzieci przesuwają się odwrotnie.
+- **Rozgrupowanie** grupy z własną animacją, przekształceniem, kryciem, maską albo polem kontrolnym pyta o zgodę – te cechy giną.
+- **Przeciąganie na kanwie** uwzględnia obrót i skalę grup nadrzędnych (element idzie za kursorem). **Przyciąganie** (🧲, domyślnie włączone; Ctrl w trakcie = bez): krawędzie i środek kadru, widoczne prowadnice, siatka, krawędzie i środki innych elementów; linia przyciągania jest różowa.
+- **Prowadnice** (⌗ w rogu kanwy; ▢ Safe pokazuje / ukrywa): EBU R 95 akcja 93% i grafika 90%, kadr 4:3 (center cut) i grafika 4:3 (67,5% × 90%), kadr 14:9, dawny tytuł SD 80%, środek, trójpodział, siatka 10–200 px.
+- **Tło kanwy** (▦): szachownica ciemna / jasna, czarne, szare, białe, chroma zieleń / niebieski, własny kolor albo obraz referencyjny z zasobów (np. kadr programu). Tylko podgląd – nie trafia do sceny ani na wyjście.
+- Ustawienia prowadnic, przyciągania i tła pamięta strona w `localStorage` (`vizrs.canvas`) – dla tej instalacji okna, nie w `show.json`.
+
 Pozycje strony wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, Shift+1/2/3, Spacja, M) obsługuje strona, nie powłoka okna – dzięki temu działają prawidłowo także w polach tekstowych; menu je tylko pokazuje. Na macOS strona przyjmuje też ⌘ zamiast Ctrl. Cofnij / Ponów w menu synchronizują się ze stanem aktywności zgłaszanym przez stronę (`sync_menu`).
 
 ## 5. Pliki
@@ -79,6 +114,16 @@ Pozycje strony wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+
 - **Import:** Importuj…, przeciągnięcie na okno, `PLIK` w wierszu poleceń albo otwarcie skojarzonego pliku.
   Plik (do 512 MB) trafia do strony porcjami po 3 MB (`window.__vizrsFile.begin/chunk/end`); o imporcie decyduje strona.
   Rozszerzenia: `cgpack`, `json`, `png`, `jpg`, `jpeg`, `webp`, `gif`, `svg`, `mp4`, `webm`, `ttf`, `otf`, `woff`, `woff2`.
+- **Przenoszenie grafiki – tylko `.cgpack`:** Eksportuj scenę zapisuje bieżącą scenę jako paczkę (z grafikami, czcionkami
+  i stronami), Paczka .cgpack… – wybrane sceny. Importuj… przyjmuje paczkę `.cgpack` i dawny eksport
+  sceny `.vizrs.json` (tylko odczyt, ten sam import co paczka, raport o brakujących plikach). Zasady: DOKUMENTACJA CG System §8.7.
+- **Własne czcionki i grafiki** (⤒ przy polu, „＋ Wgraj i dołącz”, przeciągnięcie, skojarzenie, import paczki) trafiają do zasobów
+  wg reguł plików paczki z CG System (`cgpack.assetPlacer`, DOKUMENTACJA CG System §8.7): nazwa jak na serwerze, czcionka już wgrana
+  (ta sama treść, pod dowolną nazwą) nie powstaje drugi raz – element dostaje istniejącą, nic nie jest nadpisywane (zajęta nazwa,
+  także różna tylko wielkością liter → `nazwa_2.ext`). Komunikat mówi, który plik został użyty.
+- **Pole font wpisane ręcznie:** nazwa bez rozszerzenia, w innej wielkości liter albo sprzed poprawienia przez serwer
+  (`moja czcionka` → `Moja_Czcionka.ttf`) wskazuje czcionkę z zasobów, a wbudowana rodzina dostaje kanoniczną pisownię
+  (`barlow condensed` → `Barlow Condensed`); inna nazwa zostaje (Google Fonts). Nazwa pliku czcionki, której nie ma w zasobach – ostrzeżenie.
 
 ## 6. Zamykanie i kopia robocza
 
@@ -240,8 +285,11 @@ Praca lokalna → serwer `vizrs` (studio, VPS), z którego Trio wydaje grafikę:
 - **Wysyłka** (`/api/deploy`): scena zapisana na dysku (niezapisane zmiany strona najpierw zapisuje), `PUT /api/scenes/<id>`
   z rewizją zapamiętaną po poprzedniej wysyłce (`deploy.json` w katalogu danych, osobno dla każdego serwera). Gdy scenę zmieniono na
   serwerze w międzyczasie, serwer odpowiada 409 – scena czeka na zaznaczenie **nadpisz** (wysyłka bez rewizji). Zasoby sceny
-  (`cgpack.sceneAssets`) idą przed sceną, tylko te, których na serwerze nie ma; pliku o tej samej nazwie okno nie nadpisuje.
-- Raport: wysłane sceny i zasoby, pominięte (już na serwerze), konflikty i błędy serwera (walidacja `validate.rs`).
+  (`cgpack.sceneAssets`) idą przed sceną wg reguł plików paczki (`deploy::Placer`, ta sama kolejność co `cgpack.assetPlacer`):
+  czcionka już obecna na serwerze (ta sama treść) nie jest wysyłana drugi raz, plik o tej samej nazwie i treści jest pomijany,
+  nic nie jest nadpisywane – zajęta nazwa z inną treścią → `nazwa_2.ext` (a przy ponownej wysyłce ta sama kopia, nie kolejna).
+  Odnośniki w scenie na serwerze wskazują plik na serwerze; scena lokalna zostaje bez zmian.
+- Raport: wysłane sceny i zasoby, pominięte (już na serwerze), pliki zapisane na serwerze pod inną nazwą, konflikty i błędy serwera (walidacja `validate.rs`).
 - Klient: HTTP/1.1 przez `ureq` z TLS rustls (`src/client.rs`), `http://` i `https://`, token w `Authorization: Bearer`, odpowiedź do 64 MB, 20 s na żądanie, bez przekierowań (czysty Rust, jednakowy na Linux, Windows i macOS).
 
 ## 14. Wygląd natywny

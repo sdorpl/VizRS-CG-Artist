@@ -16,7 +16,7 @@ Plan źródłowy: `../VizRS CG System/docs/plany/PLAN-artist-osobny.md` (A2–A6
 | S3 | Lokalny magazyn w procesie okna (show, zasoby, fonty, presety) – Artist działa bez `vizrs` | zrobione (`local`, `store`, `http`, `web`; test w działaniu 16/16) |
 | S4 | Serwer zdalny jako cel wysyłki scen (deploy, `rev`/409), nie miejsce edycji | zrobione (`client`, `deploy`, okno „Wyślij na serwer”; test w działaniu 22/22) |
 | S5 | Walidacja show przez `vizrs-model` (najpierw A1 w CG System) | czeka na A1 |
-| S6 | Import BTB i `.cgpack` w Ruście | do zrobienia |
+| S6 | Import `.cgpack` w Ruście | do zrobienia |
 | S7 | Repo na GitHubie, CI z testem w działaniu, wydania (`release.yml`) | zrobione (czeka na pierwszy przebieg CI) |
 | S8 | AppImage; w CG System usunięcie Artist z `vizrs-shell` i pakietu `vizrs` (A7) | zrobione: AppImage (bundler Tauri); A7 w CG System 2026-11-07 – `vizrs-shell` tylko Trio/wyjście, `/artist` zamrożony |
 | S9 | Windows i macOS – okno na Tauri 2 zamiast GTK ([plany/RAPORT-tauri.md](plany/RAPORT-tauri.md)) | zrobione – wydanie 0.3.0 (CI zielone na Linux, Windows, macOS; AppImage sprawdzony testem dymnym) |

@@ -2,6 +2,22 @@
 
 ## Niewydane
 
+## 26.11.1 – 2026-11-12
+
+Pierwsze wydanie w numeracji rok.miesiąc.rewizja (`26.11.1` = listopad 2026, wydanie 1). Gałąź `main` = dawna `main` (0.3.1) scalona z `next-v`; poprzednia `main` zachowana jako `main-oldstable`.
+
+- **Import:** Importuj… przyjmuje tylko paczki `.cgpack` VizRS i dawne `.vizrs.json`. Moduły strony zsynchronizowane z CG System (`tools/sync-cg.sh`), w tym lżejsze renderowanie stojących scen w `renderer.js`.
+
+- **Przenoszenie grafiki tylko paczką `.cgpack`:** Eksportuj scenę (menu i ⇩ Eksport) zapisuje bieżącą scenę jako `.cgpack` z grafikami, czcionkami i stronami; plików `.vizrs.json` Artist już nie zapisuje, a dawne tylko czyta (ten sam import co paczka – scena zapisana, raport o brakujących plikach). Import paczki wspólny z Trio (`cgpack.importPack` z CG System). DOKUMENTACJA §5.
+- **Wysyłka na serwer wg reguł plików paczki:** plik o zajętej na serwerze nazwie i innej treści idzie jako `nazwa_2.ext`, a odnośnik w wysłanej scenie jest przepisany (dawniej plik pomijano i scena na serwerze pokazywała cudzą grafikę lub czcionkę); czcionka już obecna na serwerze nie jest wysyłana drugi raz; ponowna wysyłka nie tworzy kolejnych kopii. Raport wymienia pliki pod inną nazwą. DOKUMENTACJA §13.
+
+- **Własne czcionki bez duplikatów i bez nadpisywania:** czcionka wgrana ręcznie (⤒ przy polu font, „＋ Wgraj i dołącz”, przeciągnięcie, skojarzenie), z paczki `.cgpack`, która już jest w zasobach pod inną nazwą, nie jest wgrywana drugi raz – element dostaje istniejącą. Plik o zajętej nazwie (także różnej tylko wielkością liter) i innej treści dostaje nazwę `nazwa_2.ext` zamiast nadpisać plik używany przez inne sceny; odnośniki wskazują nazwę zapisaną przez magazyn. Pole font wpisane ręcznie (`moja czcionka`, `MOJAFONT.TTF`) wskazuje czcionkę z zasobów zamiast Google Fonts; brakujący plik – ostrzeżenie. `cgpack.js` z CG System. DOKUMENTACJA §5.
+
+- **Drzewo sceny – grupowanie i przesuwanie:** zaznaczanie wielu elementów (Ctrl / Shift+klik w drzewie i na kanwie), **Grupuj** (Ctrl+G, ⊞) i **Rozgrupuj** (Ctrl+Shift+G, ⊟); przesuwanie, strzałki, duplikowanie i usuwanie działają na całym zaznaczeniu. Na kanwie klik w element zaznaczonej grupy przesuwa grupę, dwuklik zaznacza grupę nadrzędną, Esc odznacza.
+- **Poprawki położenia:** zmiana rodzica (przeciągnięcie w drzewie, ⇥ / ⇤) nie przesuwa już elementu, gdy grupa ma punkt zaczepienia inny niż lewy górny albo element jest animowany (klucze `x` / `y` przesuwane razem). ⤢ Dopasuj grupę obejmuje elementy obrócone, przeskalowane i na ujemnych współrzędnych. Przeciąganie elementu w obróconej lub przeskalowanej grupie idzie za kursorem.
+- **Prowadnice i przyciąganie:** obszary bezpieczne EBU R 95 (akcja 93%, grafika 90%, grafika 4:3), kadry 4:3 i 14:9, dawny tytuł SD 80%, środek, trójpodział, siatka (⌗ w rogu kanwy, ▢ Safe – pokaż / ukryj); przyciąganie do kadru, prowadnic, siatki i innych elementów (🧲, Ctrl w trakcie = bez).
+- **Tło kanwy** (▦): szachownica ciemna / jasna, czarne, szare, białe, chroma, własny kolor albo obraz referencyjny z zasobów – tylko podgląd.
+
 ## 0.3.1 – 2026-11-09
 
 - **Wygląd i zachowanie programu systemu zamiast strony WWW (Linux, Windows, macOS)** – DOKUMENTACJA §14:
