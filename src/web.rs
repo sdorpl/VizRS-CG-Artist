@@ -89,6 +89,7 @@ mod tests {
             "/motion.js",
             "/native.js",
             "/ui.css",
+            "/vizrs-ui.css",
             "/cgpack.js",
         ] {
             assert!(get(m).is_some(), "{m}");

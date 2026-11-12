@@ -2,6 +2,8 @@
 
 ## Niewydane
 
+- **Strona z CG System `1b03bdd`:** wspólny rdzeń wyglądu rodziny VizRS `vizrs-ui.css` (tokeny i kontrolki panelu VizRS Live; Artist przejdzie na niego w etapie W3 planu wyglądu), `ticker-items.js` i `ui.css` z jednej strony Trio (okna pytań na telefonie). `tools/sync-cg.sh` zapisuje w `web/CG_SYSTEM` pełny commit CG System (CI pobiera go do `--check`).
+
 ## 26.11.2 – 2026-11-12
 
 - **Zaokrąglenie osobno dla każdego rogu i każdego boku:** w panelu Właściwości (Wygląd) nowe wiersze „zaokr. rogów” (↖ ↗ ↘ ↙) i „zaokr. boków” (L P G D) obok dotychczasowego „zaokr.” dla wszystkich rogów – dla prostokąta, kodu QR i obrazu. Dwa boki przy rogu dają róg eliptyczny; puste pole = jak „zaokr.”, więc dawne sceny bez zmian. `renderer.js` z CG System `5eb8463` (właściwości `radiusTL`…, `radiusT`…). DOKUMENTACJA §4.

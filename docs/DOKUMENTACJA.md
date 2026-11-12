@@ -208,7 +208,7 @@ Paczki instalacyjne generowane przez bundler:
 - **Windows:** instalator NSIS (`.exe`) oraz pakiet `.msi` (WebView2).
 - **macOS:** obraz dysku `.dmg` (wymaga macOS 11.0+, WKWebView).
 
-Strona Artist leży w `web/`. `artist.html`, `native.js` i `native.css` rozwija to repo; reszta (moduły rysowania, `ui.css`, fonty i `fonts.css`)
+Strona Artist leży w `web/`. `artist.html`, `native.js` i `native.css` rozwija to repo; reszta (moduły rysowania, `ui.css`, `vizrs-ui.css` – wspólny rdzeń wyglądu rodziny VizRS, wzór: panel VizRS Live –, fonty i `fonts.css`)
 to kopie z VizRS CG System – `tools/sync-cg.sh [katalog-CG]` kopiuje, `tools/sync-cg.sh --check` sprawdza identyczność
 (CI pobiera CG System w wersji z `web/CG_SYSTEM`). Zmiana rysowania zawsze najpierw w CG System.
 
@@ -250,7 +250,7 @@ który podaje stronę z binarki (`web/`) i API na katalogu danych (`src/store.rs
 
 | Adres | Działanie |
 |---|---|
-| `/artist`, `/<moduł>.js`, `/ui.css`, `/fonts/fonts.css`, `/fonts/<plik>.woff2` | strona i fonty z binarki |
+| `/artist`, `/<moduł>.js`, `/ui.css`, `/vizrs-ui.css`, `/fonts/fonts.css`, `/fonts/<plik>.woff2` | strona i fonty z binarki |
 | `GET/PUT /api/show` | cały show; `PUT` z rozbieżnym `rev` → 409 (`?force=1` nadpisuje) |
 | `POST /api/scenes`, `PUT /api/scenes/<id>`, `DELETE /api/scenes/<id>` | sceny z rewizją `rev` jak w serwerze (konflikt → 409); usunięcie sceny usuwa też jej strony Trio z pliku |
 | `/api/pages`, `/api/playlists`, `/api/rundowns`, `/api/macros` | **400** – obiekty Trio; Artist ich nie tworzy, a istniejące w `show.json` zostawia |

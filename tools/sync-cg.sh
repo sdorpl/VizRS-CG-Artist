@@ -2,7 +2,7 @@
 # Moduły strony Artist wspólne z VizRS CG System (rysowanie = antena, WYSIWYG): kopia ze źródła w CG System.
 #   tools/sync-cg.sh [KATALOG-CG-SYSTEM]          – skopiuj moduły, fonty i fonts.css do web/
 #   tools/sync-cg.sh --check [KATALOG-CG-SYSTEM]  – sprawdź, że web/ jest identyczne ze źródłem (CI, bramka)
-# Domyślnie ../VizRS CG System. Wersja źródła: web/CG_SYSTEM (znacznik albo commit CG System). Zmiana rysowania zawsze najpierw w CG System, potem tu ten skrypt.
+# Domyślnie ../VizRS CG System. Wersja źródła: web/CG_SYSTEM (pełny commit CG System – CI pobiera go do --check). Zmiana rysowania zawsze najpierw w CG System, potem tu ten skrypt.
 # artist.html, native.js i native.css NIE są tu kopiowane – od wydzielenia (2026-11-07) należą do tego repo.
 set -e
 CHECK=
@@ -13,7 +13,7 @@ SRC="$CG/source/web"
 FD="$CG/source/src/fonts_data.rs"
 [ -f "$SRC/renderer.js" ] && [ -f "$FD" ] || { echo "Brak źródła CG System: $CG" >&2; exit 2; }
 DST="$TOP/web"
-SHARED="renderer.js motion.js qr.js richtext.js ticker-model.js ticker-items.js color-picker.js cgpack.js ui.css"
+SHARED="renderer.js motion.js qr.js richtext.js ticker-model.js ticker-items.js color-picker.js cgpack.js ui.css vizrs-ui.css"
 
 # fonts.css – to samo, co serwer `vizrs` podaje pod /fonts/fonts.css (src/fonts.rs + fonts_data.rs)
 fonts_css() {
@@ -55,5 +55,5 @@ rm -rf "$DST/fonts"
 for f in $(font_files); do mkdir -p "$DST/$(dirname "$f")"; cp "$SRC/$f" "$DST/$f"; done
 fonts_css > "$DST/fonts/fonts.css"
 # wersja źródła – CI pobiera ten stan CG System do --check
-git -C "$CG" describe --tags --always > "$DST/CG_SYSTEM"
+git -C "$CG" rev-parse HEAD > "$DST/CG_SYSTEM"
 echo "Skopiowano z CG System $(git -C "$CG" describe --tags --always 2>/dev/null || echo '?') – sprawdź: git diff --stat web/"
