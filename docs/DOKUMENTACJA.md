@@ -60,7 +60,7 @@ vizrs-cg-artist [connect] [opcje] [PLIK]
 | Opcja | Zmienna | Znaczenie |
 |---|---|---|
 | `connect` | – | najpierw okno wyboru serwera; magazyn lokalny powstaje dopiero po wyborze „Praca lokalna (bez serwera)” |
-| `PLIK` | – | `.cgpack` albo `.vizrs.json` (też obraz, czcionka) – import w oknie Artist |
+| `PLIK` | – | `.cgpack` albo dawny `.vizrs.json` – tylko odczyt (też obraz, czcionka) – import w oknie Artist |
 | `--data KAT` | `VIZRS_ARTIST_DATA` | katalog danych Artist; domyślnie katalog danych użytkownika/vizrs-cg-artist |
 | `--token T` | `VIZRS_TOKEN` | token serwera (`--connect` albo dołączenie do serwera `vizrs` na katalogu danych) |
 | `--connect URL` | `VIZRS_CONNECT` | serwer zdalny (np. https://cg.example.pl) |
@@ -75,7 +75,7 @@ Błędne argumenty: komunikat na stderr, kod wyjścia 1.
 
 | Menu | Pozycje |
 |---|---|
-| Plik | Nowa scena · Zapisz (Ctrl+S) · Importuj… · Eksportuj scenę… · Paczka .cgpack… · Wyślij na serwer… · Połącz z serwerem… (CmdOrCtrl+Shift+K) · Nowe okno Artist · Zamknij okno (CmdOrCtrl+W) · Zakończ (CmdOrCtrl+Q) |
+| Plik | Nowa scena · Zapisz (Ctrl+S) · Importuj… · Eksportuj scenę (.cgpack)… · Paczka .cgpack… · Wyślij na serwer… · Połącz z serwerem… (CmdOrCtrl+Shift+K) · Nowe okno Artist · Zamknij okno (CmdOrCtrl+W) · Zakończ (CmdOrCtrl+Q) |
 | Edycja | Cofnij (Ctrl+Z) · Ponów (Ctrl+Y) · Duplikuj (Ctrl+D) · Usuń (Delete) |
 | Widok | Dopasuj kanwę (Shift+1) · Kanwa 100% (Shift+2) · Kanwa do zaznaczenia (Shift+3) · Odśwież (F5) · Pełny ekran (F11) · Powiększ (CmdOrCtrl+=) · Pomniejsz (CmdOrCtrl+−) · Rozmiar 100% (CmdOrCtrl+0) · Narzędzia deweloperskie (CmdOrCtrl+Shift+I) |
 | Scena | Odtwórz / zatrzymaj (Spacja) · Dodaj marker (M) |
@@ -109,6 +109,16 @@ Pozycje strony wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+
 - **Import:** Importuj…, przeciągnięcie na okno, `PLIK` w wierszu poleceń albo otwarcie skojarzonego pliku.
   Plik (do 512 MB) trafia do strony porcjami po 3 MB (`window.__vizrsFile.begin/chunk/end`); o imporcie decyduje strona.
   Rozszerzenia: `cgpack`, `json`, `png`, `jpg`, `jpeg`, `webp`, `gif`, `svg`, `mp4`, `webm`, `ttf`, `otf`, `woff`, `woff2`.
+- **Przenoszenie grafiki – tylko `.cgpack`:** Eksportuj scenę zapisuje bieżącą scenę jako paczkę (z grafikami, czcionkami
+  i stronami), Paczka .cgpack… – wybrane sceny. Importuj… przyjmuje paczkę `.cgpack` i dawny eksport
+  sceny `.vizrs.json` (tylko odczyt, ten sam import co paczka, raport o brakujących plikach). Zasady: DOKUMENTACJA CG System §8.7.
+- **Własne czcionki i grafiki** (⤒ przy polu, „＋ Wgraj i dołącz”, przeciągnięcie, skojarzenie, import paczki) trafiają do zasobów
+  wg reguł plików paczki z CG System (`cgpack.assetPlacer`, DOKUMENTACJA CG System §8.7): nazwa jak na serwerze, czcionka już wgrana
+  (ta sama treść, pod dowolną nazwą) nie powstaje drugi raz – element dostaje istniejącą, nic nie jest nadpisywane (zajęta nazwa,
+  także różna tylko wielkością liter → `nazwa_2.ext`). Komunikat mówi, który plik został użyty.
+- **Pole font wpisane ręcznie:** nazwa bez rozszerzenia, w innej wielkości liter albo sprzed poprawienia przez serwer
+  (`moja czcionka` → `Moja_Czcionka.ttf`) wskazuje czcionkę z zasobów, a wbudowana rodzina dostaje kanoniczną pisownię
+  (`barlow condensed` → `Barlow Condensed`); inna nazwa zostaje (Google Fonts). Nazwa pliku czcionki, której nie ma w zasobach – ostrzeżenie.
 
 ## 6. Zamykanie i kopia robocza
 
@@ -267,7 +277,10 @@ Praca lokalna → serwer `vizrs` (studio, VPS), z którego Trio wydaje grafikę:
 - **Wysyłka** (`/api/deploy`): scena zapisana na dysku (niezapisane zmiany strona najpierw zapisuje), `PUT /api/scenes/<id>`
   z rewizją zapamiętaną po poprzedniej wysyłce (`deploy.json` w katalogu danych, osobno dla każdego serwera). Gdy scenę zmieniono na
   serwerze w międzyczasie, serwer odpowiada 409 – scena czeka na zaznaczenie **nadpisz** (wysyłka bez rewizji). Zasoby sceny
-  (`cgpack.sceneAssets`) idą przed sceną, tylko te, których na serwerze nie ma; pliku o tej samej nazwie okno nie nadpisuje.
-- Raport: wysłane sceny i zasoby, pominięte (już na serwerze), konflikty i błędy serwera (walidacja `validate.rs`).
+  (`cgpack.sceneAssets`) idą przed sceną wg reguł plików paczki (`deploy::Placer`, ta sama kolejność co `cgpack.assetPlacer`):
+  czcionka już obecna na serwerze (ta sama treść) nie jest wysyłana drugi raz, plik o tej samej nazwie i treści jest pomijany,
+  nic nie jest nadpisywane – zajęta nazwa z inną treścią → `nazwa_2.ext` (a przy ponownej wysyłce ta sama kopia, nie kolejna).
+  Odnośniki w scenie na serwerze wskazują plik na serwerze; scena lokalna zostaje bez zmian.
+- Raport: wysłane sceny i zasoby, pominięte (już na serwerze), pliki zapisane na serwerze pod inną nazwą, konflikty i błędy serwera (walidacja `validate.rs`).
 - Klient: HTTP/1.1 przez `ureq` z TLS rustls (`src/client.rs`), `http://` i `https://`, token w `Authorization: Bearer`, odpowiedź do 64 MB, 20 s na żądanie, bez przekierowań (czysty Rust, jednakowy na Linux, Windows i macOS).
 

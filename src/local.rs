@@ -362,6 +362,7 @@ fn deploy(store_m: &Mutex<Store>, b: &Value) -> Response {
         Ok(a) => a,
         Err(e) => return Response::err(502, &e),
     };
+    let mut placer = crate::deploy::Placer::new(&srv, &remote_assets);
     let mut results = vec![];
     for item in b["scenes"].as_array().into_iter().flatten().take(500) {
         let id = item["id"].as_str().unwrap_or_default().to_string();
@@ -391,14 +392,14 @@ fn deploy(store_m: &Mutex<Store>, b: &Value) -> Response {
             continue;
         };
         let overwrite = item["overwrite"].as_bool().unwrap_or(false);
-        match crate::deploy::send(&srv, &scene, &assets, &remote_assets, expect, overwrite) {
+        match crate::deploy::send(&srv, &mut placer, &scene, &assets, expect, overwrite) {
             Ok(sent) => {
                 let saved = store_m
                     .lock()
                     .map_err(|_| "magazyn niedostępny".to_string())
                     .and_then(|s| s.set_deployed(&srv.url, &id, sent.rev));
                 results.push(json!({
-                    "id": id, "ok": true, "rev": sent.rev, "uploaded": sent.uploaded, "skipped": sent.skipped,
+                    "id": id, "ok": true, "rev": sent.rev, "uploaded": sent.uploaded, "skipped": sent.skipped, "renamed": sent.renamed,
                     "warning": saved.err(),
                 }));
             }

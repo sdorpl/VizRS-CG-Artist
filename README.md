@@ -8,7 +8,7 @@ Trio (wydawanie na antenę) i wyjście dla OBS należą do VizRS CG System – A
   format co serwer `vizrs`). Na życzenie łączy się z serwerem `vizrs` (lokalnym albo na VPS).
 - Kanwa rysuje tym samym kodem co antena (moduły z VizRS CG System), plus to, czego przeglądarka nie daje:
   menu, systemowe „Zapisz jako”, pytanie o zapis przy zamykaniu, kopia robocza po awarii, jedna instancja,
-  skojarzenia `.cgpack` / `.vizrs.json`, przeciąganie plików, pisownia polska.
+  skojarzenia `.cgpack` (i odczyt dawnych `.vizrs.json`), przeciąganie plików, pisownia polska.
 
 ## Pakiet VizRS
 
