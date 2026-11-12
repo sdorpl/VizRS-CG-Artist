@@ -31,8 +31,26 @@
   #sel { position: absolute; border: 1px solid var(--acc); pointer-events: none; box-shadow: 0 0 0 1px rgba(0,0,0,.6); display: none; z-index: 5; }
   #sel .h { position: absolute; right: -6px; bottom: -6px; width: 11px; height: 11px; background: var(--acc); border: 1px solid #000; pointer-events: auto; cursor: nwse-resize; }
   #sel .lbl { position: absolute; left: -1px; top: -18px; font-size: 10px; background: var(--acc); color: #000; padding: 1px 4px; white-space: nowrap; }
-  #safe { position: absolute; pointer-events: none; display: none; z-index: 4; }
-  #safe div { position: absolute; border: 1px dashed rgba(255,255,255,.3); }
+  #box { background: #111215; }
+  #bg { position: absolute; pointer-events: none; z-index: 0; }
+  #bSafe.on { border-color: var(--acc); color: var(--acc); }
+  #bg.checker, .vpop .sw button.checker { background: repeating-conic-gradient(#26282d 0 25%, #1c1e22 0 50%) 0 0 / 20px 20px; }
+  #bg.checkerL, .vpop .sw button.checkerL { background: repeating-conic-gradient(#d9d9d9 0 25%, #f4f4f4 0 50%) 0 0 / 20px 20px; }
+  #stage { z-index: 1; }
+  #guides { position: absolute; pointer-events: none; z-index: 4; overflow: visible; }
+  #guides .g { fill: none; stroke-width: 1; vector-effect: non-scaling-stroke; }
+  #guides text { font-family: ui-monospace, monospace; }
+  #guides .snap { stroke: #ff3df0; stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .selx { position: absolute; border: 1px dashed var(--acc); pointer-events: none; z-index: 5; }
+  #tree .item.sel2 { background: #223049; }
+  .vpop { position: absolute; right: 8px; top: 34px; z-index: 9; background: #1d2024; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; box-shadow: 0 6px 24px rgba(0,0,0,.5); font-size: 12px; min-width: 250px; }
+  .vpop[hidden] { display: none; }
+  .vpop h4 { margin: 6px 0 4px; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--acc); }
+  .vpop label { display: flex; gap: 6px; align-items: center; padding: 2px 0; cursor: pointer; }
+  .vpop .sw { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .vpop .sw button { height: 26px; padding: 0; border: 1px solid var(--line); font-size: 10px; }
+  .vpop .sw button.on { outline: 2px solid var(--acc); outline-offset: 1px; }
+  #vTools button.on { border-color: var(--acc); color: var(--acc); }
   #vTools { position: absolute; right: 8px; top: 6px; z-index: 7; display: flex; align-items: center; gap: 3px; }
   #vZoom { font: 11px ui-monospace, monospace; color: var(--dim); min-width: 44px; text-align: center; }
   #info { position: absolute; left: 8px; bottom: 6px; font-size: 11px; color: var(--dim); z-index: 6; pointer-events: none; }
@@ -202,12 +220,12 @@
   <span class="grow"></span>
   <button id="bUndo" title="Cofnij (Ctrl+Z)">↶</button>
   <button id="bRedo" title="Ponów (Ctrl+Y)">↷</button>
-  <button id="bSafe" title="Pokaż obszary bezpieczne">▢ Safe</button>
+  <button id="bSafe" title="Pokaż / ukryj prowadnice (wybór: ⌗ w rogu kanwy)">▢ Safe</button>
   <button id="bSave" class="acc" title="Zapisz (Ctrl+S)">Zapisz</button>
 </div>
 
 <div id="main">
-  <section class="panel" id="treeP" data-hint="Drzewo sceny: niżej na liście = wyżej na ekranie · przeciągnij, aby zmienić kolejność lub rodzica · Ctrl+D duplikuj · Del usuń">
+  <section class="panel" id="treeP" data-hint="Drzewo sceny: niżej na liście = wyżej na ekranie · przeciągnij, aby zmienić kolejność lub rodzica · Ctrl / Shift+klik = zaznacz kilka · Ctrl+G grupuj · Ctrl+Shift+G rozgrupuj · Ctrl+D duplikuj · Del usuń">
     <header>
       <h3>Drzewo sceny</h3>
       <select id="addSel" title="Dodaj kontener"><option value="">＋ Dodaj…</option></select>
@@ -217,6 +235,8 @@
       <button class="icon" id="tDown" title="W dół (na wierzch)">↓</button>
       <button class="icon" id="tOut" title="Wyjmij z grupy">⇤</button>
       <button class="icon" id="tIn" title="Włóż do poprzedniej grupy">⇥</button>
+      <button class="icon" id="tGrp" title="Grupuj zaznaczone (Ctrl+G)">⊞</button>
+      <button class="icon" id="tUngrp" title="Rozgrupuj (Ctrl+Shift+G)">⊟</button>
       <button class="icon" id="tDupN" title="Duplikuj (Ctrl+D)">⧉</button>
       <button class="icon" id="tFit" title="Dopasuj wymiar grupy do zawartości">⤢</button>
       <span class="grow"></span>
@@ -226,13 +246,20 @@
   </section>
   <div class="gutter" id="gL" data-k="l" title="Przeciągnij, aby zmienić szerokość (dwuklik = domyślna)"></div>
 
-  <section class="panel" id="canvasP" data-hint="Kanwa: przeciągnij element · róg = rozmiar · strzałki = 1 px (Shift = 10 px) · klik w puste miejsce = ustawienia sceny (przeciągnięcie = przesuń całą scenę) · kółko = zoom · środkowy przycisk = przesuwanie widoku · Shift+1 / 2 / 3 = dopasuj / 100% / zaznaczony">
-    <div id="box" class="checker">
+  <section class="panel" id="canvasP" data-hint="Kanwa: przeciągnij element · dwuklik = zaznacz grupę nadrzędną · Ctrl / Shift+klik = dodaj do zaznaczenia · róg = rozmiar · strzałki = 1 px (Shift = 10 px) · klik w puste miejsce = ustawienia sceny (przeciągnięcie = przesuń całą scenę) · kółko = zoom · środkowy przycisk = przesuwanie widoku · Shift+1 / 2 / 3 = dopasuj / 100% / zaznaczony">
+    <div id="box">
+      <div id="bg" class="checker"></div>
       <div id="stage"></div>
-      <div id="safe"><div style="inset:5%"></div><div style="inset:10%"></div></div>
+      <svg id="guides"></svg>
+      <div id="selx"></div>
       <div id="sel"><span class="lbl"></span><div class="h"></div></div>
       <div id="info"></div>
-      <div id="vTools"><span id="vZoom" title="Powiększenie podglądu">100%</span>
+      <div id="pGuides" class="vpop" hidden></div>
+      <div id="pBg" class="vpop" hidden></div>
+      <div id="vTools"><button id="vSnap" class="icon" title="Przyciąganie do krawędzi, środka, obszarów bezpiecznych i innych elementów (podczas przeciągania Ctrl = bez przyciągania)">🧲</button>
+        <button id="vGuides" class="icon" title="Prowadnice: obszary bezpieczne EBU R 95, kadry 4:3 / 14:9, środek, trójpodział, siatka">⌗</button>
+        <button id="vBg" class="icon" title="Tło kanwy (tylko podgląd – nie trafia do sceny)">▦</button>
+        <span id="vZoom" title="Powiększenie podglądu">100%</span>
         <button id="vOut" class="icon" title="Pomniejsz podgląd">−</button><button id="vIn" class="icon" title="Powiększ podgląd">＋</button>
         <button id="vFit" class="icon" title="Dopasuj całą scenę (Shift+1)">⤢</button><button id="v100" class="icon" title="Skala 100% (Shift+2)">1:1</button><button id="vSel" class="icon" title="Kadr na zaznaczony element (Shift+3)">⌖</button></div>
     </div>
@@ -313,7 +340,7 @@ function toast(msg, err) {
 }
 
 // ------------------------------------------------------------ stan
-let scenes = [], scene = null, selId = null, t = 0, player = null, dirty = false;
+let scenes = [], scene = null, selId = null, selMore = [], t = 0, player = null, dirty = false;
 let undo = [], redo = [], selKey = null, selKeys = [], clipKeys = null, pps = 320, assets = [], scale = 1, lastArea = 'canvas', pendingCP = false;
 const LBL = 190;
 const stage = $('#stage'), box = $('#box');
@@ -329,6 +356,7 @@ function checkpoint() {
 function restore(json) {
   scene = JSON.parse(json);
   if (selId && !locate(selId)) selId = null;
+  selMore = selMore.filter((id) => id !== selId && locate(id));
   selKey = null; selKeys = [];
   player.setScene(scene); player.seek(t);
   renderAll(); setDirty(true);
@@ -357,13 +385,77 @@ function setSceneOffset(x, y) {
   if (ix && document.activeElement !== ix) ix.value = x; if (iy && document.activeElement !== iy) iy.value = y;
   const pl = document.querySelector('#tree .item[data-id=""] .off'); if (pl) pl.textContent = x || y ? `${x}, ${y}` : '';
 }
-/** Wymiar grupy = zasięg zawartości (największy element razem z przesunięciem), jak obrys w Viz Artist. */
+// ------------------------------------------------------------ geometria (układy grup)
+// Dziecko grupy leży względem lewego górnego rogu ramki rodzica (renderer: left = x − przesunięcie punktu zaczepienia);
+// obrót i skala rodzica działają wokół środka jego ramki (transform-origin 50% 50%).
+const rnd = (v) => Math.round(v * 100) / 100;
+const num = (n, p) => +propAt(n, p, t, null) || 0;
+const scl = (n) => { const v = +propAt(n, 'scale', t, null); return Number.isFinite(v) ? v : 1; };
+/** Przesunięcie lewego górnego rogu ramki względem punktu x / y (punkt zaczepienia). */
+function anchorOff(n, w = num(n, 'w'), h = num(n, 'h')) {
+  const ax = propAt(n, 'anchorX', t, null), ay = propAt(n, 'anchorY', t, null);
+  return { x: ax === 'right' ? w : ax === 'center' ? w / 2 : 0, y: ay === 'bottom' ? h : ay === 'middle' ? h / 2 : 0 };
+}
+/** Ramka węzła (lewy górny róg, wymiar) w układzie rodzica, w bieżącym czasie. */
+function boxIn(n) { const a = anchorOff(n); return { x: num(n, 'x') - a.x, y: num(n, 'y') - a.y, w: num(n, 'w'), h: num(n, 'h') }; }
+/** Początek układu dzieci węzła id w układzie sceny (null = scena); bez obrotu i skali przodków. */
+function originOf(id) {
+  let x = 0, y = 0, cur = id ? locate(id) : null;
+  while (cur) { const b = boxIn(cur.node); x += b.x; y += b.y; cur = cur.parent ? locate(cur.parent.id) : null; }
+  return { x, y };
+}
+/** Obrót (°) i skala nadane węzłowi przez przodków – do przeliczenia ruchu myszy na układ rodzica. */
+function parentXf(id) {
+  let rot = 0, sc = 1, cur = locate(id); cur = cur?.parent ? locate(cur.parent.id) : null;
+  while (cur) { rot += num(cur.node, 'rotation'); sc *= scl(cur.node); cur = cur.parent ? locate(cur.parent.id) : null; }
+  return { rot, sc: sc || 1 };
+}
+/** Wektor (dx, dy) ze sceny do układu o obrocie rot i skali sc. */
+function toLocal(dx, dy, xf) {
+  const a = -xf.rot * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  return [(dx * c - dy * s) / xf.sc, (dx * s + dy * c) / xf.sc];
+}
+/** Przesuwa węzeł o (dx, dy) razem z kluczami animacji x / y – w każdej chwili wygląda tak samo, tylko przesunięty. */
+function shiftNode(n, dx, dy) {
+  for (const [p, d] of [['x', dx], ['y', dy]]) {
+    if (!d) continue;
+    n.props ||= {}; n.props[p] = rnd((+n.props[p] || 0) + d);
+    for (const k of n.anim?.[p] || []) k.v = rnd((+k.v || 0) + d);
+  }
+}
+/** Zaznaczenie: główny węzeł (panel właściwości) + dodatkowe (Ctrl / Shift+klik). */
+const selAll = () => (selId ? [selId, ...selMore.filter((id) => id !== selId)] : []);
+/** Zaznaczone bez tych, których przodek też jest zaznaczony (przesuwa się i tak razem z nim). */
+function topSel() {
+  const ids = selAll().filter((id) => locate(id));
+  return ids.filter((id) => { let cur = locate(id); while (cur?.parent) { if (ids.includes(cur.parent.id)) return false; cur = locate(cur.parent.id); } return true; });
+}
+/** Wymiar grupy = obrys zawartości (z obrotem i skalą dzieci, także na ujemnych współrzędnych), jak w Viz Artist.
+ *  Początek grupy przesuwa się na lewy górny róg zawartości, dzieci o tyle samo w przeciwną stronę – na ekranie nic się nie rusza. */
 function fitGroup(g) {
   if (!g || g.type !== 'group' || !g.children?.length) return false;
-  let w = 0, h = 0;
-  for (const c of g.children) { const p = c.props || {}; w = Math.max(w, (+p.x || 0) + (+p.w || 0)); h = Math.max(h, (+p.y || 0) + (+p.h || 0)); }
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  for (const c of g.children) {
+    const b = boxIn(c), cx = b.x + b.w / 2, cy = b.y + b.h / 2, sc = scl(c), a = num(c, 'rotation') * Math.PI / 180;
+    for (const [px, py] of [[-b.w / 2, -b.h / 2], [b.w / 2, -b.h / 2], [b.w / 2, b.h / 2], [-b.w / 2, b.h / 2]]) {
+      const X = cx + sc * (px * Math.cos(a) - py * Math.sin(a)), Y = cy + sc * (px * Math.sin(a) + py * Math.cos(a));
+      x1 = Math.min(x1, X); y1 = Math.min(y1, Y); x2 = Math.max(x2, X); y2 = Math.max(y2, Y);
+    }
+  }
+  const w = Math.round(x2 - x1), h = Math.round(y2 - y1);
   if (!(w > 0 && h > 0)) return false;
-  g.props ||= {}; g.props.w = Math.round(w); g.props.h = Math.round(h); return true;
+  const mx = Math.round(x1), my = Math.round(y1);
+  // nowy lewy górny róg L'' = L + M·m + (I − M)(c − c'), M = obrót·skala grupy (wokół środka ramki)
+  const old = boxIn(g), sc = scl(g), a = num(g, 'rotation') * Math.PI / 180;
+  const M = (x, y) => [sc * (x * Math.cos(a) - y * Math.sin(a)), sc * (x * Math.sin(a) + y * Math.cos(a))];
+  const [mmx, mmy] = M(mx, my), dcx = old.w / 2 - w / 2, dcy = old.h / 2 - h / 2, [Mdx, Mdy] = M(dcx, dcy);
+  const Lx = old.x + mmx + dcx - Mdx, Ly = old.y + mmy + dcy - Mdy;
+  for (const c of g.children) shiftNode(c, -mx, -my);
+  const aOld = anchorOff(g), aNew = anchorOff(g, w, h);
+  shiftNode(g, rnd(Lx + aNew.x - (old.x + aOld.x)), rnd(Ly + aNew.y - (old.y + aOld.y)));
+  g.props ||= {}; g.props.w = w; g.props.h = h;
+  if (g.anim?.w?.length || g.anim?.h?.length) toast('Grupa ma animowany wymiar – dopasowano wartość podstawową', true);
+  return true;
 }
 
 // ------------------------------------------------------------ ładowanie
@@ -404,7 +496,7 @@ function openScene(s) {
   scene = structuredClone(s);
   scene.nodes ||= []; scene.stops ||= []; scene.width ||= 1920; scene.height ||= 1080;
   if (!(scene.duration > 0)) scene.duration = 1;
-  selId = null; selKey = null; t = 0; undo = []; redo = [];
+  selId = null; selMore = []; selKey = null; t = 0; undo = []; redo = [];
   setDirty(false);
   player?.destroy();
   player = new ScenePlayer(stage, scene, {}, { editor: true });
@@ -461,7 +553,7 @@ function renderTree() {
     for (const n of nodes) {
       const fl = Object.values(n.fields || {}).filter(Boolean);
       const lk = isLocked(n.id);
-      h += `<div class="item ${n.id === selId ? 'sel' : ''} ${n.hidden ? 'hid' : ''} ${lk ? 'lockd' : ''}" data-id="${n.id}" draggable="${!lk}" style="padding-left:${10 + d * 16}px">
+      h += `<div class="item ${n.id === selId ? 'sel' : selMore.includes(n.id) ? 'sel2' : ''} ${n.hidden ? 'hid' : ''} ${lk ? 'lockd' : ''}" data-id="${n.id}" draggable="${!lk}" style="padding-left:${10 + d * 16}px">
         <span class="ic">${TYPES[n.type]?.icon || '?'}</span><span class="grow">${esc(n.name || n.type)}</span>
         ${fl.map((f) => `<span class="pill fld" title="pole kontrolne">${esc(f)}</span>`).join('')}
         ${Object.values(n.anim || {}).some((a) => a?.length) ? '<span class="dim" title="animowany">◆</span>' : ''}
@@ -1376,8 +1468,8 @@ function uploadAsset(accept = 'image/*,video/mp4,video/webm,.ttf,.otf,.woff,.wof
 }
 
 // ------------------------------------------------------------ drzewo
-function select(id) {
-  selId = id || null;
+function select(id, more = []) {
+  selId = id || null; selMore = selId ? more.filter((x) => x !== selId) : [];
   if (selKey && selKey.node.id !== selId) { selKey = null; selKeys = []; }
   renderTree(); renderProps(); renderTimeline();
 }
@@ -1387,7 +1479,19 @@ $('#tree').addEventListener('click', (e) => {
   if (eye) { const n = locate(eye.dataset.eye)?.node; if (n) { checkpoint(); n.hidden = !n.hidden; refresh(); renderTree(); } return; }
   const lock = e.target.closest('[data-lock]');
   if (lock) { const n = locate(lock.dataset.lock)?.node; if (n) { checkpoint(); if (n.locked) delete n.locked; else n.locked = true; renderTree(); } return; }
-  const it = e.target.closest('.item'); if (it) select(it.dataset.id);
+  const it = e.target.closest('.item'); if (!it) return;
+  const id = it.dataset.id;
+  if (id && selId && (e.ctrlKey || e.metaKey)) { // Ctrl+klik: dodaj / zdejmij z zaznaczenia
+    const all = selAll();
+    if (all.includes(id)) { const rest = all.filter((x) => x !== id); select(rest[0], rest.slice(1)); } else select(id, all);
+    return;
+  }
+  if (id && selId && e.shiftKey) { // Shift+klik: zakres w kolejności drzewa
+    const ids = $$('#tree .item[data-id]').map((x) => x.dataset.id).filter(Boolean);
+    const a = ids.indexOf(selId), b = ids.indexOf(id);
+    if (a >= 0 && b >= 0) { select(id, ids.slice(Math.min(a, b), Math.max(a, b) + 1)); return; }
+  }
+  select(id);
 });
 $('#tree').addEventListener('dblclick', (e) => {
   const it = e.target.closest('.item'); if (!it?.dataset.id) return;
@@ -1468,35 +1572,71 @@ function cloneNode(n) {
 function treeOp(op) {
   const L = selId && locate(selId); if (!L) return;
   const { node: n, list, index: i, parent } = L;
+  // włóż / wyjmij = przeniesienie z zachowaniem położenia na ekranie (moveNode robi własny punkt cofania)
+  if (op === 'in') { if (i > 0 && TYPES[list[i - 1].type]?.children) moveNode(n.id, list[i - 1].id, 'into'); return; }
+  if (op === 'out') { if (parent) moveNode(n.id, parent.id, 'after'); return; }
+  if (op === 'group') return groupSel();
+  if (op === 'ungroup') return ungroupSel();
   checkpoint();
   if (op === 'up' && i > 0) [list[i - 1], list[i]] = [list[i], list[i - 1]];
   else if (op === 'down' && i < list.length - 1) [list[i + 1], list[i]] = [list[i], list[i + 1]];
-  else if (op === 'in' && i > 0 && TYPES[list[i - 1].type]?.children) {
-    const P = list[i - 1];
-    list.splice(i, 1); (P.children ||= []).push(n);
-    n.props.x = (n.props.x || 0) - (P.props?.x || 0); n.props.y = (n.props.y || 0) - (P.props?.y || 0);
-    fitGroup(P);
-  } else if (op === 'out' && parent) {
-    const PL = locate(parent.id);
-    list.splice(i, 1); PL.list.splice(PL.index + 1, 0, n);
-    n.props.x = (n.props.x || 0) + (parent.props?.x || 0); n.props.y = (n.props.y || 0) + (parent.props?.y || 0);
-  } else if (op === 'dup') {
-    const c = cloneNode(n); c.name = n.name + '_kopia';
-    list.splice(i + 1, 0, c); selId = c.id;
+  else if (op === 'dup') {
+    const copies = [];
+    for (const id of topSel()) {
+      const D = locate(id), c = cloneNode(D.node); c.name = D.node.name + '_kopia';
+      D.list.splice(D.index + 1, 0, c); copies.push(c.id);
+    }
+    selId = copies[0] || null; selMore = copies.slice(1);
   } else if (op === 'fit') {
     if (!fitGroup(n)) { undo.pop(); return toast('Dopasowanie działa dla grupy z elementami', true); }
   } else if (op === 'del') {
-    if (isLocked(n.id)) { undo.pop(); return toast('Element jest zablokowany – odblokuj go w drzewie (🔒)', true); }
-    list.splice(i, 1); selId = null; selKey = null;
+    const ids = topSel();
+    if (ids.some(isLocked)) { undo.pop(); return toast('Element jest zablokowany – odblokuj go w drzewie (🔒)', true); }
+    for (const id of ids) { const D = locate(id); if (D) D.list.splice(D.index, 1); }
+    selId = null; selMore = []; selKey = null;
   } else { undo.pop(); return; }
   player.setScene(scene); player.seek(t);
   renderTree(); renderProps(); renderTimeline();
+}
+/** Ctrl+G: zaznaczone elementy jednego poziomu → nowa grupa w miejscu najwyższego z nich; położenie na ekranie bez zmian. */
+function groupSel() {
+  const Ls = topSel().map((id) => locate(id)).sort((a, b) => a.index - b.index);
+  if (!Ls.length) return;
+  if (Ls.some((L) => L.parent !== Ls[0].parent)) return toast('Grupować można elementy z jednego poziomu drzewa (ten sam rodzic)', true);
+  if (Ls.some((L) => isLocked(L.node.id))) return toast('Element jest zablokowany – odblokuj go w drzewie (🔒)', true);
+  checkpoint();
+  const list = Ls[0].list, at = Ls[Ls.length - 1].index - (Ls.length - 1);
+  let count = 0; walk(scene.nodes, (x) => { if (x.type === 'group') count++; });
+  const g = { id: uid('n'), type: 'group', name: 'grupa' + (count + 1), props: { x: 0, y: 0, w: 1, h: 1 }, anim: {}, fields: {}, children: Ls.map((L) => L.node) };
+  for (const L of [...Ls].reverse()) list.splice(L.index, 1);
+  list.splice(at, 0, g);
+  fitGroup(g); // grupa w (0, 0) rodzica – dzieci zachowują współrzędne, dopasowanie przesuwa początek na obrys
+  player.setScene(scene); player.seek(t);
+  select(g.id);
+}
+/** Ctrl+Shift+G: dzieci grupy przechodzą na jej poziom, w jej miejscu; własności samej grupy (animacja, obrót, krycie…) giną. */
+function ungroupSel() {
+  const L = selId && locate(selId);
+  if (!L || L.node.type !== 'group') return toast('Zaznacz grupę, aby ją rozgrupować', true);
+  if (isLocked(L.node.id)) return toast('Grupa jest zablokowana – odblokuj ją w drzewie (🔒)', true);
+  const g = L.node, kids = g.children || [];
+  const own = Object.values(g.anim || {}).some((a) => a?.length) || g.motion || Object.values(g.fields || {}).some(Boolean)
+    || ['rotation', 'skewX', 'blur', 'clipL', 'clipR', 'clipT', 'clipB', 'blink'].some((p) => num(g, p)) || scl(g) !== 1 || num(g, 'opacity') !== 1 || g.hidden;
+  if (own && !confirm(`Grupa „${g.name}” ma własną animację, przekształcenie, krycie, maskę albo pole kontrolne.\nPo rozgrupowaniu elementy je stracą. Rozgrupować?`)) return;
+  checkpoint();
+  const o = boxIn(g);
+  for (const k of kids) shiftNode(k, o.x, o.y);
+  L.list.splice(L.index, 1, ...kids);
+  player.setScene(scene); player.seek(t);
+  if (kids.length) select(kids[0].id, kids.map((k) => k.id)); else select(null);
 }
 $('#tUp').onclick = () => treeOp('up');
 $('#tDown').onclick = () => treeOp('down');
 $('#tIn').onclick = () => treeOp('in');
 $('#tOut').onclick = () => treeOp('out');
 $('#tDupN').onclick = () => treeOp('dup');
+$('#tGrp').onclick = () => treeOp('group');
+$('#tUngrp').onclick = () => treeOp('ungroup');
 $('#tDel').onclick = () => treeOp('del');
 $('#tFit').onclick = () => treeOp('fit');
 
@@ -1511,7 +1651,7 @@ function applyView() {
   stage.style.transform = `translate(${fit.ox + view.x}px, ${fit.oy + view.y}px) scale(${scale})`;
   $('#vZoom').textContent = Math.round(scale * 100) + '%';
   $('#info').textContent = $('#info').textContent.replace(/\d+%$/, Math.round(scale * 100) + '%');
-  placeSafe(); updateSel();
+  placeGuides(); updateSel();
 }
 function resize() {
   if (!scene) return;
@@ -1558,24 +1698,177 @@ box.addEventListener('wheel', (e) => {
   zoomAt(scale * Math.exp(-e.deltaY * 0.0015), e.clientX - b.left, e.clientY - b.top);
 }, { passive: false });
 addEventListener('resize', () => { resize(); renderTimeline(); });
-function placeSafe() {
-  const b = box.getBoundingClientRect(), r = stage.getBoundingClientRect(), s = $('#safe');
-  Object.assign(s.style, { left: r.left - b.left + 'px', top: r.top - b.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+// ------------------------------------------------------------ prowadnice, tło kanwy, przyciąganie
+// Ustawienia podglądu (nie sceny): zapamiętane w localStorage tego okna, nie trafiają do show.json ani na antenę.
+const cut = (W, H, ar, f) => { const w = Math.min(W, H * ar) * f, h = H * f; return [(W - w) / 2, (H - h) / 2, w, h]; };
+/** Obszary bezpieczne (EBU R 95: akcja 93%, grafika 90%; ochrona 4:3 – grafika 67,5% × 90% kadru 16:9) i kadry. */
+const GUIDES = [
+  { k: 'ebuA', label: 'EBU R 95 – akcja 93%', c: '#f5c518', r: (W, H) => [W * 0.035, H * 0.035, W * 0.93, H * 0.93] },
+  { k: 'ebuG', label: 'EBU R 95 – grafika 90%', c: '#4dd0e1', r: (W, H) => [W * 0.05, H * 0.05, W * 0.9, H * 0.9] },
+  { k: 'c43', label: 'Kadr 4:3 (center cut)', c: '#ff8a65', r: (W, H) => cut(W, H, 4 / 3, 1) },
+  { k: 'g43', label: 'EBU R 95 – grafika 4:3', c: '#ff8a65', dash: 1, r: (W, H) => cut(W, H, 4 / 3, 0.9) },
+  { k: 'c149', label: 'Kadr 14:9', c: '#ce93d8', r: (W, H) => cut(W, H, 14 / 9, 1) },
+  { k: 'sd80', label: 'Dawny tytuł SD 80%', c: '#9ccc65', dash: 1, r: (W, H) => [W * 0.1, H * 0.1, W * 0.8, H * 0.8] },
+];
+const BGS = [['checker', 'szachownica'], ['checkerL', 'jasna szach.'], ['black', 'czarne', '#000000'], ['gray', 'szare', '#808080'],
+  ['white', 'białe', '#ffffff'], ['green', 'chroma ziel.', '#00b140'], ['blue', 'chroma nieb.', '#0047bb'], ['color', 'własny kolor']];
+const CV_DEF = { show: false, snap: true, g: { ebuA: true, ebuG: true }, center: false, thirds: false, grid: false, gridStep: 100, bg: 'checker', bgColor: '#404040', bgImg: '' };
+let cv = { ...CV_DEF };
+try {
+  const o = JSON.parse(localStorage.getItem('vizrs.canvas') || '{}');
+  if (o && typeof o === 'object') cv = { ...CV_DEF, ...o, g: { ...(o.g && typeof o.g === 'object' ? o.g : CV_DEF.g) } };
+} catch { /* brak localStorage albo uszkodzony wpis */ }
+if (!/^#[0-9a-f]{6}$/i.test(cv.bgColor)) cv.bgColor = CV_DEF.bgColor;
+cv.gridStep = Math.min(1000, Math.max(5, Math.round(+cv.gridStep) || 100));
+if (typeof cv.bgImg !== 'string') cv.bgImg = '';
+const saveCv = () => { try { localStorage.setItem('vizrs.canvas', JSON.stringify(cv)); } catch { /* ignoruj */ } };
+let snapShow = []; // linie przyciągania widoczne podczas przeciągania: { ax: 'x' | 'y', v }
+
+function placeGuides() {
+  const b = box.getBoundingClientRect(), r = stage.getBoundingClientRect();
+  const pos = { left: r.left - b.left + 'px', top: r.top - b.top + 'px', width: r.width + 'px', height: r.height + 'px' };
+  Object.assign($('#bg').style, pos); Object.assign($('#guides').style, pos);
+  drawGuides();
 }
-$('#bSafe').onclick = () => { const s = $('#safe'); s.style.display = s.style.display === 'block' ? 'none' : 'block'; placeSafe(); };
+function drawGuides() {
+  if (!scene) return;
+  const W = scene.width, H = scene.height, k = 1 / scale, svg = $('#guides');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('preserveAspectRatio', 'none');
+  let h = '';
+  if (cv.show) {
+    if (cv.grid && cv.gridStep * scale >= 4) {
+      let d = '';
+      for (let x = cv.gridStep; x < W; x += cv.gridStep) d += `M${x} 0V${H}`;
+      for (let y = cv.gridStep; y < H; y += cv.gridStep) d += `M0 ${y}H${W}`;
+      h += `<path class="g" d="${d}" stroke="rgba(255,255,255,.14)"/>`;
+    }
+    if (cv.thirds) h += `<path class="g" d="M${W / 3} 0V${H}M${2 * W / 3} 0V${H}M0 ${H / 3}H${W}M0 ${2 * H / 3}H${W}" stroke="rgba(255,255,255,.35)" stroke-dasharray="2 4"/>`;
+    if (cv.center) {
+      const c = 30 * k;
+      h += `<path class="g" d="M${W / 2} 0V${H}M0 ${H / 2}H${W}" stroke="rgba(255,255,255,.18)"/><path class="g" d="M${W / 2 - c} ${H / 2}H${W / 2 + c}M${W / 2} ${H / 2 - c}V${H / 2 + c}" stroke="#fff"/>`;
+    }
+    let li = 0; // etykiety na przemian: lewy górny / prawy dolny róg ramki, żeby bliskie ramki się nie zasłaniały
+    for (const g of GUIDES) {
+      if (!cv.g[g.k]) continue;
+      const [x, y, w, hh] = g.r(W, H), alt = li++ % 2;
+      h += `<rect class="g" x="${x}" y="${y}" width="${w}" height="${hh}" stroke="${g.c}" ${g.dash ? 'stroke-dasharray="6 4"' : ''} opacity=".9"/>`;
+      h += alt
+        ? `<text x="${x + w - 4 * k}" y="${y + hh - 4 * k}" text-anchor="end" font-size="${10 * k}" fill="${g.c}" opacity=".85">${esc(g.label)}</text>`
+        : `<text x="${x + 4 * k}" y="${y + 12 * k}" font-size="${10 * k}" fill="${g.c}" opacity=".85">${esc(g.label)}</text>`;
+    }
+  }
+  for (const s of snapShow) h += s.ax === 'x' ? `<line class="snap" x1="${s.v}" y1="0" x2="${s.v}" y2="${H}"/>` : `<line class="snap" x1="0" y1="${s.v}" x2="${W}" y2="${s.v}"/>`;
+  svg.innerHTML = h;
+}
+function applyBg() {
+  const el = $('#bg'), b = BGS.find((x) => x[0] === cv.bg);
+  el.className = ''; el.style.background = '';
+  if (cv.bg === 'checker' || cv.bg === 'checkerL') el.className = cv.bg;
+  else if (cv.bg === 'image' && cv.bgImg) el.style.background = `#000 url("/assets/${encodeURIComponent(cv.bgImg)}") center / cover no-repeat`;
+  else el.style.background = b?.[2] || cv.bgColor;
+}
+function syncCvUI() {
+  $('#bSafe').classList.toggle('on', cv.show); $('#vGuides').classList.toggle('on', cv.show); $('#vSnap').classList.toggle('on', cv.snap);
+}
+function renderGuidesPop() {
+  const ck = (key, on, label, extra = '') => `<label><input type="checkbox" data-cv="${key}" ${on ? 'checked' : ''}> ${label}${extra}</label>`;
+  $('#pGuides').innerHTML = `${ck('show', cv.show, '<b>Pokaż prowadnice</b> (▢ Safe)')}
+    <h4>Obszary bezpieczne i kadry</h4>${GUIDES.map((g) => ck('g.' + g.k, cv.g[g.k], `<span style="color:${g.c}">▭</span> ${esc(g.label)}`)).join('')}
+    <h4>Pomocnicze</h4>${ck('center', cv.center, 'Środek kadru')}${ck('thirds', cv.thirds, 'Trójpodział')}
+    ${ck('grid', cv.grid, 'Siatka', ` <select data-cv="gridStep" style="margin-left:auto">${[10, 20, 25, 50, 100, 200].map((v) => `<option ${v === cv.gridStep ? 'selected' : ''}>${v}</option>`).join('')}</select> px`)}
+    <h4>Przesuwanie</h4>${ck('snap', cv.snap, 'Przyciąganie (Ctrl w trakcie = bez)')}`;
+}
+function renderBgPop() {
+  const imgs = assets.filter((a) => /\.(png|jpe?g|webp|gif|svg|avif)$/i.test(a.name)).map((a) => a.name);
+  $('#pBg').innerHTML = `<h4>Tło kanwy</h4><div class="sw">${BGS.map(([k, label, c]) => `<button data-bg="${k}" class="${cv.bg === k ? 'on' : ''} ${k.startsWith('checker') ? k : ''}" title="${label}" style="${c ? `background:${c};color:${k === 'white' ? '#000' : '#fff'}` : k === 'color' ? `background:${cv.bgColor}` : ''}">${esc(label)}</button>`).join('')}</div>
+    <label style="margin-top:6px">Własny kolor <input type="color" id="bgColor" value="${cv.bgColor}" style="margin-left:auto"></label>
+    <h4>Obraz referencyjny (z zasobów)</h4>
+    <div class="row"><select id="bgImg" class="grow"><option value="">— brak —</option>${imgs.map((n) => `<option ${cv.bg === 'image' && n === cv.bgImg ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select><button id="bgUp" title="Wgraj obraz (np. kadr programu) do zasobów">Wgraj…</button></div>
+    <div class="dim" style="margin-top:6px;font-size:11px">Tylko podgląd w Artist – nie zmienia sceny ani wyjścia.</div>`;
+}
+function togglePop(id) {
+  const p = $(id), open = p.hidden;
+  $$('.vpop').forEach((x) => { x.hidden = true; });
+  if (!open) return;
+  if (id === '#pGuides') renderGuidesPop(); else renderBgPop();
+  p.hidden = false;
+}
+$('#vGuides').onclick = () => togglePop('#pGuides');
+$('#vBg').onclick = () => togglePop('#pBg');
+$('#vSnap').onclick = () => { cv.snap = !cv.snap; saveCv(); syncCvUI(); toast(cv.snap ? 'Przyciąganie włączone' : 'Przyciąganie wyłączone'); };
+$('#bSafe').onclick = () => { cv.show = !cv.show; saveCv(); syncCvUI(); drawGuides(); if (!$('#pGuides').hidden) renderGuidesPop(); };
+for (const p of $$('.vpop')) for (const ev of ['mousedown', 'wheel', 'dblclick']) p.addEventListener(ev, (e) => e.stopPropagation());
+addEventListener('mousedown', (e) => { if (!e.target.closest('.vpop, #vTools')) $$('.vpop').forEach((x) => { x.hidden = true; }); });
+$('#pGuides').addEventListener('change', (e) => {
+  const k = e.target.dataset.cv; if (!k) return;
+  if (k === 'gridStep') { cv.gridStep = +e.target.value || 100; cv.grid = true; renderGuidesPop(); }
+  else if (k.startsWith('g.')) cv.g[k.slice(2)] = e.target.checked;
+  else cv[k] = e.target.checked;
+  if (k !== 'show' && k !== 'snap' && e.target.checked) cv.show = true; // wybór prowadnicy ją pokazuje
+  saveCv(); syncCvUI(); drawGuides();
+  $('#pGuides [data-cv="show"]').checked = cv.show;
+});
+$('#pBg').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-bg]');
+  if (b) { cv.bg = b.dataset.bg; saveCv(); applyBg(); renderBgPop(); return; }
+  if (e.target.id === 'bgUp') { const a = await uploadAsset('image/*'); if (a?.name) { cv.bg = 'image'; cv.bgImg = a.name; saveCv(); applyBg(); renderBgPop(); } }
+});
+$('#pBg').addEventListener('input', (e) => { if (e.target.id === 'bgColor') { cv.bgColor = e.target.value; cv.bg = 'color'; saveCv(); applyBg(); $$('#pBg [data-bg]').forEach((x) => x.classList.toggle('on', x.dataset.bg === 'color')); $('#pBg [data-bg="color"]').style.background = cv.bgColor; } });
+$('#pBg').addEventListener('change', (e) => {
+  if (e.target.id !== 'bgImg') return;
+  if (e.target.value) { cv.bg = 'image'; cv.bgImg = e.target.value; } else if (cv.bg === 'image') cv.bg = 'checker';
+  saveCv(); applyBg(); renderBgPop();
+});
+applyBg(); syncCvUI();
+
+/** Ramka elementu kanwy w px sceny (kadr wyjścia), osiowo – z obrotem i skalą. */
+function sceneRect(el) {
+  const s0 = stage.getBoundingClientRect(), r = el.getBoundingClientRect();
+  return { x1: (r.left - s0.left) / scale, y1: (r.top - s0.top) / scale, x2: (r.right - s0.left) / scale, y2: (r.bottom - s0.top) / scale };
+}
+/** Cele przyciągania: krawędzie i środek kadru, widoczne prowadnice, krawędzie i środki innych elementów. */
+function snapTargets(moving) {
+  const W = scene.width, H = scene.height, xs = [0, W / 2, W], ys = [0, H / 2, H];
+  if (cv.show) {
+    for (const g of GUIDES) if (cv.g[g.k]) { const [x, y, w, h] = g.r(W, H); xs.push(x, x + w); ys.push(y, y + h); }
+    if (cv.thirds) { xs.push(W / 3, 2 * W / 3); ys.push(H / 3, 2 * H / 3); }
+  }
+  for (const el of stage.querySelectorAll('.vz-node')) {
+    if (moving.some((m) => m.contains(el)) || el.style.display === 'none' || el.style.visibility === 'hidden') continue;
+    const r = sceneRect(el); if (r.x2 - r.x1 < 1 && r.y2 - r.y1 < 1) continue;
+    xs.push(r.x1, (r.x1 + r.x2) / 2, r.x2); ys.push(r.y1, (r.y1 + r.y2) / 2, r.y2);
+  }
+  return { xs, ys };
+}
+/** Najbliższe przyciągnięcie krawędzi / środka (vals) do celów w progu thr; siatka – do wielokrotności kroku. */
+function snapAxis(vals, cands, thr, grid) {
+  let best = null;
+  const tryC = (v, c) => { const d = c - v; if (Math.abs(d) <= thr && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, v: c }; };
+  for (const v of vals) { for (const c of cands) tryC(v, c); if (grid) tryC(v, Math.round(v / grid) * grid); }
+  return best;
+}
 
 function updateSel() {
   const o = $('#sel');
   const el = selId && stage.querySelector(`[data-id="${CSS.escape(selId)}"]`);
-  if (!el || el.style.display === 'none') { o.style.display = 'none'; return; }
+  if (!el || el.style.display === 'none') { o.style.display = 'none'; if ($('#selx').dataset.h) { $('#selx').innerHTML = ''; $('#selx').dataset.h = ''; } return; }
   const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
   Object.assign(o.style, { display: 'block', left: r.left - b.left + 'px', top: r.top - b.top + 'px', width: r.width + 'px', height: r.height + 'px' });
   const n = selNode();
-  o.querySelector('.lbl').textContent = n ? `${n.name}  ${Math.round(propAt(n, 'x', t))}, ${Math.round(propAt(n, 'y', t))}  ${Math.round(propAt(n, 'w', t))}×${Math.round(propAt(n, 'h', t))}` : '';
+  o.querySelector('.lbl').textContent = n ? `${n.name}  ${Math.round(propAt(n, 'x', t))}, ${Math.round(propAt(n, 'y', t))}  ${Math.round(propAt(n, 'w', t))}×${Math.round(propAt(n, 'h', t))}${selMore.length ? `  (+${selMore.length})` : ''}` : '';
+  // pozostałe zaznaczone (Ctrl / Shift+klik): ramki przerywane
+  let hx = '';
+  for (const id of selMore) {
+    const e2 = stage.querySelector(`[data-id="${CSS.escape(id)}"]`); if (!e2 || e2.style.display === 'none') continue;
+    const r2b = e2.getBoundingClientRect();
+    hx += `<div class="selx" style="left:${r2b.left - b.left}px;top:${r2b.top - b.top}px;width:${r2b.width}px;height:${r2b.height}px"></div>`;
+  }
+  const sx = $('#selx'); if (sx.dataset.h !== hx) { sx.innerHTML = hx; sx.dataset.h = hx; }
 }
 
 box.addEventListener('mousedown', (e) => {
   lastArea = 'canvas';
+  clearTimeout(descT);
   if (e.button === 1) {
     e.preventDefault();
     const sx = e.clientX, sy = e.clientY, x0 = view.x, y0 = view.y;
@@ -1605,24 +1898,79 @@ box.addEventListener('mousedown', (e) => {
     return;
   }
   e.preventDefault();
-  if (nodeEl && nodeEl.dataset.id !== selId) select(nodeEl.dataset.id);
-  const n = selNode(); if (!n || isLocked(n.id)) return;
+  const hitId = nodeEl?.dataset.id;
+  // czy kliknięty element jest zaznaczony sam albo przez zaznaczoną grupę nadrzędną
+  const inSel = (id) => selAll().find((s) => s === id || isDesc(locate(s)?.node || {}, id));
+  if (hitId) {
+    if (e.ctrlKey || e.metaKey || e.shiftKey) { // dodaj / zdejmij z zaznaczenia, bez przeciągania
+      const all = selAll();
+      if (all.includes(hitId)) { const rest = all.filter((x) => x !== hitId); select(rest[0], rest.slice(1)); } else select(hitId, all);
+      return;
+    }
+    if (e.detail >= 2) { // dwuklik: grupa nadrzędna (kolejny dwuklik – jeszcze wyżej)
+      const base = inSel(hitId) || hitId, P = locate(base)?.parent;
+      if (P) select(P.id); else if (!inSel(hitId)) select(hitId);
+    } else if (!inSel(hitId)) select(hitId);
+  }
+  const n = selNode(); if (!n) return;
   const sx = e.clientX, sy = e.clientY;
-  const k = handle ? ['w', 'h'] : ['x', 'y'];
-  const v0 = k.map((p) => propAt(n, p, t, null));
   let moved = false;
+  if (handle) { // róg ramki: wymiar głównego zaznaczenia, w jego własnym układzie (obrót i skala)
+    if (isLocked(n.id)) return;
+    const xf0 = parentXf(n.id), xf = { rot: xf0.rot + num(n, 'rotation'), sc: xf0.sc * (scl(n) || 1) };
+    const w0 = num(n, 'w'), h0 = num(n, 'h');
+    const mv = (ev) => {
+      const [dx, dy] = toLocal((ev.clientX - sx) / scale, (ev.clientY - sy) / scale, xf);
+      if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 3) return;
+      if (!moved) { checkpoint(); moved = true; }
+      setProp(n, 'w', Math.max(0, Math.round(w0 + dx))); setProp(n, 'h', Math.max(0, Math.round(h0 + dy)));
+      refresh(); syncProps();
+    };
+    const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); if (moved) renderTimeline(); };
+    addEventListener('mousemove', mv); addEventListener('mouseup', up);
+    return;
+  }
+  // przesuwanie całego zaznaczenia; ruch myszy przeliczony na układ rodzica każdego elementu (obrót i skala grup)
+  const movers = topSel().filter((id) => !isLocked(id)).map((id) => {
+    const m = locate(id).node;
+    return { n: m, xf: parentXf(id), x0: num(m, 'x'), y0: num(m, 'y'), el: stage.querySelector(`[data-id="${CSS.escape(id)}"]`) };
+  });
+  if (!movers.length) return;
+  const els = movers.map((m) => m.el).filter(Boolean);
+  const rs = els.filter((x) => x.style.display !== 'none').map(sceneRect);
+  const bb = rs.length ? { x1: Math.min(...rs.map((r) => r.x1)), y1: Math.min(...rs.map((r) => r.y1)), x2: Math.max(...rs.map((r) => r.x2)), y2: Math.max(...rs.map((r) => r.y2)) } : null;
+  let targets = null;
   const mv = (ev) => {
     let dx = (ev.clientX - sx) / scale, dy = (ev.clientY - sy) / scale;
-    if (!moved && Math.abs(dx) + Math.abs(dy) < 2) return;
+    if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 3) return;
     if (!moved) { checkpoint(); moved = true; }
-    if (ev.shiftKey && !handle) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
-    setProp(n, k[0], Math.round(v0[0] + dx));
-    setProp(n, k[1], Math.round(v0[1] + dy));
-    refresh(); syncProps();
+    let lockX = false, lockY = false;
+    if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) { dy = 0; lockY = true; } else { dx = 0; lockX = true; } }
+    snapShow = [];
+    if (cv.snap && !ev.ctrlKey && !ev.metaKey && bb) {
+      targets ||= snapTargets(els);
+      const thr = 6 / scale, grid = cv.show && cv.grid ? cv.gridStep : 0;
+      const sxb = !lockX && snapAxis([bb.x1 + dx, (bb.x1 + bb.x2) / 2 + dx, bb.x2 + dx], targets.xs, thr, grid);
+      const syb = !lockY && snapAxis([bb.y1 + dy, (bb.y1 + bb.y2) / 2 + dy, bb.y2 + dy], targets.ys, thr, grid);
+      if (sxb) { dx += sxb.d; snapShow.push({ ax: 'x', v: sxb.v }); }
+      if (syb) { dy += syb.d; snapShow.push({ ax: 'y', v: syb.v }); }
+    }
+    for (const m of movers) {
+      const [lx, ly] = toLocal(dx, dy, m.xf);
+      setProp(m.n, 'x', Math.round(m.x0 + lx)); setProp(m.n, 'y', Math.round(m.y0 + ly));
+    }
+    refresh(); syncProps(); drawGuides();
   };
-  const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); if (moved) renderTimeline(); };
+  const up = () => {
+    removeEventListener('mousemove', mv); removeEventListener('mouseup', up);
+    if (snapShow.length) { snapShow = []; drawGuides(); }
+    if (moved) renderTimeline();
+    // klik bez ruchu w element zaznaczonej grupy: po chwili (gdy to nie dwuklik) zaznacz sam element
+    else if (hitId && e.detail === 1 && hitId !== selId && !selMore.length && inSel(hitId)) descT = setTimeout(() => select(hitId), 260);
+  };
   addEventListener('mousemove', mv); addEventListener('mouseup', up);
 });
+let descT = 0;
 box.addEventListener('mousemove', (e) => {
   const r = stage.getBoundingClientRect();
   const x = Math.round((e.clientX - r.left) / scale), y = Math.round((e.clientY - r.top) / scale);
@@ -1665,7 +2013,7 @@ $('#tl').addEventListener('mousedown', (e) => {
     const spec = n.motion[sec], resize = !!e.target.closest('.mbh');
     const d0 = MO.specDelay(spec), u0 = MO.specDur(spec), sx = e.clientX;
     let moved = false;
-    if (selId !== nid) { selId = nid; renderTree(); renderProps(); }
+    if (selId !== nid) { selId = nid; selMore = []; renderTree(); renderProps(); }
     const mv = (ev) => {
       const dx = ev.clientX - sx; if (!moved && Math.abs(dx) < 3) return;
       if (!moved) { checkpoint(); moved = true; }
@@ -1696,7 +2044,7 @@ $('#tl').addEventListener('mousedown', (e) => {
       if (j >= 0) selKeys.splice(j, 1); else selKeys.push(entry);
     } else if (!selKeys.some((x) => x.key === key) || selKeys.length < 2) selKeys = [entry];
     selKey = entry;
-    if (selId !== nid) { selId = nid; renderTree(); renderProps(); }
+    if (selId !== nid) { selId = nid; selMore = []; renderTree(); renderProps(); }
     renderTimeline();
     const sx = e.clientX; let moved = false;
     const starts = selKeys.map((x) => x.key.t);
@@ -1852,23 +2200,24 @@ $('#keyCopy').onclick = copyKeys;
 $('#keyPaste').onclick = pasteKeys;
 
 // ------------------------------------------------------------ drzewo: przeciąganie (zmiana rodzica / kolejności)
-const absPos = (id) => { let x = 0, y = 0, cur = locate(id); while (cur) { x += +cur.node.props?.x || 0; y += +cur.node.props?.y || 0; cur = cur.parent ? locate(cur.parent.id) : null; } return { x, y }; };
 const isDesc = (anc, id) => { let f = false; walk(anc.children || [], (n) => { if (n.id === id) f = true; }); return f; };
 function moveNode(srcId, dstId, mode) {
   const S = locate(srcId), D = dstId ? locate(dstId) : null; if (!S) return;
   if (D && (D.node.id === srcId || isDesc(S.node, D.node.id))) return toast('Nie można przenieść węzła do własnego potomka', true);
   if (mode === 'into' && !(D && TYPES[D.node.type]?.children)) return;
   checkpoint();
-  const abs = absPos(srcId);
+  const o0 = originOf(S.parent?.id);
   S.list.splice(S.index, 1);
   const L = D ? locate(D.node.id) : null;
   let parent = null;
   if (mode === 'into') { (L.node.children ||= []).push(S.node); parent = L.node; }
   else if (L) { L.list.splice(L.index + 1, 0, S.node); parent = L.parent || null; }
   else scene.nodes.push(S.node);
-  // zachowaj położenie na scenie: współrzędne względem nowego rodzica
-  const pa = parent ? absPos(parent.id) : { x: 0, y: 0 };
-  S.node.props ||= {}; S.node.props.x = Math.round(abs.x - pa.x); S.node.props.y = Math.round(abs.y - pa.y);
+  // zachowaj położenie na ekranie: układ nowego rodzica (z punktem zaczepienia), klucze x / y przesunięte razem
+  const o1 = originOf(parent?.id);
+  shiftNode(S.node, rnd(o0.x - o1.x), rnd(o0.y - o1.y));
+  if (parent && (num(parent, 'rotation') || scl(parent) !== 1) || (S.parent && (num(S.parent, 'rotation') || scl(S.parent) !== 1)))
+    toast('Grupa jest obrócona lub przeskalowana – element przyjmuje przekształcenie nowej grupy', true);
   if (mode === 'into') fitGroup(parent);
   player.setScene(scene); player.seek(t); renderTree(); renderProps(); renderTimeline();
 }
@@ -2159,6 +2508,12 @@ addEventListener('keydown', (e) => {
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return; }
   if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); doRedo(); return; }
   if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); treeOp('dup'); return; }
+  if (mod && e.key.toLowerCase() === 'g') { e.preventDefault(); treeOp(e.shiftKey ? 'ungroup' : 'group'); return; }
+  if (e.key === 'Escape') {
+    const open = $$('.vpop').filter((x) => !x.hidden);
+    if (open.length) open.forEach((x) => { x.hidden = true; }); else if (selId) select(null);
+    return;
+  }
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); if (lastArea === 'timeline' && selKey) deleteSelKey(); else treeOp('del'); return; }
   if (e.key === ' ') { e.preventDefault(); if (player.playing) player.playing = false; else $('#pPlay').click(); return; }
   if (mod && e.key.toLowerCase() === 'c' && lastArea === 'timeline') { e.preventDefault(); copyKeys(); return; }
@@ -2176,10 +2531,13 @@ addEventListener('keydown', (e) => {
     const m = e.shiftKey ? 10 : 1, [dx, dy] = arrows[e.key];
     setSceneOffset((+scene.x || 0) + dx * m, (+scene.y || 0) + dy * m); return;
   }
-  if (n && arrows[e.key] && !isLocked(n.id)) {
+  if (n && arrows[e.key]) {
+    // całe zaznaczenie, w układzie rodzica każdego elementu (zablokowane zostają)
+    const ms = topSel().filter((id) => !isLocked(id)).map((id) => locate(id).node);
+    if (!ms.length) return;
     e.preventDefault(); checkpoint();
     const m = e.shiftKey ? 10 : 1, [dx, dy] = arrows[e.key];
-    setProp(n, 'x', propAt(n, 'x', t, null) + dx * m); setProp(n, 'y', propAt(n, 'y', t, null) + dy * m);
+    for (const x of ms) { setProp(x, 'x', propAt(x, 'x', t, null) + dx * m); setProp(x, 'y', propAt(x, 'y', t, null) + dy * m); }
     refresh(); syncProps();
   }
 });

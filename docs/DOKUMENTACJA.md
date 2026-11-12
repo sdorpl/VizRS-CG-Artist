@@ -83,6 +83,24 @@ Błędne argumenty: komunikat na stderr, kod wyjścia 1.
 
 Na macOS pierwsze podmenu to menu aplikacji **VizRS CG Artist** (O programie VizRS CG Artist, Ukryj, Ukryj pozostałe, Zakończ), a podmenu **Tekst** dodaje standardowe akcje edycyjne (Wytnij, Kopiuj, Wklej, Zaznacz wszystko).
 
+### Drzewo sceny i kanwa (skróty strony)
+
+| Działanie | Drzewo | Kanwa |
+|---|---|---|
+| Zaznacz kilka | Ctrl+klik (dodaj / zdejmij), Shift+klik (zakres) | Ctrl / Shift+klik |
+| Grupuj / rozgrupuj | Ctrl+G / Ctrl+Shift+G, przyciski ⊞ / ⊟ | jak w drzewie |
+| Przesuń | przeciągnij wiersz (kolejność, rodzic), ⇥ / ⇤ (włóż / wyjmij) | przeciągnij; strzałki = 1 px (Shift = 10 px) |
+| Grupa nadrzędna | – | dwuklik (kolejny dwuklik – poziom wyżej); klik w element zaznaczonej grupy przesuwa grupę, klik bez ruchu zaznacza sam element |
+| Odznacz | – | Esc albo klik w puste miejsce |
+
+- **Położenie przy zmianie rodzica** (przeciągnięcie w drzewie, ⇥ / ⇤, grupowanie, rozgrupowanie, ⤢ dopasowanie grupy) zostaje na ekranie bez zmian: liczone z punktem zaczepienia grupy (`anchorX` / `anchorY`) i wartościami w bieżącym czasie; klucze animacji `x` / `y` przesuwają się razem z wartością. Obrót i skala grupy nie są przenoszone na element (komunikat).
+- **⤢ Dopasuj grupę**: wymiar = obrys zawartości (także elementy obrócone, przeskalowane i na ujemnych współrzędnych); początek grupy przechodzi na lewy górny róg zawartości, dzieci przesuwają się odwrotnie.
+- **Rozgrupowanie** grupy z własną animacją, przekształceniem, kryciem, maską albo polem kontrolnym pyta o zgodę – te cechy giną.
+- **Przeciąganie na kanwie** uwzględnia obrót i skalę grup nadrzędnych (element idzie za kursorem). **Przyciąganie** (🧲, domyślnie włączone; Ctrl w trakcie = bez): krawędzie i środek kadru, widoczne prowadnice, siatka, krawędzie i środki innych elementów; linia przyciągania jest różowa.
+- **Prowadnice** (⌗ w rogu kanwy; ▢ Safe pokazuje / ukrywa): EBU R 95 akcja 93% i grafika 90%, kadr 4:3 (center cut) i grafika 4:3 (67,5% × 90%), kadr 14:9, dawny tytuł SD 80%, środek, trójpodział, siatka 10–200 px.
+- **Tło kanwy** (▦): szachownica ciemna / jasna, czarne, szare, białe, chroma zieleń / niebieski, własny kolor albo obraz referencyjny z zasobów (np. kadr programu). Tylko podgląd – nie trafia do sceny ani na wyjście.
+- Ustawienia prowadnic, przyciągania i tła pamięta strona w `localStorage` (`vizrs.canvas`) – dla tej instalacji okna, nie w `show.json`.
+
 Pozycje strony wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, Shift+1/2/3, Spacja, M) obsługuje strona, nie powłoka okna – dzięki temu działają prawidłowo także w polach tekstowych. Cofnij / Ponów w menu synchronizują się ze stanem aktywności zgłaszanym przez stronę (`sync_menu`).
 
 ## 5. Pliki

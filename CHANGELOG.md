@@ -2,6 +2,11 @@
 
 ## Niewydane
 
+- **Drzewo sceny – grupowanie i przesuwanie:** zaznaczanie wielu elementów (Ctrl / Shift+klik w drzewie i na kanwie), **Grupuj** (Ctrl+G, ⊞) i **Rozgrupuj** (Ctrl+Shift+G, ⊟); przesuwanie, strzałki, duplikowanie i usuwanie działają na całym zaznaczeniu. Na kanwie klik w element zaznaczonej grupy przesuwa grupę, dwuklik zaznacza grupę nadrzędną, Esc odznacza.
+- **Poprawki położenia:** zmiana rodzica (przeciągnięcie w drzewie, ⇥ / ⇤) nie przesuwa już elementu, gdy grupa ma punkt zaczepienia inny niż lewy górny albo element jest animowany (klucze `x` / `y` przesuwane razem). ⤢ Dopasuj grupę obejmuje elementy obrócone, przeskalowane i na ujemnych współrzędnych. Przeciąganie elementu w obróconej lub przeskalowanej grupie idzie za kursorem.
+- **Prowadnice i przyciąganie:** obszary bezpieczne EBU R 95 (akcja 93%, grafika 90%, grafika 4:3), kadry 4:3 i 14:9, dawny tytuł SD 80%, środek, trójpodział, siatka (⌗ w rogu kanwy, ▢ Safe – pokaż / ukryj); przyciąganie do kadru, prowadnic, siatki i innych elementów (🧲, Ctrl w trakcie = bez).
+- **Tło kanwy** (▦): szachownica ciemna / jasna, czarne, szare, białe, chroma, własny kolor albo obraz referencyjny z zasobów – tylko podgląd.
+
 ## 0.3.0 – 2026-11-07
 
 - **Przejście na Tauri 2 (wersja 0.3.0, Linux, Windows, macOS):**
