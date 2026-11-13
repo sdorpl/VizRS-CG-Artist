@@ -2,6 +2,8 @@
 
 ## Niewydane
 
+## 26.11.4 – 2026-11-13
+
 - **Położenie scen względem siebie** (plan `docs/plany/PLAN-pozycjonowanie-scen.md`, etapy P1–P3 i część P4): DOKUMENTACJA §4.
   - **Sceny odniesienia** (⧉ w rogu kanwy, Shift+R): inne sceny show – np. ticker i logo przy belce – półprzezroczyście na kanwie, w kolejności warstw wyjścia i w stanie z pierwszego stop pointu; wybór osobny dla każdej sceny, krycie, kolejność (wg warstw / pod / nad), czas (stop point / głowica). Tylko podgląd, bez zmian w `show.json`.
   - **Przyciąganie do scen odniesienia** – elementów i całej sceny (przeciągnięcie pustego miejsca kanwy dotąd się nie przyciągało); turkusowa linia z nazwą celu.
