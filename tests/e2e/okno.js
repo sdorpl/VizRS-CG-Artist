@@ -276,6 +276,49 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
     ok(N.c && near(N.c.w / N.c.h, 2, 0.02) && near(N.c.w, 300) && near(N.c.x, 400) && near(N.c.y, 700), 'Shift na rogu trzyma proporcje, róg nw stoi', N.c);
     ok(N.d && N.d.rotation % 15 === 0 && N.d.rotation !== 0 && hand.undoRot === 0, 'obrót uchwytem z Shift co 15°, jedno Ctrl+Z cofa', { d: N.d, undoRot: hand.undoRot });
 
+    // 1f. reszta K2: wspólna ramka kilku zaznaczonych (róg se ×2 – położenia i ramki obu), przyciąganie przeciąganej krawędzi
+    //     do sąsiedniego elementu, Ctrl – bez przyciągania
+    const sdata = path.join(tmp, 'multisize');
+    fs.mkdirSync(sdata, { recursive: true });
+    fs.writeFileSync(path.join(sdata, 'show.json'), JSON.stringify({ rev: 1, scenes: [
+      { id: 'ms', name: 'Skala', layer: 'main', width: 1920, height: 1080, duration: 2, stops: [1], nodes: [
+        rr('a', 100, 100, 200, 100), rr('b', 400, 100, 200, 100), rr('c', 100, 600, 200, 100), rr('d', 400, 800, 200, 100), rr('e', 1300, 600, 200, 100)] },
+    ] }));
+    const msz = run(['--data', sdata], write('multisize.js', `(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
+      await sleep(400);
+      const r = {}, box = document.querySelector('#box');
+      const st = document.querySelector('#stage').getBoundingClientRect(), k = st.width / 1920;
+      const at = (x, y, o = {}) => ({ clientX: st.left + x * k, clientY: st.top + y * k, button: 0, bubbles: true, detail: 1, ...o });
+      const pick = async (x, y) => { box.dispatchEvent(new MouseEvent('mousedown', at(x, y))); dispatchEvent(new MouseEvent('mouseup', at(x, y))); await sleep(200); };
+      const grab = async (sel, dx, dy, o = {}) => {
+        const h = document.querySelector(sel), b = h.getBoundingClientRect(), x = (b.left + b.right) / 2, y = (b.top + b.bottom) / 2;
+        const ev = (X, Y) => ({ clientX: X, clientY: Y, button: 0, bubbles: true, detail: 1, ...o });
+        h.dispatchEvent(new MouseEvent('mousedown', ev(x, y)));
+        dispatchEvent(new MouseEvent('mousemove', ev(x + dx * k / 2, y + dy * k / 2))); dispatchEvent(new MouseEvent('mousemove', ev(x + dx * k, y + dy * k)));
+        dispatchEvent(new MouseEvent('mouseup', ev(x + dx * k, y + dy * k))); await sleep(150);
+      };
+      box.dispatchEvent(new MouseEvent('mousedown', at(50, 50))); dispatchEvent(new MouseEvent('mousemove', at(300, 150))); dispatchEvent(new MouseEvent('mousemove', at(650, 250))); dispatchEvent(new MouseEvent('mouseup', at(650, 250))); await sleep(200);
+      r.title = document.querySelector('#propsTitle').textContent;
+      r.handles = [...document.querySelectorAll('#sel .h')].filter((h) => getComputedStyle(h).display !== 'none').length;
+      r.rot = getComputedStyle(document.querySelector('#sel .hr')).display;
+      await grab('#sel .h[data-h="se"]', 500, 100, { ctrlKey: true });
+      await pick(200, 650);
+      await grab('#sel .h[data-h="e"]', 95, 0);
+      await pick(1400, 650);
+      await grab('#sel .h[data-h="e"]', 95, 0, { ctrlKey: true });
+      window.__vizrsCmd('save'); await sleep(800);
+      r.nodes = (await (await fetch('/api/show')).json()).scenes[0].nodes.map((n) => ({ id: n.id, ...n.props }));
+      (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
+    })();`), 'multisize');
+    const M = Object.fromEntries((msz.nodes || []).map((n) => [n.id, n]));
+    ok(msz.title === 'Właściwości – 2 elementy' && msz.handles === 8 && msz.rot === 'none', 'kilka zaznaczonych: wspólna ramka z 8 uchwytami, bez obrotu', msz);
+    ok(M.a && M.b && near(M.a.x, 100) && near(M.a.y, 100) && near(M.a.w, 400) && near(M.a.h, 200) && near(M.b.x, 700) && near(M.b.y, 100) && near(M.b.w, 400) && near(M.b.h, 200),
+      'róg se wspólnej ramki ×2 – położenia i ramki obu elementów względem rogu nw', { a: M.a, b: M.b });
+    ok(M.c && near(M.c.w, 300, 0.01), 'przeciągana krawędź przyciąga się do krawędzi sąsiedniego elementu', M.c);
+    ok(M.e && near(M.e.w, 295), 'Ctrl – zmiana rozmiaru bez przyciągania', M.e);
+
     // 2. jedna instancja: drugie uruchomienie przekazuje prośbę i kończy pracę; vizrs nie wystartuje na tym katalogu
     const first = spawn(APP, ['--data', data], { env: ENV, stdio: 'ignore' });
     for (let i = 0; i < 50 && !fs.existsSync(path.join(data, '.vizrs.lock')); i++) await sleep(100);

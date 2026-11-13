@@ -1,6 +1,6 @@
 # PLAN: edycja elementów na kanwie (K1–K5)
 
-> Stan: **K1 zrobione, K2 bez skalowania kilku zaznaczonych i bez przyciągania krawędzi przy zmianie rozmiaru** (2026-11-13; przy okazji naprawiony uchwyt rozmiaru, który od 26.11.3 nie działał). Dalej: reszta K2, K3–K5. Decyzje z §6 przyjęte wg propozycji (polecenie użytkownika „zacznij wdrażać”): scena – S + przeciągnięcie, ramka – przecinane (Alt – całe w środku), skalowanie tekstu – ramka, wyrównanie – pasek nad kanwą, K5 – tak, po K1–K4. Zakres: VizRS CG Artist (`web/artist.html`); format `show.json`, `renderer.js` i okno (Rust) bez zmian.
+> Stan: **K1 i K2 zrobione** (2026-11-13; przy okazji naprawiony uchwyt rozmiaru, który od 26.11.3 nie działał). Przyciąganie przy zmianie rozmiaru – tylko element bez obrotu (własnego i grup). Dalej: K3–K5. Decyzje z §6 przyjęte wg propozycji (polecenie użytkownika „zacznij wdrażać”): scena – S + przeciągnięcie, ramka – przecinane (Alt – całe w środku), skalowanie tekstu – ramka, wyrównanie – pasek nad kanwą, K5 – tak, po K1–K4.
 > Wchłania P8 z `../VizRS CG System/docs/plany/PLAN-panel-wlasciwosci.md` (edycja wielu zaznaczonych – zaznaczanie wielokrotne już jest).
 
 ## 1. Problem

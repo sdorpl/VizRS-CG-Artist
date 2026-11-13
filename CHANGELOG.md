@@ -2,6 +2,7 @@
 
 ## Niewydane
 
+- **Edycja na kanwie – reszta etapu K2:** kilka zaznaczonych ma wspólną ramkę z 8 uchwytami – skalowanie położeń i ramek (Shift – proporcje, Alt – od środka; tekst – ramka, nie czcionka; grupy – tylko położenie); przy zmianie rozmiaru przeciągana krawędź przyciąga się do kadru, prowadnic, innych elementów i scen odniesienia (Ctrl – bez). DOKUMENTACJA §4.
 - **Uchwyty na kanwie** (plan `docs/plany/PLAN-edycja-na-kanwie.md`, etap K2): 8 uchwytów rozmiaru (rogi i boki; przeciwległy róg / bok stoi, także w elemencie i grupie obróconej), Shift – proporcje, Alt – od środka, kółko obrotu (Shift – co 15°); etykieta z kątem pod obrysem. DOKUMENTACJA §4.
 - **Poprawka:** uchwyt rozmiaru na kanwie nie działał (od 26.11.3) – kliknięcie w niego kończyło się błędem skryptu i nic się nie zmieniało.
 - **Zaznaczanie ramką i edycja wielu zaznaczonych** (plan `docs/plany/PLAN-edycja-na-kanwie.md`, etap K1; P8 planu panelu z CG System): przeciągnięcie od pustego miejsca kanwy zaznacza ramką (Shift / Ctrl – dodaj, Ctrl+Shift – odejmij, Alt – tylko całe w ramce); całą scenę przesuwa teraz przytrzymany **S** + przeciągnięcie. Panel Właściwości przy kilku zaznaczonych pokazuje wspólne właściwości, „—” przy różnych wartościach, a zmiana trafia do wszystkich (x / y – przesunięcie o tyle samo) jednym krokiem cofania. DOKUMENTACJA §4.

@@ -2319,6 +2319,24 @@ function relApply(op, forNode) {
 }
 const nameIn = (s, id) => { let nm = id; walk(s.nodes, (n) => { if (n.id === id) { nm = n.name || n.type; return false; } }); return nm; };
 
+/** Przyciąganie krawędzi przeciąganych uchwytem (obrys bb w px kadru, przesunięcie myszy ex / ey): poprawione ex / ey i linie.
+ *  sxk / syk – która krawędź (−1 lewa / górna, 1 prawa / dolna, 0 – żadna). */
+function snapEdges(bb, ex, ey, sxk, syk, ev) {
+  snapShow = [];
+  if (!cv.snap || ev.ctrlKey || ev.metaKey) return [ex, ey];
+  const tg = snapEdges.tg ||= snapTargets(snapEdges.moving || []), thr = 6 / scale, grid = cv.show && cv.grid ? cv.gridStep : 0;
+  if (sxk) {
+    const v = (sxk === 1 ? bb.x2 : bb.x1) + ex, h = snapAxis([v], tg.xs, thr, grid);
+    if (h) { ex += h.d; snapShow.push({ ax: 'x', v: h.v, lbl: tg.xl[h.i] }); }
+  }
+  if (syk) {
+    const v = (syk === 1 ? bb.y2 : bb.y1) + ey, h = snapAxis([v], tg.ys, thr, grid);
+    if (h) { ey += h.d; snapShow.push({ ax: 'y', v: h.v, lbl: tg.yl[h.i] }); }
+  }
+  return [ex, ey];
+}
+const snapEnd = () => { snapEdges.tg = null; snapEdges.moving = null; if (snapShow.length) { snapShow = []; drawGuides(); } };
+
 // ------------------------------------------------------------ uchwyty: rozmiar z każdego rogu i boku, obrót (K2)
 // Renderer: x / y – punkt zaczepienia, obrót i skala wokół środka ramki. Przy zmianie rozmiaru przeciwległy róg / bok stoi
 // w miejscu (także element obrócony i w obróconej grupie): środek ramki liczony od punktu stałego. Shift – proporcje
@@ -2335,11 +2353,16 @@ function resizeDrag(n, h, e) {
   const rs = (u, v) => [(u * Math.cos(rot) - v * Math.sin(rot)) * sc, (u * Math.sin(rot) + v * Math.cos(rot)) * sc];
   const cx0 = x0 - an.x * w0 + w0 / 2, cy0 = y0 - an.y * h0 + h0 / 2;
   const sx = e.clientX, sy = e.clientY;
+  // przyciąganie krawędzi – gdy ramka jest osiowa (bez obrotu własnego i przodków)
+  const axial = Math.abs(((xf.rot % 360) + 360) % 360) < 0.01, bb0 = axial && el ? sceneRect(el) : null;
+  snapEdges.moving = el ? [el] : [];
   let moved = false;
   const mv = (ev) => {
     if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 3) return;
     if (!moved) { checkpoint(); moved = true; }
-    const [dx, dy] = toLocal((ev.clientX - sx) / scale, (ev.clientY - sy) / scale, xf);
+    let ex = (ev.clientX - sx) / scale, ey = (ev.clientY - sy) / scale;
+    if (bb0) [ex, ey] = snapEdges(bb0, ex, ey, sxk, syk, ev);
+    const [dx, dy] = toLocal(ex, ey, xf);
     const k2 = ev.altKey ? 2 : 1;
     let w1 = w0 + sxk * dx * k2, h1 = h0 + syk * dy * k2;
     if (ev.shiftKey && w0 > 0 && h0 > 0) {
@@ -2356,9 +2379,55 @@ function resizeDrag(n, h, e) {
     if (tp.includes('h')) setProp(n, 'h', h1);
     setProp(n, 'x', Math.round((cx1 + an.x * w1 - w1 / 2) * 100) / 100);
     setProp(n, 'y', Math.round((cy1 + an.y * h1 - h1 / 2) * 100) / 100);
-    refresh(); syncProps();
+    refresh(); syncProps(); drawGuides();
   };
-  const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); if (moved) { renderTimeline(); updateSel(); } };
+  const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); snapEnd(); if (moved) { renderTimeline(); updateSel(); } };
+  addEventListener('mousemove', mv); addEventListener('mouseup', up);
+}
+/** Kilka zaznaczonych: wspólna ramka (obrys osiowy), skalowanie względem przeciwległego rogu / boku (Alt – środka), Shift – proporcje.
+ *  Każdy element: środek ramki skaluje się względem punktu stałego, ramka (w / h) – o współczynnik osi (obrót 90° – osie
+ *  zamienione, inny kąt – średnia); tekst – ramka, nie czcionka; grupy i typy bez w / h – tylko położenie. Jeden krok cofania. */
+function multiResize(h, e) {
+  const ids = topSel().filter((id) => !isLocked(id)); if (!ids.length) return;
+  const els = ids.map((id) => stage.querySelector(`[data-id="${CSS.escape(id)}"]`));
+  const bb = drawnBox(els, ownNode) || unionRect(els); if (!bb) return;
+  const sxk = h.includes('e') ? 1 : h.includes('w') ? -1 : 0, syk = h.includes('s') ? 1 : h.includes('n') ? -1 : 0;
+  const W0 = Math.max(1, bb.x2 - bb.x1), H0 = Math.max(1, bb.y2 - bb.y1);
+  const items = ids.map((id, i) => {
+    const m = locate(id).node, el = els[i], r = el ? sceneRect(el) : null, pxf = parentXf(id), tp = TYPES[m.type]?.props || [];
+    let w0 = num(m, 'w'), h0 = num(m, 'h');
+    if (!(w0 > 0)) w0 = el?.offsetWidth || 0;
+    if (!(h0 > 0)) h0 = el?.offsetHeight || 0;
+    const rot = (pxf.rot + num(m, 'rotation')) * Math.PI / 180, k = pxf.sc * (scl(m) || 1);
+    return { m, pxf, tp, w0, h0, rot, k, an: anchorOff(m, 1, 1), x0: num(m, 'x'), y0: num(m, 'y'), size: m.type !== 'group' && tp.includes('w'),
+      C: r ? [(r.x1 + r.x2) / 2, (r.y1 + r.y2) / 2] : null, q: ((((pxf.rot + num(m, 'rotation')) % 180) + 180) % 180) };
+  }).filter((it) => it.C);
+  const sx = e.clientX, sy = e.clientY;
+  snapEdges.moving = els.filter(Boolean);
+  let moved = false;
+  const mv = (ev) => {
+    if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 3) return;
+    if (!moved) { checkpoint(); moved = true; }
+    let [ex, ey] = snapEdges(bb, (ev.clientX - sx) / scale, (ev.clientY - sy) / scale, sxk, syk, ev);
+    const k2 = ev.altKey ? 2 : 1;
+    let fX = sxk ? (W0 + sxk * ex * k2) / W0 : 1, fY = syk ? (H0 + syk * ey * k2) / H0 : 1;
+    if (ev.shiftKey) { const f = sxk && syk ? Math.max(fX, fY) : sxk ? fX : fY; fX = fY = f; }
+    fX = Math.max(0.01, fX); fY = Math.max(0.01, fY);
+    const frx = ev.altKey || !sxk ? 0.5 : sxk === 1 ? 0 : 1, fry = ev.altKey || !syk ? 0.5 : syk === 1 ? 0 : 1;
+    const Fx = bb.x1 + frx * W0, Fy = bb.y1 + fry * H0;
+    for (const it of items) {
+      const [sw, sh] = it.q < 0.5 || it.q > 179.5 ? [fX, fY] : Math.abs(it.q - 90) < 0.5 ? [fY, fX] : [Math.sqrt(fX * fY), Math.sqrt(fX * fY)];
+      const w1 = it.size ? Math.max(1, Math.round(it.w0 * sw)) : it.w0, h1 = it.size && it.tp.includes('h') ? Math.max(1, Math.round(it.h0 * sh)) : it.h0;
+      const rs = (u, v) => [(u * Math.cos(it.rot) - v * Math.sin(it.rot)) * it.k, (u * Math.sin(it.rot) + v * Math.cos(it.rot)) * it.k];
+      const C1 = [Fx + (it.C[0] - Fx) * fX, Fy + (it.C[1] - Fy) * fY];
+      const p0 = rs((it.an.x - 0.5) * it.w0, (it.an.y - 0.5) * it.h0), p1 = rs((it.an.x - 0.5) * w1, (it.an.y - 0.5) * h1);
+      const [lx, ly] = toLocal(C1[0] + p1[0] - it.C[0] - p0[0], C1[1] + p1[1] - it.C[1] - p0[1], it.pxf);
+      if (it.size) { setProp(it.m, 'w', w1); if (it.tp.includes('h')) setProp(it.m, 'h', h1); }
+      setProp(it.m, 'x', Math.round((it.x0 + lx) * 100) / 100); setProp(it.m, 'y', Math.round((it.y0 + ly) * 100) / 100);
+    }
+    refresh(); syncProps(); drawGuides();
+  };
+  const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); snapEnd(); if (moved) { renderTimeline(); updateSel(); } };
   addEventListener('mousemove', mv); addEventListener('mouseup', up);
 }
 /** Obrót wokół środka ramki (jak w rendererze); Shift – co 15°. */
@@ -2626,23 +2695,27 @@ function updateSel() {
   const n = selNode();
   // obrót (własny i przodków) obraca też ramkę: uchwyt rozmiaru jest w rogu elementu, nie w rogu obrysu osiowego
   const xf = parentXf(selId), rot = n ? xf.rot + num(n, 'rotation') : 0, sk = n ? num(n, 'skewX') : 0;
-  if (n && Math.abs(rot % 360) > 0.01 && !sk && el.offsetWidth + el.offsetHeight > 0) {
+  const mb = multiSel() ? (() => { const es = topSel().map((id) => stage.querySelector(`[data-id="${CSS.escape(id)}"]`)); return drawnBox(es, ownNode) || unionRect(es); })() : null;
+  if (mb) {
+    const s0 = stage.getBoundingClientRect();
+    Object.assign(o.style, { display: 'block', left: s0.left - b.left + mb.x1 * scale + 'px', top: s0.top - b.top + mb.y1 * scale + 'px', width: (mb.x2 - mb.x1) * scale + 'px', height: (mb.y2 - mb.y1) * scale + 'px', transform: '' });
+  } else if (n && Math.abs(rot % 360) > 0.01 && !sk && el.offsetWidth + el.offsetHeight > 0) {
     const k = scale * xf.sc * (scl(n) || 1), w = el.offsetWidth * k, h = el.offsetHeight * k;
     const cx = (r.left + r.right) / 2 - b.left, cy = (r.top + r.bottom) / 2 - b.top;
     Object.assign(o.style, { display: 'block', left: cx - w / 2 + 'px', top: cy - h / 2 + 'px', width: w + 'px', height: h + 'px', transform: `rotate(${rot}deg)` });
   } else Object.assign(o.style, { display: 'block', left: r.left - b.left + 'px', top: r.top - b.top + 'px', width: r.width + 'px', height: r.height + 'px', transform: '' });
   // uchwyty: rozmiar tylko dla właściwości, które typ ma; obrót – gdy ma rotation; kilka zaznaczonych albo zablokowany – bez uchwytów
   const tp = n ? TYPES[n.type]?.props || [] : [];
-  o.classList.toggle('noh', !n || multiSel() || isLocked(n.id));
-  o.classList.toggle('now', !tp.includes('w')); o.classList.toggle('nohh', !tp.includes('h')); o.classList.toggle('nor', !tp.includes('rotation'));
+  o.classList.toggle('noh', !n || (!mb && isLocked(n.id)) || (multiSel() && !mb));
+  o.classList.toggle('now', !mb && !tp.includes('w')); o.classList.toggle('nohh', !mb && !tp.includes('h')); o.classList.toggle('nor', !!mb || !tp.includes('rotation'));
   const lb = $('#selLbl');
   // etykieta pod obrysem, gdy nad nim jest kółko obrotu (inaczej by je zasłaniała)
   const below = !o.classList.contains('noh') && !o.classList.contains('nor');
   Object.assign(lb.style, { display: 'block', left: r.left - b.left - 1 + 'px', top: (below ? r.bottom - b.top + 4 : r.top - b.top - 2) + 'px', transform: below ? 'none' : '' });
-  lb.textContent = n ? `${n.name}  ${Math.round(propAt(n, 'x', t))}, ${Math.round(propAt(n, 'y', t))}  ${Math.round(propAt(n, 'w', t))}×${Math.round(propAt(n, 'h', t))}${num(n, 'rotation') ? `  ∠ ${Math.round(num(n, 'rotation') * 10) / 10}°` : ''}${selMore.length ? `  (+${selMore.length})` : ''}` : '';
+  lb.textContent = mb ? `${selAll().length} ${plElem(selAll().length)}  ${Math.round(mb.x2 - mb.x1)}×${Math.round(mb.y2 - mb.y1)}` : n ? `${n.name}  ${Math.round(propAt(n, 'x', t))}, ${Math.round(propAt(n, 'y', t))}  ${Math.round(propAt(n, 'w', t))}×${Math.round(propAt(n, 'h', t))}${num(n, 'rotation') ? `  ∠ ${Math.round(num(n, 'rotation') * 10) / 10}°` : ''}${selMore.length ? `  (+${selMore.length})` : ''}` : '';
   // pozostałe zaznaczone (Ctrl / Shift+klik): ramki przerywane
   let hx = '';
-  for (const id of selMore) {
+  for (const id of mb ? selAll() : selMore) {
     const e2 = stage.querySelector(`[data-id="${CSS.escape(id)}"]`); if (!e2 || e2.style.display === 'none') continue;
     const r2b = e2.getBoundingClientRect();
     hx += `<div class="selx" style="left:${r2b.left - b.left}px;top:${r2b.top - b.top}px;width:${r2b.width}px;height:${r2b.height}px"></div>`;
@@ -2711,6 +2784,7 @@ box.addEventListener('mousedown', (e) => {
   const sx = e.clientX, sy = e.clientY;
   let moved = false;
   if (handle) { // uchwyty ramki: rozmiar (8 uchwytów) albo obrót głównego zaznaczenia
+    if (multiSel()) { if (!handle.classList.contains('hr')) multiResize(handle.dataset.h, e); return; }
     if (isLocked(n.id)) return;
     if (handle.classList.contains('hr')) rotateDrag(n, e); else resizeDrag(n, handle.dataset.h, e);
     return;
