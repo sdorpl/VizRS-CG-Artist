@@ -1,6 +1,6 @@
 # PLAN: pozycjonowanie scen względem siebie (ticker względem belki)
 
-> Stan: **propozycja** (2026-11-13). Zakres: VizRS CG Artist (`web/artist.html`); jedna część (P5) wymaga zmiany formatu w VizRS CG System.
+> Stan: **P1–P3 zrobione, P4 częściowo** (2026-11-13: sceny odniesienia, przyciąganie do nich i całej sceny, dosuń / wyrównaj / szerokość jak cel, „jako powiązanie (dock)”). Także P2 w całości (pomiar Alt, ostrzeżenie o nachodzeniu). Do zrobienia: „Podgląd” i „Ustaw z kanwy” w tabeli dock z P4, P5–P6. Decyzje z §7 przyjęte domyślnie: wybór per scena, czas – stop point, bez P5. Zakres: VizRS CG Artist (`web/artist.html`); jedna część (P5) wymaga zmiany formatu w VizRS CG System.
 
 ## 1. Problem
 

@@ -86,6 +86,46 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
     const port = loc.href ? Number(new URL(loc.href).port) : 0;
     ok(port > 0 && !(await health(port)), 'magazyn lokalny kończy się razem z oknem');
 
+    // 1b. sceny odniesienia i położenie względem innej sceny: belka (w niewidocznym kontenerze 1920×1080) dosunięta 8 px
+    //     nad ticker, zapis do show.json; klik w puste miejsce kontenera nie chwyta grupy; ostrzeżenie o nachodzeniu
+    const rdata = path.join(tmp, 'refs');
+    fs.mkdirSync(rdata, { recursive: true });
+    const rect = (id, x, y, w, h) => ({ id, type: 'rect', name: id, props: { x, y, w, h, color: '#336699' } });
+    fs.writeFileSync(path.join(rdata, 'show.json'), JSON.stringify({ rev: 1, scenes: [
+      { id: 'belka', name: 'Belka', layer: 'main', width: 1920, height: 1080, duration: 2, stops: [1], nodes: [{ id: 'kont', type: 'group', name: 'kont', props: { x: 0, y: 0, w: 1920, h: 1080 }, children: [rect('bar', 160, 820, 1600, 110)] }] },
+      { id: 'ticker', name: 'Ticker', layer: 'back', width: 1920, height: 1080, duration: 2, stops: [1], nodes: [rect('pas', 160, 960, 1600, 60)] },
+    ] }));
+    const refs = run(['--data', rdata], write('refs.js', `(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
+      await sleep(400);
+      const r = {};
+      document.querySelector('#vRefs').click(); await sleep(150);
+      const c = document.querySelector('#pRefs [data-rfid="ticker"]'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); await sleep(300);
+      r.under = document.querySelectorAll('#refsU .vz-scene[data-ref="ticker"] .vz-node').length;
+      const gap = document.querySelector('[data-rel="gap"]'); gap.value = 8; gap.dispatchEvent(new Event('input', { bubbles: true }));
+      document.querySelector('[data-relop="above"][data-relfor="scene"]').click(); await sleep(200);
+      r.y = document.querySelector('[data-sp="y"]').value;
+      const st = document.querySelector('#stage').getBoundingClientRect(), k = st.width / 1920;
+      const at = (x, y) => ({ clientX: st.left + x * k, clientY: st.top + y * k, button: 0, bubbles: true, detail: 1 });
+      document.querySelector('#box').dispatchEvent(new MouseEvent('mousedown', at(960, 300))); dispatchEvent(new MouseEvent('mouseup', at(960, 300))); await sleep(150);
+      r.emptyHit = document.querySelector('#propsTitle').textContent;
+      document.querySelector('#box').dispatchEvent(new MouseEvent('mousedown', at(960, 870))); dispatchEvent(new MouseEvent('mouseup', at(960, 870))); await sleep(150);
+      r.barHit = document.querySelector('#pname')?.value;
+      document.querySelector('#tree .item[data-id=""]').click(); await sleep(150);
+      const sy = document.querySelector('[data-sp="y"]'); sy.value = 60; sy.dispatchEvent(new Event('input', { bubbles: true })); await sleep(200);
+      r.warn = !document.querySelector('#overWarn').hidden;
+      sy.value = 22; sy.dispatchEvent(new Event('input', { bubbles: true })); await sleep(200);
+      r.warnOff = document.querySelector('#overWarn').hidden;
+      window.__vizrsCmd('save'); await sleep(800);
+      r.saved = (await (await fetch('/api/show')).json()).scenes.find((s) => s.id === 'belka')?.y;
+      (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
+    })();`), 'refs');
+    ok(refs.under === 1, 'scena odniesienia (ticker, warstwa back) narysowana pod bieżącą sceną', refs);
+    ok(refs.emptyHit === 'Scena' && refs.barHit === 'bar', 'klik w puste miejsce kontenera nie chwyta grupy, klik w prostokąt chwyta prostokąt', refs);
+    ok(refs.warn === true && refs.warnOff === true, 'ostrzeżenie o nachodzeniu na ticker pojawia się i znika', refs);
+    ok(refs.y === '22' && refs.saved === 22 && showOf(rdata)?.scenes?.find((s) => s.id === 'belka')?.y === 22, 'dosunięcie belki 8 px nad ticker ustawia położenie sceny i trafia do show.json', refs);
+
     // 2. jedna instancja: drugie uruchomienie przekazuje prośbę i kończy pracę; vizrs nie wystartuje na tym katalogu
     const first = spawn(APP, ['--data', data], { env: ENV, stdio: 'ignore' });
     for (let i = 0; i < 50 && !fs.existsSync(path.join(data, '.vizrs.lock')); i++) await sleep(100);

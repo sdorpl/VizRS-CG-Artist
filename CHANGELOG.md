@@ -2,6 +2,19 @@
 
 ## Niewydane
 
+- **Położenie scen względem siebie** (plan `docs/plany/PLAN-pozycjonowanie-scen.md`, etapy P1–P3 i część P4): DOKUMENTACJA §4.
+  - **Sceny odniesienia** (⧉ w rogu kanwy, Shift+R): inne sceny show – np. ticker i logo przy belce – półprzezroczyście na kanwie, w kolejności warstw wyjścia i w stanie z pierwszego stop pointu; wybór osobny dla każdej sceny, krycie, kolejność (wg warstw / pod / nad), czas (stop point / głowica). Tylko podgląd, bez zmian w `show.json`.
+  - **Przyciąganie do scen odniesienia** – elementów i całej sceny (przeciągnięcie pustego miejsca kanwy dotąd się nie przyciągało); turkusowa linia z nazwą celu.
+  - **Położenie względem innej sceny** (ustawienia sceny i grupa „Względem innej sceny” elementu): dosuń nad / pod / z lewej / z prawej celu z odstępem, wyrównaj krawędzie i środki, „szerokość jak cel”; cel – cała scena albo jej element. Wariant **jako powiązanie (dock)** zapisuje regułę `scene:<cel>` z wyliczonym `dx` / `dy` zamiast przesuwać scenę.
+  - **Pomiar odległości** (przytrzymaj Alt nad kanwą): odstępy w px od zaznaczenia (albo całej sceny) do najbliższych krawędzi elementów, scen odniesienia i kadru.
+  - **Ostrzeżenie o nachodzeniu:** element zasłaniający element sceny odniesienia z innej warstwy – czerwony obszar na kanwie i komunikat z nazwami.
+- **Kanwa – chwytanie i położenie:**
+  - Elementy łapią kliknięcie tylko tam, gdzie coś rysują: grupa (np. kontener 1920×1080) i prostokąt bez wypełnienia nie chwytają już pustego miejsca swojej ramki, tekst – tylko obszar napisu, niewidoczny element – wcale. Zaznaczoną grupę dalej da się przeciągnąć z jej ramki.
+  - Ramka zaznaczenia elementu obróconego obraca się z nim, uchwyt rozmiaru jest w rogu elementu (dawniej w rogu obrysu osiowego).
+  - Przyciąganie, dosuwanie względem innej sceny i pomiar liczą obrys tego, co jest rysowane – niewidoczny kontener nie robi z belki pełnego kadru.
+- **Czytelniejsze zaokrąglenie rogów:** zamiast dwóch wierszy z ośmioma polami „auto” (↖ ↗ ↘ ↙, L P G D) – pole „wszystkie rogi” i rozwijany schemat prostokąta z polami w narożnikach i na bokach, podglądem kształtu i wartością dziedziczoną w pustych polach; „wyczyść rogi i boki”. DOKUMENTACJA §4.
+- **Poprawka:** siatka punktu zaczepienia (Transform → punkt) znów jest siatką 3×3 – po przejściu na wygląd VizRS Live przyciski rozciągały się w jeden pasek.
+
 ## 26.11.3 – 2026-11-13
 
 - **Strona z CG System v26.11.3** (`web/CG_SYSTEM`: commit wydania; moduły bez zmian względem poprzedniej synchronizacji).

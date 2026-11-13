@@ -32,13 +32,43 @@
   .sqinfo .warn { color: #ffb020; } .sqinfo .bad { color: #ff4d4d; }
   #sel { position: absolute; border: 1px solid var(--acc); pointer-events: none; box-shadow: 0 0 0 1px rgba(0,0,0,.6); display: none; z-index: 5; }
   #sel .h { position: absolute; right: -6px; bottom: -6px; width: 11px; height: 11px; background: var(--acc); border: 1px solid #000; pointer-events: auto; cursor: nwse-resize; }
-  #sel .lbl { position: absolute; left: -1px; top: -18px; font-size: 10px; background: var(--acc); color: #000; padding: 1px 4px; white-space: nowrap; }
+  #sel { transform-origin: 50% 50%; }
+  #selLbl { position: absolute; display: none; z-index: 5; pointer-events: none; font-size: 10px; background: var(--acc); color: #000; padding: 1px 4px; white-space: nowrap; transform: translateY(-100%); }
+  #overWarn { position: absolute; left: 8px; top: 8px; z-index: 6; pointer-events: none; max-width: 60%; font-size: 11px; line-height: 1.4; color: #ffd0cf; background: rgba(60,12,12,.88); border: 1px solid #ff4d4d; border-radius: 4px; padding: 3px 8px; }
+  #overWarn[hidden] { display: none; }
+  #guides .over { fill: rgba(255,77,77,.28); stroke: #ff4d4d; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  #guides .meas { stroke: #ffd400; stroke-width: 1; vector-effect: non-scaling-stroke; }
+  #guides .measb { fill: none; stroke: #ffd400; stroke-dasharray: 3 3; stroke-width: 1; vector-effect: non-scaling-stroke; }
+  #guides text.measl { fill: #111; font-family: ui-monospace, monospace; font-weight: 600; }
+  #guides rect.measbg { fill: #ffd400; }
   #box { background: #111215; }
   #bg { position: absolute; pointer-events: none; z-index: 0; }
   #bSafe.on { border-color: var(--acc); color: var(--acc); }
   #bg.checker, .vpop .sw button.checker { background: repeating-conic-gradient(#26282d 0 25%, #1c1e22 0 50%) 0 0 / 20px 20px; }
   #bg.checkerL, .vpop .sw button.checkerL { background: repeating-conic-gradient(#d9d9d9 0 25%, #f4f4f4 0 50%) 0 0 / 20px 20px; }
   #stage { z-index: 1; }
+  .refs { position: absolute; left: 0; top: 0; pointer-events: none; transform-origin: 0 0; }
+  #refsU { z-index: 1; } #refsO { z-index: 2; }
+  #guides .snap.ref { stroke: #22d3ee; }
+  #guides text.snapl { fill: #22d3ee; font-family: ui-monospace, monospace; }
+  #vRefsN { font: 10px ui-monospace, monospace; margin-left: 1px; }
+  #pRefs { width: 330px; }
+  .vpop .rflist { max-height: 220px; overflow: auto; margin: 0 -4px; padding: 0 4px; }
+  .vpop .rflist label { justify-content: space-between; }
+  .vpop .rflist .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .vpop .rflist .pos { font-size: 10px; color: var(--dim); white-space: nowrap; }
+  .vpop .rfrow { display: grid; grid-template-columns: 70px 1fr; gap: 6px; align-items: center; padding: 2px 0; }
+  .vpop .rfrow select, .vpop .rfrow input { width: 100%; min-width: 0; }
+  .vpop .warn { color: var(--warn, #e8b04b); font-size: 11px; }
+  #tree .item .refs1 { font-size: 10px; color: #22d3ee; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+  .relbox { padding: 4px 8px 8px; }
+  .relbox .rrow { display: grid; grid-template-columns: 70px 1fr; gap: 6px; align-items: center; padding: 2px 0; }
+  .relbox .rrow select, .relbox .rrow input { width: 100%; min-width: 0; }
+  .relbox .rrow .row { display: flex; gap: 4px; min-width: 0; }
+  .relbox .rbtns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
+  .relbox .rbtns.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .relbox .rbtns button { padding: 0 2px; height: 26px; font-size: 12px; min-width: 0; white-space: nowrap; overflow: hidden; }
+  .relbox .rnote { font-size: 11px; color: var(--dim); padding-top: 4px; line-height: 1.4; }
   #guides { position: absolute; pointer-events: none; z-index: 4; overflow: visible; }
   #guides .g { fill: none; stroke-width: 1; vector-effect: non-scaling-stroke; }
   #guides text { font-family: ui-monospace, monospace; }
@@ -110,12 +140,31 @@
   .anchor-row { flex-wrap: nowrap; }
   .anchor-row .cell, .seg-row .cell { display: inline-flex; align-items: center; gap: 1px; }
   .agrid { display: grid; grid-template-columns: repeat(3, 12px); gap: 2px; }
-  .agrid button { width: 12px; height: 12px; min-width: 0; padding: 0; border-radius: 2px; }
+  .agrid button, .agrid button.icon { width: 14px; height: 14px; min-width: 0; min-height: 0; padding: 0; border-radius: 3px; background: var(--panel2, #23262c); border: 1px solid var(--line-strong, #3a3f48); }
+  .agrid button:hover { border-color: var(--acc); }
   .agrid button.on { background: var(--acc); border-color: var(--acc); }
+  .anchor-row [data-anchorlbl] { white-space: nowrap; font-size: 11px; }
   .segb { display: inline-flex; }
   .segb button { border-radius: 0; padding: 0 7px; height: 22px; min-width: 24px; font-size: 13px; line-height: 20px; }
   .segb button:first-child { border-radius: 4px 0 0 4px; } .segb button:last-child { border-radius: 0 4px 4px 0; }
   .segb button.on { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); }
+  /* zaokrąglenie: „wszystkie rogi” + schemat prostokąta (rogi w narożnikach, boki na krawędziach, podgląd w środku) */
+  .prad .rtop { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: end; }
+  .prad .rtog { height: 24px; font-size: 12px; padding: 0 8px; }
+  .prad .rtog.on { color: var(--acc); border-color: var(--acc); }
+  .prad .rgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 6px; margin-top: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg-deep); }
+  .prad .rgrid .cell { padding-left: 0; border-left: none; border-bottom: 2px solid transparent; }
+  .prad .rgrid .cell > input[type=number] { width: 100%; min-width: 0; box-sizing: border-box; text-align: center; padding-left: 2px; padding-right: 2px; }
+  .prad .rgrid .cell .ch { justify-content: center; }
+  .prad .rgrid .cell .ch label { font-size: 11px; }
+  .prad .rgrid .cell .ch .grow { display: none; }
+  .prad .rgrid .cell:not(:hover) .kbtn:not(.has), .prad .rgrid .cell:not(:hover) .fbtn:not(.on) { display: none; }
+  #props .prad .rgrid .anim { border-bottom-color: var(--acc); }
+  #props .prad .rgrid .fld { border-bottom-color: var(--blue); }
+  .prad .rprev { display: flex; align-items: center; justify-content: center; min-height: 44px; }
+  .prad .rprev i { display: block; background: rgba(240,160,32,.18); border: 1px solid var(--acc); box-sizing: border-box; }
+  .prad .rhint { font-size: 11px; color: var(--dim); padding: 4px 2px 0; line-height: 1.4; }
+  .linkb { background: none; border: none; padding: 0; height: auto; min-height: 0; color: var(--acc); text-decoration: underline; cursor: pointer; font-size: 11px; }
   .chk { font-size: 12px; display: inline-flex; align-items: center; gap: 3px; }
   .pmore { padding: 6px 8px; } .pmore button { width: 100%; font-size: 12px; }
   .pnote { padding: 2px 10px; font-size: 12px; line-height: 1.5; }
@@ -253,14 +302,20 @@
   <section class="panel" id="canvasP" data-hint="Kanwa: przeciągnij element · dwuklik = zaznacz grupę nadrzędną · Ctrl / Shift+klik = dodaj do zaznaczenia · róg = rozmiar · strzałki = 1 px (Shift = 10 px) · klik w puste miejsce = ustawienia sceny (przeciągnięcie = przesuń całą scenę) · kółko = zoom · środkowy przycisk = przesuwanie widoku · Shift+1 / 2 / 3 = dopasuj / 100% / zaznaczony">
     <div id="box">
       <div id="bg" class="checker"></div>
+      <div id="refsU" class="refs"></div>
       <div id="stage"></div>
+      <div id="refsO" class="refs"></div>
       <svg id="guides"></svg>
       <div id="selx"></div>
-      <div id="sel"><span class="lbl"></span><div class="h"></div></div>
+      <div id="sel"><div class="h"></div></div>
+      <span id="selLbl" class="lbl"></span>
+      <div id="overWarn" hidden></div>
       <div id="info"></div>
       <div id="pGuides" class="vpop" hidden></div>
       <div id="pBg" class="vpop" hidden></div>
+      <div id="pRefs" class="vpop" hidden></div>
       <div id="vTools"><button id="vSnap" class="icon" title="Przyciąganie do krawędzi, środka, obszarów bezpiecznych i innych elementów (podczas przeciągania Ctrl = bez przyciągania)">🧲</button>
+        <button id="vRefs" class="icon" title="Sceny odniesienia: inne sceny show na kanwie, jak złożą się na wyjściu – do ustawiania belki względem tickera, logo… (Shift+R = pokaż / ukryj)">⧉<span id="vRefsN"></span></button>
         <button id="vGuides" class="icon" title="Prowadnice: obszary bezpieczne EBU R 95, kadry 4:3 / 14:9, środek, trójpodział, siatka">⌗</button>
         <button id="vBg" class="icon" title="Tło kanwy (tylko podgląd – nie trafia do sceny)">▦</button>
         <span id="vZoom" title="Powiększenie podglądu">100%</span>
@@ -322,7 +377,7 @@
 <script type="module">
 import * as PACK from '/cgpack.js';
 import * as MO from '/motion.js';
-import { PROPS, TYPES, FONTS, OFFLINE_FONTS, EASES, ScenePlayer, propAt, trackValue, walk, listFields, variantFields, uid, fitStage, parseColor, connectEvents } from '/renderer.js';
+import { PROPS, TYPES, FONTS, OFFLINE_FONTS, EASES, ScenePlayer, propAt, cornerRadii, layerZ, trackValue, walk, listFields, variantFields, uid, fitStage, parseColor, connectEvents } from '/renderer.js';
 import { mountTickerEditor } from '/ticker-items.js';
 import { nativeBridge, choose, confirmBox, promptBox } from '/native.js';
 
@@ -387,6 +442,7 @@ function setSceneOffset(x, y) {
   const ix = document.querySelector('[data-sp="x"]'), iy = document.querySelector('[data-sp="y"]');
   if (ix && document.activeElement !== ix) ix.value = x; if (iy && document.activeElement !== iy) iy.value = y;
   const pl = document.querySelector('#tree .item[data-id=""] .off'); if (pl) pl.textContent = x || y ? `${x}, ${y}` : '';
+  queueGuides();
 }
 // ------------------------------------------------------------ geometria (układy grup)
 // Dziecko grupy leży względem lewego górnego rogu ramki rodzica (renderer: left = x − przesunięcie punktu zaczepienia);
@@ -519,6 +575,7 @@ function openScene(s) {
   setDirty(false);
   player?.destroy();
   player = new ScenePlayer(stage, scene, {}, { editor: true });
+  buildRefs();
   history.replaceState(null, '', '?scene=' + encodeURIComponent(s.id));
   resetView(); renderAll();
   // jak w Viz: edycja zaczyna się w pierwszym stop poincie (grafika widoczna)
@@ -568,7 +625,7 @@ async function newScene(name, base) {
 function renderAll() { renderSceneSel(); renderTree(); renderProps(); renderTimeline(); }
 
 function renderTree() {
-  let h = `<div class="item ${selId ? '' : 'sel'}" data-id=""><span class="ic"><i class="ico scene"></i></span><b class="grow">${esc(scene.name)}</b><span class="dim off" title="położenie sceny (X, Y)">${+scene.x || +scene.y ? `${+scene.x || 0}, ${+scene.y || 0}` : ''}</span><span class="pill">${esc(scene.layer || 'main')}</span></div>`;
+  let h = `<div class="item ${selId ? '' : 'sel'}" data-id=""><span class="ic"><i class="ico scene"></i></span><b class="grow">${esc(scene.name)}</b><span class="refs1" data-refs1></span><span class="dim off" title="położenie sceny (X, Y)">${+scene.x || +scene.y ? `${+scene.x || 0}, ${+scene.y || 0}` : ''}</span><span class="pill">${esc(scene.layer || 'main')}</span></div>`;
   const rec = (nodes, d) => {
     for (const n of nodes) {
       const fl = Object.values(n.fields || {}).filter(Boolean);
@@ -587,6 +644,7 @@ function renderTree() {
   $('#tree').innerHTML = h;
   const names = []; walk(scene.nodes, (n) => { if (n.name) names.push(n.name); });
   $('#nodelist').innerHTML = names.map((n) => `<option>${esc(n)}</option>`).join('');
+  syncRefsUI();
 }
 
 function inputFor(p, d) {
@@ -609,7 +667,7 @@ function inputFor(p, d) {
 const pui = (() => { try { return { fold: {}, all: false, tab: 'wl', ratio: false, ...JSON.parse(localStorage.getItem('vizrs.propsUI')) }; } catch { return { fold: {}, all: false, tab: 'wl', ratio: false }; } })();
 const savePui = () => { try { localStorage.setItem('vizrs.propsUI', JSON.stringify(pui)); } catch { /* ignoruj */ } };
 /** Grupy domyślnie zwinięte (rzadko używane). */
-const FOLD0 = new Set(['Maska / efekty', 'Autofollow']);
+const FOLD0 = new Set(['Maska / efekty', 'Autofollow', 'Względem innej sceny']);
 const folded = (g) => pui.fold[g] ?? FOLD0.has(g);
 /** Właściwości zaawansowane: w trybie „Podstawowe” widoczne tylko, gdy są użyte (wartość, klucz, pole kontrolne). */
 const ADV = new Set(['skewX', 'blink', 'blur', 'clipL', 'clipR', 'clipT', 'clipB', 'followMin', 'fillSqueeze', 'squeezeMin', 'lineBreak', 'hlColor', 'hlText',
@@ -640,9 +698,7 @@ const COMBOS = [
   { props: ['followAxis', 'followPad', 'followMin'], short: ['oś', 'margines', 'min.'] },
   { props: ['color', 'color2', 'gradAngle'], short: ['kolor', 'kolor 2', 'kąt'], kind: 'fill' },
   { props: ['borderWidth', 'borderColor'], short: ['ramka px', 'kolor ramki'] },
-  { props: ['radius', 'shadow'], short: ['zaokr.', 'cień'] },
-  { props: ['radiusTL', 'radiusTR', 'radiusBR', 'radiusBL'], short: ['↖', '↗', '↘', '↙'], label: 'zaokr. rogów (puste = jak zaokr.)' },
-  { props: ['radiusL', 'radiusR', 'radiusT', 'radiusB'], short: ['L', 'P', 'G', 'D'], label: 'zaokr. boków (puste = jak zaokr.)' },
+  { props: ['radius', 'radiusTL', 'radiusT', 'radiusTR', 'radiusL', 'radiusR', 'radiusBL', 'radiusB', 'radiusBR'], kind: 'radius', label: 'zaokrąglenie' },
   { props: ['font', 'weight'], short: ['font', 'grubość'], kind: 'wide1' },
   { props: ['size', 'spacing', 'lineHeight'], short: ['rozmiar', 'odstęp', 'interl.'] },
   { props: ['italic', 'upper'], kind: 'bools', label: 'styl' },
@@ -651,6 +707,13 @@ const COMBOS = [
   { props: ['catBg', 'catFg'], short: ['tło kat.', 'tekst kat.'] },
   { props: ['labelSize', 'labelWeight'], short: ['rozm. etyk.', 'grub. etyk.'] },
 ];
+/** Pola schematu zaokrąglenia: pozycja w siatce 3×3, krótka etykieta, opis. */
+const RAD_UI = {
+  radiusTL: { pos: 'tl', short: '↖ róg', tip: 'Lewy górny róg' }, radiusTR: { pos: 'tr', short: 'róg ↗', tip: 'Prawy górny róg' },
+  radiusBL: { pos: 'bl', short: '↙ róg', tip: 'Lewy dolny róg' }, radiusBR: { pos: 'br', short: 'róg ↘', tip: 'Prawy dolny róg' },
+  radiusT: { pos: 't', short: 'bok górny', tip: 'Bok górny (oba górne rogi)', side: 1 }, radiusB: { pos: 'b', short: 'bok dolny', tip: 'Bok dolny (oba dolne rogi)', side: 1 },
+  radiusL: { pos: 'l', short: 'bok lewy', tip: 'Bok lewy (oba lewe rogi)', side: 1 }, radiusR: { pos: 'r', short: 'bok prawy', tip: 'Bok prawy (oba prawe rogi)', side: 1 },
+};
 const SEG = { align: [['left', '⇤'], ['center', '↔'], ['right', '⇥']], valign: [['top', '⤒'], ['middle', '↕'], ['bottom', '⤓']] };
 const SEG_T = { left: 'do lewej', center: 'do środka', right: 'do prawej', top: 'do góry', middle: 'w pionie do środka', bottom: 'do dołu' };
 
@@ -709,13 +772,15 @@ function renderProps() {
     const c = comboOf.get(p);
     const members = c ? c.props.filter((x) => own.has(x) && !done.has(x)) : [p];
     for (const x of members) done.add(x);
-    const vis = members.filter(shown);
+    // zaokrąglenie: jeden schemat dla wszystkich rogów i boków (rozwinięcie – przycisk w wierszu, nie tryb „Wszystko”)
+    const vis = c?.kind === 'radius' ? (members.some(shown) || members.some((x) => propState(n, x).used) ? members : []) : members.filter(shown);
     hidden += members.length - vis.length;
     if (!vis.length) continue;
     if (!c || vis.length === 1) { for (const x of vis) add(PROPS[x].g, rowOne(x)); }
     else add(d.g, rowCombo(c, vis));
     if (p === 'textFit' || (vis.includes('textFit'))) add(d.g, `<div class="sqinfo" id="sqInfo"></div>`);
   }
+  if (scenes.length > 1) add('Względem innej sceny', relForm(true));
   for (const [g, body] of groups) {
     wl += `<div class="pgsec ${folded(g) ? 'fold' : ''}" data-sec="${esc(g)}"><button class="pgroup" data-fold="${esc(g)}"><span class="car">▾</span> ${esc(g)}<span class="cnt"></span></button><div class="pgbody">${body}</div></div>`;
   }
@@ -744,10 +809,32 @@ function renderProps() {
     if (c.kind === 'bools') {
       return `<div class="pr pcombo" data-q="${q}"><label>${esc(c.label)}</label><div class="pin seg-row">${vis.map((x) => `<span class="cell" data-prop="${x}"><label class="chk"><input type="checkbox" data-p="${x}"> ${esc(PROPS[x].label)}</label>${btns(x, PROPS[x])}</span>`).join('')}</div><span></span><span></span></div>`;
     }
+    if (c.kind === 'radius') return radiusRow(c, vis);
     const cols = c.kind === 'wide1' && vis.length === 2 ? '2fr 1fr' : `repeat(${vis.length}, minmax(0, 1fr))`;
     const lockBtn = c.ratio && vis.length === 2 ? `<button class="icon ratio ${pui.ratio ? 'on' : ''}" data-ratio title="Zachowaj proporcje szerokości i wysokości">⛓</button>` : '';
     return `<div class="pmulti" data-q="${q}">${c.label ? `<div class="pmlbl">${esc(c.label)}</div>` : ''}<div class="pmgrid" style="grid-template-columns:${cols}${lockBtn ? ' 22px' : ''}">
       ${vis.map((x) => { const d = PROPS[x], i = c.props.indexOf(x); return `<div class="cell ${inert(x) ? 'inert' : ''}" data-prop="${x}"><div class="ch">${scrubLbl(x, d, c.short?.[i] || d.label || x)}<span class="grow"></span>${btns(x, d)}</div>${inputFor(x, d)}</div>`; }).join('')}${lockBtn}</div></div>`;
+  }
+
+  /** Zaokrąglenie: „wszystkie rogi” + schemat prostokąta z polami w rogach i na bokach (puste pole = dziedziczy). */
+  function radiusRow(c, vis) {
+    const q = esc(vis.map((x) => x + ' ' + (PROPS[x].label || '')).join(' ') + ' zaokrąglenie rogi boki narożniki');
+    const own8 = vis.filter((x) => x !== 'radius');
+    const used8 = own8.some((x) => propState(n, x).used);
+    const open = own8.length && (used8 || pui.radius);
+    const cell = (x) => {
+      if (!vis.includes(x)) return '<span></span>';
+      const d = PROPS[x], R = RAD_UI[x];
+      return `<div class="cell rcell r-${R.pos}" data-prop="${x}"><div class="ch">${scrubLbl(x, d, R.short)}<span class="grow"></span>${btns(x, d)}</div><input type="number" data-p="${x}" step="1" min="-1" title="${esc(R.tip)} – puste = ${R.side ? 'jak „wszystkie”' : 'z boków albo jak „wszystkie”'}"></div>`;
+    };
+    const all = vis.includes('radius') ? `<div class="cell rall" data-prop="radius"><div class="ch">${scrubLbl('radius', PROPS.radius, 'wszystkie rogi')}<span class="grow"></span>${btns('radius', PROPS.radius)}</div><input type="number" data-p="radius" step="1" min="0"></div>` : '';
+    const tog = own8.length ? `<button class="rtog ${open ? 'on' : ''}" data-radx title="${open ? 'Zwiń' : 'Pokaż'} osobne zaokrąglenie każdego rogu i boku">${open ? '▾' : '▸'} osobno${used8 ? ' •' : ''}</button>` : '';
+    let h = `<div class="pmulti prad" data-q="${q}"><div class="pmlbl">${esc(c.label)}</div><div class="rtop">${all}${tog}</div>`;
+    if (open) {
+      h += `<div class="rgrid">${cell('radiusTL')}${cell('radiusT')}${cell('radiusTR')}${cell('radiusL')}<div class="rprev" title="Podgląd rogów (w skali krótszego boku elementu)"><i data-rprev></i></div>${cell('radiusR')}${cell('radiusBL')}${cell('radiusB')}${cell('radiusBR')}</div>
+        <div class="rhint">Puste pole dziedziczy: róg → z boków → „wszystkie”. Dwa boki przy rogu (np. górny i lewy) dają róg eliptyczny.${used8 ? ' <button class="linkb" data-radclr title="Usuń zaokrąglenia rogów i boków – wszystkie rogi jak „wszystkie”">wyczyść rogi i boki</button>' : ''}</div>`;
+    }
+    return h + '</div>';
   }
 
   let ruch = motionForm(n);
@@ -910,7 +997,25 @@ function syncProps(force) {
     const f = n.fields?.[b.dataset.field];
     b.classList.toggle('on', !!f); b.title = f ? `Pole kontrolne: ${f} (kliknij, aby zmienić)` : 'Wystaw jako pole kontrolne (Control Object)';
   }
+  syncRadius(n);
   markProps(n);
+}
+/** Schemat zaokrąglenia: puste pola pokazują wartość dziedziczoną, podgląd ma kształt i proporcje elementu. */
+function syncRadius(n) {
+  const pv = $('#props [data-rprev]'); if (!pv) return;
+  const p = (k) => propAt(n, k, t, null), r = Math.max(0, +p('radius') || 0);
+  const eff = cornerRadii(p) || [[r, r], [r, r], [r, r], [r, r]];
+  const idx = { radiusTL: 0, radiusTR: 1, radiusBR: 2, radiusBL: 3 };
+  const r1 = (v) => String(Math.round(v * 10) / 10);
+  for (const inp of $$('#props .rgrid input[data-p]')) {
+    const k = inp.dataset.p, i = idx[k];
+    inp.placeholder = i != null ? r1(Math.max(...eff[i])) : r1(+p(k) >= 0 ? +p(k) : r);
+  }
+  // stały prostokąt podglądu; promienie w skali krótszego boku elementu (róg = połowa boku wygląda jak w elemencie)
+  const k = 40 / Math.max(1, Math.min(num(n, 'w') || 100, num(n, 'h') || 100));
+  const sc = (v) => Math.round(Math.min(v * k, 40) * 10) / 10 + 'px';
+  Object.assign(pv.style, { width: '72px', height: '40px',
+    borderRadius: eff.map((x) => sc(x[0])).join(' ') + ' / ' + eff.map((x) => sc(x[1])).join(' ') });
 }
 
 const openRules = new Set();
@@ -945,6 +1050,8 @@ function renderSceneProps() {
   <div class="sp"><label>Warstwa (layer)</label><input data-sp="layer" list="layerlist" value="${esc(scene.layer || 'main')}"></div>
   <div class="sp"><label>Rozdzielczość</label><div class="row"><input data-sp="width" type="number" value="${scene.width}"> × <input data-sp="height" type="number" value="${scene.height}"></div></div>
   <div class="sp"><label>Położenie sceny</label><div class="row"><input data-sp="x" type="number" value="${+scene.x || 0}" title="X – przesunięcie całej sceny (nie zmienia animacji)"> × <input data-sp="y" type="number" value="${+scene.y || 0}" title="Y – przesunięcie całej sceny (nie zmienia animacji)"><button class="icon" data-scene0 title="Wyzeruj położenie">⟲</button></div></div>
+  <div class="pgroup">Położenie względem innej sceny (np. belka nad tickerem)</div>
+  ${relForm(false)}
   <div class="sp"><label>Długość (s)</label><input data-sp="duration" type="number" step="0.1" value="${scene.duration}"></div>
   <div class="sp"><label>Stop pointy</label><div class="chips">${scene.stops.map((s, i) => `<span class="chip">${(+s).toFixed(2)}s<button data-rmstop="${i}" title="usuń">×</button></span>`).join('') || '<span class="dim">brak – grafika gra do końca</span>'}</div></div>
   <div class="sp"><label>Markery</label><div class="chips">${(scene.markers || []).map((m, i) => `<span class="chip mk">${esc(m.name)} ${(+m.t).toFixed(2)}s<button data-mkstop="${i}" title="Utwórz stop point z markera">⏹</button><button data-rmmk="${i}" title="usuń">×</button></span>`).join('') || '<span class="dim">M lub dwuklik na linijce = marker</span>'}</div></div>
@@ -1191,6 +1298,7 @@ function updatePlayhead() {
 function setTime(nt) {
   t = Math.max(0, Math.min(scene.duration, Math.round(nt * 1000) / 1000));
   player.seek(t);
+  seekRefs();
   updatePlayhead();
   syncProps();
 }
@@ -1229,7 +1337,7 @@ function toggleKey(n, p) {
     setKey(n, p, t, v);
   }
 }
-function refresh() { player.apply(t); showSqueeze(); }
+function refresh() { player.apply(t); showSqueeze(); queueGuides(); }
 /** Ściśnięcie zaznaczonego tekstu (jak wskaźnik w Trio); przepełnienie oznacza też ramka na kanwie (`data-over`). */
 function showSqueeze() {
   const el = $('#sqInfo'); if (!el) return;
@@ -1263,6 +1371,15 @@ function checkFont(inp) {
 }
 function onPropInput(e) {
   const inp = e.target;
+  if (inp.dataset.rel) {
+    const k = inp.dataset.rel;
+    if (k === 'gap') { if (e.type === 'input') { rel.gap = Math.round(parseFloat(inp.value) || 0); saveRel(); } return; }
+    if (e.type !== 'change') return;
+    if (k === 'dock') rel.dock = inp.checked; else rel[k] = inp.value;
+    if (k === 'target') rel.node = '';
+    saveRel(); if (k === 'target') renderProps();
+    return;
+  }
   if (e.type === 'change' && inp.type !== 'checkbox' && inp.tagName !== 'SELECT' && inp.type !== 'color') {
     pendingCP = true;
     if (PROPS[inp.dataset.p]?.t === 'font' && selNode()) checkFont(inp);
@@ -1332,6 +1449,7 @@ function onPropInput(e) {
     if (k === 'width' || k === 'height') { player.setScene(scene); resetView(); }
     if (k === 'duration') { if (t > v) setTime(v); renderTimeline(); }
     if (k === 'name' || k === 'layer') { renderTree(); }
+    if (k === 'layer') buildRefs();
     return;
   }
   if (inp.dataset.si) {
@@ -1386,6 +1504,14 @@ $('#props').addEventListener('click', async (e) => {
   const fo = e.target.closest('[data-fold]');
   if (fo) { const g = fo.dataset.fold; pui.fold[g] = !folded(g); savePui(); fo.parentElement.classList.toggle('fold', folded(g)); return; }
   if (e.target.closest('[data-pall]')) { pui.all = true; savePui(); renderProps(); return; }
+  const ro = e.target.closest('[data-relop]');
+  if (ro) { relApply(ro.dataset.relop, ro.dataset.relfor === 'node'); return; }
+  if (e.target.closest('[data-radx]')) { pui.radius = !e.target.closest('[data-radx]').classList.contains('on'); savePui(); renderProps(); return; }
+  if (e.target.closest('[data-radclr]') && n) {
+    checkpoint();
+    for (const x of Object.keys(RAD_UI)) { if (n.props) delete n.props[x]; if (n.anim) delete n.anim[x]; if (n.fields) delete n.fields[x]; }
+    pui.radius = false; savePui(); refresh(); renderProps(); renderTimeline(); return;
+  }
   if (e.target.closest('[data-ratio]')) { pui.ratio = !pui.ratio; savePui(); e.target.closest('[data-ratio]').classList.toggle('on', pui.ratio); return; }
   const an = e.target.closest('[data-anchor]');
   if (an && n) { const [ax, ay] = an.dataset.anchor.split(','); checkpoint(); setProp(n, 'anchorX', ax); setProp(n, 'anchorY', ay); refresh(); syncProps(); return; }
@@ -1517,6 +1643,7 @@ function select(id, more = []) {
   renderTree(); renderProps(); renderTimeline();
 }
 $('#tree').addEventListener('click', (e) => {
+  if (e.target.closest('[data-refs1]')) { togglePop('#pRefs'); return; }
   lastArea = 'tree';
   const eye = e.target.closest('[data-eye]');
   if (eye) { const n = locate(eye.dataset.eye)?.node; if (n) { checkpoint(); n.hidden = !n.hidden; refresh(); renderTree(); } return; }
@@ -1771,7 +1898,7 @@ function placeGuides() {
   const b = box.getBoundingClientRect(), r = stage.getBoundingClientRect();
   const pos = { left: r.left - b.left + 'px', top: r.top - b.top + 'px', width: r.width + 'px', height: r.height + 'px' };
   Object.assign($('#bg').style, pos); Object.assign($('#guides').style, pos);
-  drawGuides();
+  placeRefs(); drawGuides();
 }
 function drawGuides() {
   if (!scene) return;
@@ -1800,7 +1927,12 @@ function drawGuides() {
         : `<text x="${x + 4 * k}" y="${y + 12 * k}" font-size="${10 * k}" fill="${g.c}" opacity=".85">${esc(g.label)}</text>`;
     }
   }
-  for (const s of snapShow) h += s.ax === 'x' ? `<line class="snap" x1="${s.v}" y1="0" x2="${s.v}" y2="${H}"/>` : `<line class="snap" x1="0" y1="${s.v}" x2="${W}" y2="${s.v}"/>`;
+  h += overlapSvg(k) + measureSvg(k);
+  for (const s of snapShow) {
+    const c = s.lbl ? 'snap ref' : 'snap';
+    h += s.ax === 'x' ? `<line class="${c}" x1="${s.v}" y1="0" x2="${s.v}" y2="${H}"/>` : `<line class="${c}" x1="0" y1="${s.v}" x2="${W}" y2="${s.v}"/>`;
+    if (s.lbl) h += s.ax === 'x' ? `<text class="snapl" x="${s.v + 4 * k}" y="${14 * k}" font-size="${11 * k}">${esc(s.lbl)}</text>` : `<text class="snapl" x="${4 * k}" y="${s.v - 4 * k}" font-size="${11 * k}">${esc(s.lbl)}</text>`;
+  }
   svg.innerHTML = h;
 }
 function applyBg() {
@@ -1833,11 +1965,12 @@ function togglePop(id) {
   const p = $(id), open = p.hidden;
   $$('.vpop').forEach((x) => { x.hidden = true; });
   if (!open) return;
-  if (id === '#pGuides') renderGuidesPop(); else renderBgPop();
+  if (id === '#pGuides') renderGuidesPop(); else if (id === '#pRefs') renderRefsPop(); else renderBgPop();
   p.hidden = false;
 }
 $('#vGuides').onclick = () => togglePop('#pGuides');
 $('#vBg').onclick = () => togglePop('#pBg');
+$('#vRefs').onclick = () => togglePop('#pRefs');
 $('#vSnap').onclick = () => { cv.snap = !cv.snap; saveCv(); syncCvUI(); toast(cv.snap ? 'Przyciąganie włączone' : 'Przyciąganie wyłączone'); };
 $('#bSafe').onclick = () => { cv.show = !cv.show; saveCv(); syncCvUI(); drawGuides(); if (!$('#pGuides').hidden) renderGuidesPop(); };
 for (const p of $$('.vpop')) for (const ev of ['mousedown', 'wheel', 'dblclick']) p.addEventListener(ev, (e) => e.stopPropagation());
@@ -1864,41 +1997,387 @@ $('#pBg').addEventListener('change', (e) => {
 });
 applyBg(); syncCvUI();
 
+// ------------------------------------------------------------ sceny odniesienia i położenie względem innej sceny
+// Inne sceny show narysowane na kanwie tak, jak złożą się na wyjściu (kolejność warstw, scene.x / y, stan w pierwszym
+// stop poincie). Tylko podgląd: wybór zapamiętany per scena w localStorage okna, nie trafia do show.json ani na antenę.
+const RF_DEF = { on: true, per: {}, opacity: 0.5, mode: 'layers', time: 'stop', snap: true, warn: true };
+let rf = { ...RF_DEF };
+try {
+  const o = JSON.parse(localStorage.getItem('vizrs.refs') || '{}');
+  if (o && typeof o === 'object') rf = { ...RF_DEF, ...o, per: o.per && typeof o.per === 'object' && !Array.isArray(o.per) ? o.per : {} };
+} catch { /* brak localStorage albo uszkodzony wpis */ }
+rf.opacity = Math.min(1, Math.max(0.1, +rf.opacity || 0.5));
+if (!['layers', 'under', 'over'].includes(rf.mode)) rf.mode = 'layers';
+if (!['stop', 'head'].includes(rf.time)) rf.time = 'stop';
+const saveRf = () => { try { localStorage.setItem('vizrs.refs', JSON.stringify(rf)); } catch { /* ignoruj */ } };
+const refsU = $('#refsU'), refsO = $('#refsO');
+let refPlayers = []; // { id, s, p, names }
+/** Wybrane sceny odniesienia bieżącej sceny (bez niej samej i bez usuniętych). */
+const refIds = () => (scene && Array.isArray(rf.per[scene.id]) ? rf.per[scene.id] : []).filter((id) => id !== scene.id && scenes.some((x) => x.id === id));
+const firstStop = (s) => { const st = [...(s.stops || [])].map(Number).sort((a, b) => a - b); return st.length ? st[0] : +s.duration || 0; };
+const refTime = (s) => (rf.time === 'head' ? Math.min(t, +s.duration || 0) : firstStop(s));
+const layerName = (s) => s?.layer || 'main';
+/** Czy odniesienie rysujemy nad bieżącą sceną (wg warstw: wyższa warstwa wyjścia = nad). */
+const refAbove = (s) => rf.mode === 'over' || (rf.mode === 'layers' && layerZ(layerName(s)) > layerZ(layerName(scene)));
+function buildRefs() {
+  for (const r of refPlayers) r.p.destroy();
+  refPlayers = [];
+  if (scene && rf.on) {
+    const list = refIds().map((id) => scenes.find((x) => x.id === id)).sort((a, b) => layerZ(layerName(a)) - layerZ(layerName(b)));
+    for (const s of list) {
+      const sc = structuredClone(s), names = new Map(), nodes = new Map();
+      walk(sc.nodes, (n) => { names.set(n.id, n.name || n.type); nodes.set(n.id, n); });
+      const p = new ScenePlayer(refAbove(s) ? refsO : refsU, sc, {}, { editor: false });
+      p.el.dataset.ref = s.id;
+      p.seek(refTime(s));
+      refPlayers.push({ id: s.id, s, p, names, nodes });
+    }
+  }
+  placeRefs(); syncRefsUI(); queueGuides();
+}
+function placeRefs() {
+  for (const el of [refsU, refsO]) {
+    el.style.transform = stage.style.transform; el.style.width = stage.style.width; el.style.height = stage.style.height;
+    el.style.opacity = rf.opacity;
+  }
+}
+/** Prostokąty elementów, które coś rysują (px kadru): bieżąca scena i odniesienia. */
+function drawnRects(root, nodeOf, tt) {
+  const out = [];
+  for (const el of root.querySelectorAll('.vz-node')) {
+    const n = nodeOf(el.dataset.id);
+    if (!drawsNode(n, tt) || !shownEl(el)) continue;
+    const r = sceneRect(el); if (r.x2 - r.x1 < 1 || r.y2 - r.y1 < 1) continue;
+    out.push({ id: el.dataset.id, n, r });
+  }
+  return out;
+}
+/** Nachodzenie elementów bieżącej sceny na elementy scen odniesienia z innych warstw (grają razem na antenie). */
+let overInfo = '';
+function overlapSvg(k) {
+  let h = '', list = [];
+  if (rf.on && rf.warn && refPlayers.length && player) {
+    const others = refPlayers.filter((x) => layerName(x.s) !== layerName(scene));
+    if (others.length) {
+      const mine = drawnRects(stage, (id) => locate(id)?.node, t);
+      for (const ref of others) {
+        const theirs = drawnRects(ref.p.el, (id) => ref.nodes.get(id), refTime(ref.s));
+        for (const a of mine) for (const o of theirs) {
+          const x1 = Math.max(a.r.x1, o.r.x1), y1 = Math.max(a.r.y1, o.r.y1), x2 = Math.min(a.r.x2, o.r.x2), y2 = Math.min(a.r.y2, o.r.y2);
+          if (x2 - x1 < 1 || y2 - y1 < 1) continue;
+          h += `<rect class="over" x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}"/>`;
+          list.push(`${a.n.name || a.n.type} ↔ ${ref.s.name} › ${o.n.name || o.n.type}`);
+        }
+      }
+    }
+  }
+  list = [...new Set(list)];
+  const txt = list.length ? `⚠ Nachodzi na grafikę z innej warstwy: ${list.slice(0, 3).join(' · ')}${list.length > 3 ? ` (+${list.length - 3})` : ''}` : '';
+  if (txt !== overInfo) { overInfo = txt; const w = $('#overWarn'); w.textContent = txt; w.hidden = !txt; }
+  return h;
+}
+/** Pomiar (Alt): odległość obrysu zaznaczenia (bez zaznaczenia – całej sceny) do najbliższych krawędzi w czterech kierunkach. */
+let measureOn = false;
+function measureSvg(k) {
+  if (!measureOn || !player) return '';
+  const ids = selAll(), selEls = ids.map((id) => stage.querySelector(`[data-id="${CSS.escape(id)}"]`)).filter(Boolean);
+  const S = selEls.length ? drawnBox(selEls, ownNode) || unionRect(selEls) : drawnBox(stage.querySelectorAll('.vz-root > .vz-node'), ownNode);
+  if (!S) return '';
+  const inSel = (el) => selEls.some((m) => m === el || m.contains(el));
+  const cands = drawnRects(stage, (id) => locate(id)?.node, t).filter((x) => !inSel(stage.querySelector(`[data-id="${CSS.escape(x.id)}"]`)))
+    .map((x) => ({ r: x.r, lbl: x.n.name || x.n.type }));
+  if (!selEls.length) cands.length = 0; // cała scena: mierzymy tylko do odniesień i kadru
+  if (rf.on) for (const ref of refPlayers) for (const x of drawnRects(ref.p.el, (id) => ref.nodes.get(id), refTime(ref.s))) cands.push({ r: x.r, lbl: `${ref.s.name} › ${x.n.name || x.n.type}` });
+  const W = scene.width, H = scene.height, mx = (S.x1 + S.x2) / 2, my = (S.y1 + S.y2) / 2;
+  const best = { up: { d: S.y1, at: 0 }, down: { d: H - S.y2, at: H }, left: { d: S.x1, at: 0 }, right: { d: W - S.x2, at: W } }; // kadr
+  for (const c of cands) {
+    const r = c.r, ovX = r.x1 < S.x2 && r.x2 > S.x1, ovY = r.y1 < S.y2 && r.y2 > S.y1;
+    if (ovX) for (const e of [r.y1, r.y2]) {
+      if (e <= S.y1 + 0.5 && S.y1 - e < best.up.d) best.up = { d: S.y1 - e, at: e };
+      if (e >= S.y2 - 0.5 && e - S.y2 < best.down.d) best.down = { d: e - S.y2, at: e };
+    }
+    if (ovY) for (const e of [r.x1, r.x2]) {
+      if (e <= S.x1 + 0.5 && S.x1 - e < best.left.d) best.left = { d: S.x1 - e, at: e };
+      if (e >= S.x2 - 0.5 && e - S.x2 < best.right.d) best.right = { d: e - S.x2, at: e };
+    }
+  }
+  const tag = (x, y, v) => { const tx = `${Math.round(v)} px`, w = (tx.length * 6.6 + 8) * k, hh = 15 * k;
+    return `<rect class="measbg" x="${x - w / 2}" y="${y - hh / 2}" width="${w}" height="${hh}" rx="${3 * k}"/><text class="measl" x="${x}" y="${y + 4 * k}" text-anchor="middle" font-size="${11 * k}">${tx}</text>`; };
+  let h = `<rect class="measb" x="${S.x1}" y="${S.y1}" width="${S.x2 - S.x1}" height="${S.y2 - S.y1}"/>`;
+  const e = 5 * k;
+  const up = best.up, dn = best.down, lf = best.left, rt = best.right;
+  h += `<path class="meas" d="M${mx} ${S.y1}V${up.at}M${mx - e} ${up.at}H${mx + e}M${mx} ${S.y2}V${dn.at}M${mx - e} ${dn.at}H${mx + e}M${S.x1} ${my}H${lf.at}M${lf.at} ${my - e}V${my + e}M${S.x2} ${my}H${rt.at}M${rt.at} ${my - e}V${my + e}"/>`;
+  if (up.d > 0.5) h += tag(mx, (S.y1 + up.at) / 2, up.d);
+  if (dn.d > 0.5) h += tag(mx, (S.y2 + dn.at) / 2, dn.d);
+  if (lf.d > 0.5) h += tag((S.x1 + lf.at) / 2, my, lf.d);
+  if (rt.d > 0.5) h += tag((S.x2 + rt.at) / 2, my, rt.d);
+  return h;
+}
+let guidesQ = 0;
+/** Odrysowanie prowadnic w najbliższej klatce (nachodzenie i pomiar po zmianie właściwości, czasu, odniesień). */
+const queueGuides = () => { if (!guidesQ) guidesQ = requestAnimationFrame(() => { guidesQ = 0; drawGuides(); }); };
+function seekRefs() { if (rf.time === 'head') for (const r of refPlayers) r.p.seek(refTime(r.s)); queueGuides(); }
+function syncRefsUI() {
+  const n = refPlayers.length;
+  $('#vRefs').classList.toggle('on', rf.on && n > 0);
+  $('#vRefsN').textContent = n && rf.on ? n : '';
+  const lab = $('#tree .refs1');
+  if (lab) { lab.textContent = n && rf.on ? '⧉ ' + refPlayers.map((r) => r.s.name).join(', ') : ''; lab.title = 'Sceny odniesienia na kanwie (klik = wybór)'; }
+}
+function renderRefsPop() {
+  const others = scenes.filter((x) => x.id !== scene.id);
+  const sel = new Set(refIds());
+  const pos = (s) => layerName(s) === layerName(scene) ? 'ta sama warstwa' : refAbove(s) ? 'nad' : 'pod';
+  const size = (s) => (s.width || 1920) !== scene.width || (s.height || 1080) !== scene.height;
+  $('#pRefs').innerHTML = `<label><input type="checkbox" data-rf="on" ${rf.on ? 'checked' : ''}> <b>Pokaż sceny odniesienia</b> <span class="dim">(Shift+R)</span></label>
+    <h4>Odniesienia dla „${esc(scene.name)}”</h4>
+    <div class="rflist">${others.length ? others.map((s) => `<label title="${esc(s.name)} · warstwa ${esc(layerName(s))}"><input type="checkbox" data-rfid="${esc(s.id)}" ${sel.has(s.id) ? 'checked' : ''}><span class="nm">${esc(s.name)}</span><span class="pill">${esc(layerName(s))}</span><span class="pos">${pos(s)}</span>${size(s) ? '<span class="warn" title="Inna rozdzielczość – rysowana w px kadru bez skalowania">⚠</span>' : ''}</label>`).join('') : '<div class="dim">Show nie ma innych scen.</div>'}</div>
+    ${others.some((s) => sel.has(s.id) && layerName(s) === layerName(scene)) ? '<div class="warn">Sceny tej samej warstwy zastępują się na antenie – nie będą widoczne razem.</div>' : ''}
+    <h4>Wygląd</h4>
+    <div class="rfrow"><span>krycie</span><input type="range" min="10" max="100" step="5" data-rf="opacity" value="${Math.round(rf.opacity * 100)}" title="${Math.round(rf.opacity * 100)}%"></div>
+    <div class="rfrow"><span>kolejność</span><select data-rf="mode"><option value="layers" ${rf.mode === 'layers' ? 'selected' : ''}>wg warstw – jak na wyjściu</option><option value="under" ${rf.mode === 'under' ? 'selected' : ''}>wszystkie pod sceną</option><option value="over" ${rf.mode === 'over' ? 'selected' : ''}>wszystkie nad sceną</option></select></div>
+    <div class="rfrow"><span>czas</span><select data-rf="time"><option value="stop" ${rf.time === 'stop' ? 'selected' : ''}>pierwszy stop point (na antenie)</option><option value="head" ${rf.time === 'head' ? 'selected' : ''}>jak głowica osi czasu</option></select></div>
+    <label><input type="checkbox" data-rf="snap" ${rf.snap ? 'checked' : ''}> Przyciągaj do elementów odniesień</label>
+    <label title="Czerwony obszar na kanwie i komunikat, gdy element tej sceny zasłania element sceny odniesienia z innej warstwy"><input type="checkbox" data-rf="warn" ${rf.warn ? 'checked' : ''}> Ostrzegaj o nachodzeniu elementów</label>
+    <div class="dim" style="font-size:11px">Alt (przytrzymaj) – odległości zaznaczenia do najbliższych krawędzi.</div>
+    <div class="dim" style="margin-top:6px;font-size:11px">Tylko podgląd w Artist – nie zmienia sceny ani wyjścia. Dosuwanie i wyrównanie: ustawienia sceny (klik w puste tło) → „Położenie względem innej sceny”.</div>`;
+}
+function onRefsPop(e) {
+  const el = e.target;
+  if (el.dataset.rfid) {
+    const cur = new Set(refIds());
+    if (el.checked) cur.add(el.dataset.rfid); else cur.delete(el.dataset.rfid);
+    if (cur.size) rf.per[scene.id] = [...cur]; else delete rf.per[scene.id];
+    if (el.checked) rf.on = true;
+  } else if (el.dataset.rf === 'opacity') { rf.opacity = Math.min(1, Math.max(0.1, +el.value / 100)); el.title = el.value + '%'; placeRefs(); saveRf(); return; }
+  else if (el.dataset.rf === 'mode' || el.dataset.rf === 'time') rf[el.dataset.rf] = el.value;
+  else if (el.dataset.rf) rf[el.dataset.rf] = el.checked;
+  else return;
+  saveRf(); buildRefs(); renderRefsPop();
+}
+$('#pRefs').addEventListener('change', onRefsPop);
+$('#pRefs').addEventListener('input', (e) => { if (e.target.dataset.rf === 'opacity') onRefsPop(e); });
+function toggleRefs() {
+  if (!refIds().length) { togglePop('#pRefs'); return; }
+  rf.on = !rf.on; saveRf(); buildRefs(); if (!$('#pRefs').hidden) renderRefsPop();
+  toast(rf.on ? 'Sceny odniesienia widoczne' : 'Sceny odniesienia ukryte');
+}
+
+/** Ustawienia „Położenie względem innej sceny” (okno, nie scena): cel, element celu, odstęp, tryb powiązania. */
+const REL_DEF = { target: '', node: '', gap: 0, dock: false };
+let rel = { ...REL_DEF };
+try { const o = JSON.parse(localStorage.getItem('vizrs.rel') || '{}'); if (o && typeof o === 'object') rel = { ...REL_DEF, ...o }; } catch { /* ignoruj */ }
+const saveRel = () => { try { localStorage.setItem('vizrs.rel', JSON.stringify(rel)); } catch { /* ignoruj */ } };
+/** Cel: zapamiętany, a gdy nie pasuje – pierwsza scena odniesienia, potem pierwsza inna scena. */
+function relTarget() {
+  const ok = (id) => id && id !== scene.id && scenes.some((x) => x.id === id);
+  if (!ok(rel.target)) { rel.target = refIds()[0] || scenes.find((x) => x.id !== scene.id)?.id || ''; rel.node = ''; }
+  return scenes.find((x) => x.id === rel.target) || null;
+}
+const REL_OPS = {
+  above: ['⤒ nad celem', 'Dosuń nad cel (dolna krawędź = górna krawędź celu − odstęp)'], below: ['⤓ pod celem', 'Dosuń pod cel (górna krawędź = dolna krawędź celu + odstęp)'],
+  left: ['⇤ z lewej celu', 'Dosuń z lewej strony celu (prawa krawędź = lewa krawędź celu − odstęp)'], right: ['⇥ z prawej celu', 'Dosuń z prawej strony celu (lewa krawędź = prawa krawędź celu + odstęp)'],
+  al: ['⇤ lewe', 'Wyrównaj lewe krawędzie do celu'], ac: ['↔ środki', 'Wyrównaj środki w poziomie'], ar: ['⇥ prawe', 'Wyrównaj prawe krawędzie do celu'],
+  at: ['⤒ góry', 'Wyrównaj górne krawędzie do celu'], am: ['↕ środki', 'Wyrównaj środki w pionie'], ab: ['⤓ doły', 'Wyrównaj dolne krawędzie do celu'],
+};
+function relForm(forNode) {
+  const ts = relTarget(), others = scenes.filter((x) => x.id !== scene.id);
+  if (!others.length) return `<div class="relbox"><div class="rnote">Show nie ma innych scen – dodaj np. ticker albo logo, żeby ustawiać tę ${forNode ? 'grafikę' : 'scenę'} względem nich.</div></div>`;
+  const nodes = []; if (ts) walk(ts.nodes, (n, par) => { nodes.push([n.id, (par ? '· ' : '') + (n.name || n.type)]); });
+  if (rel.node && !nodes.some(([id]) => id === rel.node)) rel.node = '';
+  const b = (op) => `<button data-relop="${op}" data-relfor="${forNode ? 'node' : 'scene'}" title="${esc(REL_OPS[op][1])}">${REL_OPS[op][0]}</button>`;
+  return `<div class="relbox">
+    <div class="rrow"><label>cel</label><div class="row"><select data-rel="target" title="Scena docelowa">${others.map((x) => `<option value="${esc(x.id)}" ${x.id === rel.target ? 'selected' : ''}>${esc(x.name)} · ${esc(layerName(x))}</option>`).join('')}</select>
+      <select data-rel="node" title="Element sceny docelowej (domyślnie obrys całej sceny)"><option value="">cała scena</option>${nodes.map(([id, nm]) => `<option value="${esc(id)}" ${id === rel.node ? 'selected' : ''}>${esc(nm)}</option>`).join('')}</select></div></div>
+    <div class="rrow"><label>odstęp px</label><input type="number" data-rel="gap" value="${+rel.gap || 0}" title="Odstęp przy dosuwaniu (ujemny = zachodzi na cel)"></div>
+    <div class="rrow"><label>dosuń</label><div class="rbtns">${['above', 'below', 'left', 'right'].map(b).join('')}</div></div>
+    <div class="rrow"><label>wyrównaj krawędzie</label><div class="rbtns three">${['al', 'ac', 'ar', 'at', 'am', 'ab'].map(b).join('')}</div></div>
+    ${forNode ? `<div class="rrow"><label></label><div class="rbtns" style="grid-template-columns:1fr"><button data-relop="width" data-relfor="node" title="Szerokość zaznaczonego elementu = szerokość celu, lewe krawędzie wyrównane">↔ szerokość jak cel</button></div></div>`
+      : `<label class="chk" style="padding-top:4px" title="Zamiast przesuwać scenę na stałe – reguła powiązania (dock): przesunięcie tylko wtedy, gdy cel jest na antenie"><input type="checkbox" data-rel="dock" ${rel.dock ? 'checked' : ''}> jako powiązanie (dock): tylko gdy cel jest na antenie</label>`}
+    <div class="rnote">Obrysy liczone jak na kanwie (cel w ${rf.time === 'head' ? 'bieżącym czasie' : 'pierwszym stop poincie'}). ${forNode ? 'Animowany element przesuwa się razem z kluczami.' : 'Przesuwa całą scenę (położenie sceny) – animacje bez zmian.'} Jedno Ctrl+Z cofa.</div>
+  </div>`;
+}
+/** Obrys sceny docelowej albo jej elementu w px kadru – z jej odtwarzacza odniesienia albo z chwilowego, niewidocznego. */
+function relTargetRect(ts, nodeId) {
+  const ref = rf.on && refPlayers.find((r) => r.id === ts.id);
+  let tmp = null;
+  if (!ref) { tmp = new ScenePlayer(refsU, structuredClone(ts), {}, { editor: false }); tmp.el.style.visibility = 'hidden'; tmp.seek(refTime(ts)); }
+  const root = (ref ? ref.p : tmp).el;
+  const els = nodeId ? [root.querySelector(`[data-id="${CSS.escape(nodeId)}"]`)] : root.querySelectorAll('.vz-root > .vz-node');
+  const nodes = new Map(); walk((ref ? ref.p : tmp).scene.nodes, (n) => { nodes.set(n.id, n); });
+  const r = drawnBox(els, (id) => nodes.get(id), refTime(ts)) || unionRect(els);
+  tmp?.destroy();
+  return r;
+}
+function relApply(op, forNode) {
+  const ts = relTarget(); if (!ts) { toast('Wybierz scenę docelową', true); return; }
+  const T = relTargetRect(ts, rel.node);
+  if (!T) { toast(`Cel „${ts.name}${rel.node ? ' › ' + (nameIn(ts, rel.node)) : ''}” nie ma widocznych elementów`, true); return; }
+  const ids = forNode ? topSel().filter((id) => !isLocked(id)) : [];
+  if (forNode && !ids.length) { toast('Zaznacz niezablokowany element', true); return; }
+  const srcEls = () => (forNode ? ids.map((id) => stage.querySelector(`[data-id="${CSS.escape(id)}"]`)) : stage.querySelectorAll('.vz-root > .vz-node'));
+  const srcBox = () => { const e = srcEls(); return drawnBox(e, ownNode) || unionRect(e); };
+  let S = srcBox();
+  if (!S) { toast(forNode ? 'Zaznaczony element nie jest widoczny w bieżącym czasie' : 'Scena nie ma widocznych elementów w bieżącym czasie', true); return; }
+  const g = +rel.gap || 0, cx = (r) => (r.x1 + r.x2) / 2, cy = (r) => (r.y1 + r.y2) / 2;
+  checkpoint();
+  let widthDone = false;
+  if (op === 'width') {
+    const n = locate(ids[0]).node, xf = parentXf(ids[0]);
+    if (ids.length > 1 || xf.rot || num(n, 'rotation')) { undo.pop(); toast('„Szerokość jak cel” działa dla jednego elementu bez obrotu', true); return; }
+    setProp(n, 'w', Math.max(0, Math.round((T.x2 - T.x1) / (xf.sc * (scl(n) || 1))))); refresh();
+    S = srcBox(); op = 'al'; widthDone = true;
+  }
+  const d = { above: [0, T.y1 - g - S.y2], below: [0, T.y2 + g - S.y1], left: [T.x1 - g - S.x2, 0], right: [T.x2 + g - S.x1, 0],
+    al: [T.x1 - S.x1, 0], ac: [cx(T) - cx(S), 0], ar: [T.x2 - S.x2, 0], at: [0, T.y1 - S.y1], am: [0, cy(T) - cy(S)], ab: [0, T.y2 - S.y2] }[op];
+  const dx = Math.round(d[0]), dy = Math.round(d[1]);
+  if (!forNode && rel.dock) {
+    const target = 'scene:' + ts.name;
+    scene.dock ||= [];
+    const ex = scene.dock.find((x) => x.target === target);
+    if (ex) { ex.dx = dx; ex.dy = dy; } else scene.dock.push({ target, dx, dy, dur: 0.6 });
+    renderProps(); toast(`Powiązanie: gdy „${ts.name}” na antenie – przesunięcie ${dx}, ${dy} px`); return;
+  }
+  if (!dx && !dy) {
+    if (widthDone) { syncProps(); renderTimeline(); updateSel(); toast('Szerokość jak cel'); } else { undo.pop(); toast('Już na miejscu'); }
+    return;
+  }
+  if (!forNode) setSceneOffset((+scene.x || 0) + dx, (+scene.y || 0) + dy);
+  else {
+    for (const id of ids) { const [lx, ly] = toLocal(dx, dy, parentXf(id)); shiftNode(locate(id).node, lx, ly); }
+    refresh(); syncProps(); renderTimeline();
+  }
+  updateSel(); toast(`Przesunięto o ${dx}, ${dy} px`);
+}
+const nameIn = (s, id) => { let nm = id; walk(s.nodes, (n) => { if (n.id === id) { nm = n.name || n.type; return false; } }); return nm; };
+
+/** Czy element kanwy jest teraz widoczny (także przez przodków: display, visibility, krycie 0). */
+function shownEl(el) {
+  if (!el || el.style.display === 'none') return false;
+  if (el.checkVisibility) return el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+  const cs = getComputedStyle(el); return cs.visibility !== 'hidden' && cs.display !== 'none' && +cs.opacity > 0;
+}
+/** Czy węzeł coś rysuje: grupa i prostokąt / elipsa bez wypełnienia i ramki to tylko pojemniki. */
+function drawsNode(n, tt = t) {
+  if (!n || n.type === 'group') return false;
+  if (n.type === 'rect' || n.type === 'ellipse') {
+    const c = parseColor(propAt(n, 'color', tt, null)), c2 = propAt(n, 'color2', tt, null);
+    return !!(c && c[3] > 0) || !!c2 || +propAt(n, 'borderWidth', tt, null) > 0 || (n.motion?.bg && n.motion.bg !== 'none');
+  }
+  return true;
+}
+/** Obszar, który element rysuje, w px ekranu: tekst i zegar – sam tekst (pole bywa dużo większe od napisu). */
+function drawnClientRects(el, n) {
+  if ((n.type === 'text' || n.type === 'clock') && el.firstElementChild) {
+    const r = el.firstElementChild.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) return [r];
+  }
+  return [el.getBoundingClientRect()];
+}
+const inR = (r, x, y) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+/**
+ * Element pod kursorem: pierwszy (od wierzchu) niezablokowany i widoczny, który w tym punkcie coś rysuje.
+ * Pojemniki (grupy, prostokąty bez wypełnienia) nie łapią kliknięć w puste miejsce – chyba że są już zaznaczone
+ * i kursor jest w ich ramce (przeciągnięcie zaznaczonej grupy z pustego miejsca w jej obrysie).
+ */
+function hitNode(x, y) {
+  for (const e of document.elementsFromPoint(x, y)) {
+    const el = e.closest?.('.vz-node');
+    if (!el || !stage.contains(el) || isLocked(el.dataset.id) || !shownEl(el)) continue;
+    const n = locate(el.dataset.id)?.node;
+    if (!drawsNode(n)) continue;
+    if (!drawnClientRects(el, n).some((r) => inR(r, x, y))) continue;
+    return el;
+  }
+  for (const id of selAll()) {
+    const el = stage.querySelector(`[data-id="${CSS.escape(id)}"]`);
+    if (el && !isLocked(id) && shownEl(el) && inR(el.getBoundingClientRect(), x, y)) return el;
+  }
+  return null;
+}
 /** Ramka elementu kanwy w px sceny (kadr wyjścia), osiowo – z obrotem i skalą. */
 function sceneRect(el) {
   const s0 = stage.getBoundingClientRect(), r = el.getBoundingClientRect();
   return { x1: (r.left - s0.left) / scale, y1: (r.top - s0.top) / scale, x2: (r.right - s0.left) / scale, y2: (r.bottom - s0.top) / scale };
 }
-/** Cele przyciągania: krawędzie i środek kadru, widoczne prowadnice, krawędzie i środki innych elementów. */
+/** Cele przyciągania: krawędzie i środek kadru, widoczne prowadnice, krawędzie i środki innych elementów
+ *  i elementów scen odniesienia (xl / yl – etykieta celu z odniesienia, pokazywana przy linii przyciągania). */
 function snapTargets(moving) {
-  const W = scene.width, H = scene.height, xs = [0, W / 2, W], ys = [0, H / 2, H];
+  const W = scene.width, H = scene.height, xs = [0, W / 2, W], ys = [0, H / 2, H], xl = [], yl = [];
   if (cv.show) {
     for (const g of GUIDES) if (cv.g[g.k]) { const [x, y, w, h] = g.r(W, H); xs.push(x, x + w); ys.push(y, y + h); }
     if (cv.thirds) { xs.push(W / 3, 2 * W / 3); ys.push(H / 3, 2 * H / 3); }
   }
   for (const el of stage.querySelectorAll('.vz-node')) {
-    if (moving.some((m) => m.contains(el)) || el.style.display === 'none' || el.style.visibility === 'hidden') continue;
+    if (moving.some((m) => m.contains(el)) || !drawsNode(ownNode(el.dataset.id)) || !shownEl(el)) continue;
     const r = sceneRect(el); if (r.x2 - r.x1 < 1 && r.y2 - r.y1 < 1) continue;
     xs.push(r.x1, (r.x1 + r.x2) / 2, r.x2); ys.push(r.y1, (r.y1 + r.y2) / 2, r.y2);
   }
-  return { xs, ys };
+  if (rf.on && rf.snap) for (const ref of refPlayers) {
+    for (const el of ref.p.el.querySelectorAll('.vz-node')) {
+      if (!drawsNode(ref.nodes.get(el.dataset.id), refTime(ref.s)) || !shownEl(el)) continue;
+      const r = sceneRect(el); if (r.x2 - r.x1 < 1 && r.y2 - r.y1 < 1) continue;
+      const lb = `${ref.s.name} › ${ref.names.get(el.dataset.id) || '?'}`;
+      xl[xs.length] = xl[xs.length + 1] = xl[xs.length + 2] = lb; yl[ys.length] = yl[ys.length + 1] = yl[ys.length + 2] = lb;
+      xs.push(r.x1, (r.x1 + r.x2) / 2, r.x2); ys.push(r.y1, (r.y1 + r.y2) / 2, r.y2);
+    }
+  }
+  return { xs, ys, xl, yl };
+}
+const visibleEl = (el) => el && el.style.display !== 'none' && el.style.visibility !== 'hidden';
+/** Obrys elementów kanwy w px kadru (null – brak widocznych). */
+function unionRect(els) {
+  let u = null;
+  for (const el of els) {
+    if (!visibleEl(el)) continue;
+    const r = sceneRect(el); if (r.x2 - r.x1 < 0.5 && r.y2 - r.y1 < 0.5) continue;
+    u = u ? { x1: Math.min(u.x1, r.x1), y1: Math.min(u.y1, r.y1), x2: Math.max(u.x2, r.x2), y2: Math.max(u.y2, r.y2) } : r;
+  }
+  return u;
+}
+/** Obrys tego, co elementy rysują (pojemnik – przez zawartość; grupa 1920×1080 nie robi z belki pełnego kadru), px kadru. */
+function drawnBox(els, nodeOf, tt = t) {
+  const list = [];
+  for (const el of els) {
+    if (!el) continue;
+    for (const x of [el, ...el.querySelectorAll('.vz-node')]) if (drawsNode(nodeOf(x.dataset.id), tt) && shownEl(x)) list.push(x);
+  }
+  return unionRect(list);
+}
+const ownNode = (id) => locate(id)?.node;
+/** Przyciąganie obrysu bb przesuniętego o (dx, dy): poprawione przesunięcie + linie do pokazania. */
+function snapMove(bb, dx, dy, targets, lockX, lockY) {
+  const thr = 6 / scale, grid = cv.show && cv.grid ? cv.gridStep : 0, out = [];
+  const sxb = !lockX && snapAxis([bb.x1 + dx, (bb.x1 + bb.x2) / 2 + dx, bb.x2 + dx], targets.xs, thr, grid);
+  const syb = !lockY && snapAxis([bb.y1 + dy, (bb.y1 + bb.y2) / 2 + dy, bb.y2 + dy], targets.ys, thr, grid);
+  if (sxb) { dx += sxb.d; out.push({ ax: 'x', v: sxb.v, lbl: targets.xl[sxb.i] }); }
+  if (syb) { dy += syb.d; out.push({ ax: 'y', v: syb.v, lbl: targets.yl[syb.i] }); }
+  return { dx, dy, show: out };
 }
 /** Najbliższe przyciągnięcie krawędzi / środka (vals) do celów w progu thr; siatka – do wielokrotności kroku. */
 function snapAxis(vals, cands, thr, grid) {
   let best = null;
-  const tryC = (v, c) => { const d = c - v; if (Math.abs(d) <= thr && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, v: c }; };
-  for (const v of vals) { for (const c of cands) tryC(v, c); if (grid) tryC(v, Math.round(v / grid) * grid); }
+  const tryC = (v, c, i) => { const d = c - v; if (Math.abs(d) <= thr && (!best || Math.abs(d) < Math.abs(best.d) || (Math.abs(d) === Math.abs(best.d) && i < best.i))) best = { d, v: c, i }; };
+  for (const v of vals) { cands.forEach((c, i) => tryC(v, c, i)); if (grid) tryC(v, Math.round(v / grid) * grid, -1); }
   return best;
 }
 
 function updateSel() {
   const o = $('#sel');
   const el = selId && stage.querySelector(`[data-id="${CSS.escape(selId)}"]`);
-  if (!el || el.style.display === 'none') { o.style.display = 'none'; if ($('#selx').dataset.h) { $('#selx').innerHTML = ''; $('#selx').dataset.h = ''; } return; }
+  if (!el || el.style.display === 'none') { o.style.display = 'none'; $('#selLbl').style.display = 'none'; if ($('#selx').dataset.h) { $('#selx').innerHTML = ''; $('#selx').dataset.h = ''; } return; }
   const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
-  Object.assign(o.style, { display: 'block', left: r.left - b.left + 'px', top: r.top - b.top + 'px', width: r.width + 'px', height: r.height + 'px' });
   const n = selNode();
-  o.querySelector('.lbl').textContent = n ? `${n.name}  ${Math.round(propAt(n, 'x', t))}, ${Math.round(propAt(n, 'y', t))}  ${Math.round(propAt(n, 'w', t))}×${Math.round(propAt(n, 'h', t))}${selMore.length ? `  (+${selMore.length})` : ''}` : '';
+  // obrót (własny i przodków) obraca też ramkę: uchwyt rozmiaru jest w rogu elementu, nie w rogu obrysu osiowego
+  const xf = parentXf(selId), rot = n ? xf.rot + num(n, 'rotation') : 0, sk = n ? num(n, 'skewX') : 0;
+  if (n && Math.abs(rot % 360) > 0.01 && !sk && el.offsetWidth + el.offsetHeight > 0) {
+    const k = scale * xf.sc * (scl(n) || 1), w = el.offsetWidth * k, h = el.offsetHeight * k;
+    const cx = (r.left + r.right) / 2 - b.left, cy = (r.top + r.bottom) / 2 - b.top;
+    Object.assign(o.style, { display: 'block', left: cx - w / 2 + 'px', top: cy - h / 2 + 'px', width: w + 'px', height: h + 'px', transform: `rotate(${rot}deg)` });
+  } else Object.assign(o.style, { display: 'block', left: r.left - b.left + 'px', top: r.top - b.top + 'px', width: r.width + 'px', height: r.height + 'px', transform: '' });
+  const lb = $('#selLbl');
+  Object.assign(lb.style, { display: 'block', left: r.left - b.left - 1 + 'px', top: r.top - b.top - 2 + 'px' });
+  lb.textContent = n ? `${n.name}  ${Math.round(propAt(n, 'x', t))}, ${Math.round(propAt(n, 'y', t))}  ${Math.round(propAt(n, 'w', t))}×${Math.round(propAt(n, 'h', t))}${selMore.length ? `  (+${selMore.length})` : ''}` : '';
   // pozostałe zaznaczone (Ctrl / Shift+klik): ramki przerywane
   let hx = '';
   for (const id of selMore) {
@@ -1922,21 +2401,29 @@ box.addEventListener('mousedown', (e) => {
   }
   if (e.button !== 0) return;
   const handle = e.target.closest('#sel .h');
-  // zablokowane elementy są „przezroczyste” dla myszy: chwytamy pierwszy niezablokowany pod kursorem
-  const nodeEl = !handle && document.elementsFromPoint(e.clientX, e.clientY).find((x) => x.classList?.contains('vz-node') && stage.contains(x) && !isLocked(x.dataset.id));
+  const nodeEl = !handle && hitNode(e.clientX, e.clientY);
   if (!handle && !nodeEl) {
     // puste miejsce: zaznacz scenę; przeciągnięcie przesuwa całą scenę (scene.x / y)
     if (selId) select(null);
     e.preventDefault();
     const sx = e.clientX, sy = e.clientY, x0 = +scene.x || 0, y0 = +scene.y || 0; let moved = false;
+    // przyciąganie obrysu całej sceny do kadru, prowadnic i scen odniesienia (własne elementy jadą razem ze sceną)
+    const own = [...stage.querySelectorAll('.vz-node')], bb = drawnBox(stage.querySelectorAll('.vz-root > .vz-node'), ownNode);
+    let targets = null;
     const mv = (ev) => {
       let dx = (ev.clientX - sx) / scale, dy = (ev.clientY - sy) / scale;
       if (!moved && Math.abs(dx) + Math.abs(dy) < 2) return;
       if (!moved) { checkpoint(); moved = true; }
-      if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
-      setSceneOffset(x0 + dx, y0 + dy);
+      let lockX = false, lockY = false;
+      if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) { dy = 0; lockY = true; } else { dx = 0; lockX = true; } }
+      snapShow = [];
+      if (cv.snap && !ev.ctrlKey && !ev.metaKey && bb) {
+        targets ||= snapTargets(own);
+        ({ dx, dy, show: snapShow } = snapMove(bb, dx, dy, targets, lockX, lockY));
+      }
+      setSceneOffset(x0 + dx, y0 + dy); drawGuides();
     };
-    const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); };
+    const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); if (snapShow.length) { snapShow = []; drawGuides(); } };
     addEventListener('mousemove', mv); addEventListener('mouseup', up);
     return;
   }
@@ -1980,8 +2467,7 @@ box.addEventListener('mousedown', (e) => {
   });
   if (!movers.length) return;
   const els = movers.map((m) => m.el).filter(Boolean);
-  const rs = els.filter((x) => x.style.display !== 'none').map(sceneRect);
-  const bb = rs.length ? { x1: Math.min(...rs.map((r) => r.x1)), y1: Math.min(...rs.map((r) => r.y1)), x2: Math.max(...rs.map((r) => r.x2)), y2: Math.max(...rs.map((r) => r.y2)) } : null;
+  const bb = drawnBox(els, ownNode) || unionRect(els);
   let targets = null;
   const mv = (ev) => {
     let dx = (ev.clientX - sx) / scale, dy = (ev.clientY - sy) / scale;
@@ -1992,11 +2478,7 @@ box.addEventListener('mousedown', (e) => {
     snapShow = [];
     if (cv.snap && !ev.ctrlKey && !ev.metaKey && bb) {
       targets ||= snapTargets(els);
-      const thr = 6 / scale, grid = cv.show && cv.grid ? cv.gridStep : 0;
-      const sxb = !lockX && snapAxis([bb.x1 + dx, (bb.x1 + bb.x2) / 2 + dx, bb.x2 + dx], targets.xs, thr, grid);
-      const syb = !lockY && snapAxis([bb.y1 + dy, (bb.y1 + bb.y2) / 2 + dy, bb.y2 + dy], targets.ys, thr, grid);
-      if (sxb) { dx += sxb.d; snapShow.push({ ax: 'x', v: sxb.v }); }
-      if (syb) { dy += syb.d; snapShow.push({ ax: 'y', v: syb.v }); }
+      ({ dx, dy, show: snapShow } = snapMove(bb, dx, dy, targets, lockX, lockY));
     }
     for (const m of movers) {
       const [lx, ly] = toLocal(dx, dy, m.xf);
@@ -2494,6 +2976,13 @@ function showReport(title, lines) {
   d.addEventListener('mousedown', (e) => { if (e.target === d) d.remove(); });
 }
 // ------------------------------------------------------------ klawiatura
+// Alt przytrzymany nad kanwą = pomiar odległości (puszczenie albo utrata fokusu okna – koniec)
+const setMeasure = (v) => { if (measureOn !== v) { measureOn = v; drawGuides(); } };
+addEventListener('keydown', (e) => {
+  if (e.key === 'Alt' && !e.repeat && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName) && lastArea === 'canvas') { e.preventDefault(); setMeasure(true); }
+});
+addEventListener('keyup', (e) => { if (e.key === 'Alt') { if (measureOn) e.preventDefault(); setMeasure(false); } });
+addEventListener('blur', () => setMeasure(false));
 addEventListener('keydown', (e) => {
   const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName);
   const mod = e.ctrlKey || e.metaKey;
@@ -2515,6 +3004,7 @@ addEventListener('keydown', (e) => {
   if (mod && e.key.toLowerCase() === 'v' && lastArea === 'timeline') { e.preventDefault(); pasteKeys(); return; }
   if (e.key.toLowerCase() === 'm' && !mod) { e.preventDefault(); addMarker(t); return; }
   if (e.shiftKey && !mod && e.code === 'Digit1') { e.preventDefault(); resetView(); return; }
+  if (e.shiftKey && !mod && !e.altKey && e.code === 'KeyR') { e.preventDefault(); toggleRefs(); return; }
   if (e.shiftKey && !mod && e.code === 'Digit2') { e.preventDefault(); zoom100(); return; }
   if (e.shiftKey && !mod && e.code === 'Digit3') { e.preventDefault(); zoomSel(); return; }
   if (e.key === 'Home') { setTime(0); return; }
@@ -2703,7 +3193,7 @@ $('#bDeploy').onclick = () => deployDialog();
 function layerChanged(ev) {
   const held = scenes.find((s) => s.id === ev.id);
   for (const s of new Set([held, scene?.id === ev.id ? scene : null])) if (s && s.rev === ev.rev - 1) { s.layer = ev.layer; s.rev = ev.rev; }
-  renderSceneSel(); renderTree();
+  renderSceneSel(); renderTree(); buildRefs();
   const inp = $('[data-sp="layer"]'); if (inp && scene?.id === ev.id) inp.value = scene.layer;
 }
 connectEvents((ev) => { if (ev.t === 'show' && ev.kind === 'scenes' && ev.layer) layerChanged(ev); }, (ok) => {
