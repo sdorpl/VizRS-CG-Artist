@@ -49,6 +49,16 @@
   #dockBar[hidden] { display: none; }
   #marq { position: absolute; z-index: 6; pointer-events: none; border: 1px dashed var(--acc); background: color-mix(in srgb, var(--acc) 12%, transparent); }
   #marq[hidden] { display: none; }
+  #alignBar { position: absolute; left: 8px; top: 6px; max-width: calc(100% - 440px); z-index: 7; display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
+    background: var(--panel, #1b1f26); border: 1px solid var(--line, #333); border-radius: 6px; padding: 2px 4px; font-size: 12px; }
+  #alignBar[hidden] { display: none; }
+  #alignBar button { min-width: 24px; height: 22px; padding: 0 5px; font-size: 12px; }
+  #alignBar select, #alignBar input { height: 22px; font-size: 12px; padding: 0 4px; width: auto; }
+  #alignBar select { max-width: 150px; }
+  #alignBar:not([hidden]) ~ #overWarn, #box:has(#alignBar:not([hidden])) #overWarn { top: 40px; }
+  #alignBar input { width: 46px; }
+  #alignBar .sep { width: 1px; height: 16px; background: var(--line, #333); margin: 0 3px; }
+  .selx.key { border-style: solid; border-width: 2px; }
   #box.smove { cursor: grab; }
   #dockBar b { color: #2fd4c8; font-weight: 600; }
   #dockBar .mono { font: 12px ui-monospace, monospace; }
@@ -329,6 +339,17 @@
       <div id="overWarn" hidden></div>
       <div id="dockBar" hidden></div>
       <div id="marq" hidden></div>
+      <div id="alignBar" hidden>
+        <select id="alRef" title="Wyrównaj względem"><option value="sel">do zaznaczenia</option><option value="key">do kluczowego</option><option value="frame">do kadru</option><option value="safe">do obszaru grafiki 90%</option></select>
+        <button data-al="l" title="Wyrównaj lewe krawędzie">⇤</button><button data-al="cx" title="Wyrównaj środki w poziomie">↔</button><button data-al="r" title="Wyrównaj prawe krawędzie">⇥</button>
+        <button data-al="t" title="Wyrównaj górne krawędzie">⤒</button><button data-al="cy" title="Wyrównaj środki w pionie">↕</button><button data-al="b" title="Wyrównaj dolne krawędzie">⤓</button>
+        <span class="sep"></span>
+        <button data-al="dx" title="Rozmieść w poziomie – równe odstępy (3 i więcej)">⋯</button><button data-al="dy" title="Rozmieść w pionie – równe odstępy (3 i więcej)">⋮</button>
+        <span class="sep"></span>
+        <input id="alGap" type="number" value="24" title="Odstęp px dla „rząd” / „kolumna”"><button data-al="row" title="Ułóż w rzędzie z odstępem (od lewego)">rząd</button><button data-al="col" title="Ułóż w kolumnie z odstępem (od górnego)">kolumna</button>
+        <span class="sep"></span>
+        <button data-al="mw" title="Szerokość jak element kluczowy (ramka pełna)">szer.=</button><button data-al="mh" title="Wysokość jak element kluczowy (ramka pełna)">wys.=</button>
+      </div>
       <div id="info"></div>
       <div id="pGuides" class="vpop" hidden></div>
       <div id="pBg" class="vpop" hidden></div>
@@ -431,7 +452,10 @@ function checkpoint() {
   redo = []; setDirty(true);
 }
 function restore(json) {
+  // rev to znacznik zapisu na serwerze, nie treść: cofnięcie po zapisie nie może wrócić do starego (fałszywy konflikt)
+  const rev = scene.rev;
   scene = JSON.parse(json);
+  if (rev != null) scene.rev = rev; else delete scene.rev;
   if (selId && !locate(selId)) selId = null;
   selMore = selMore.filter((id) => id !== selId && locate(id));
   selKey = null; selKeys = [];
@@ -2447,6 +2471,71 @@ function rotateDrag(n, e) {
   addEventListener('mousemove', mv); addEventListener('mouseup', up);
 }
 
+// ------------------------------------------------------------ wyrównaj i rozmieść zaznaczone (K3)
+// Obrysy jak przy chwytaniu (drawnBox – pojemniki bez wypełnienia nie liczą się), przesunięcie przez układ rodzica każdego
+// elementu razem z kluczami x / y (shiftNode – jak „Położenie względem innej sceny”). Odniesienie: obrys zaznaczenia,
+// element kluczowy (główny zaznaczony – pełna ramka), kadr, obszar grafiki EBU R 95 (90%). Jedna operacja = jeden krok cofania.
+const AL_NEED = { dx: 3, dy: 3, row: 2, col: 2, mw: 2, mh: 2 };
+function syncAlignBar() {
+  const b = $('#alignBar'), k = selAll().filter((id) => !isLocked(id)).length;
+  b.hidden = !k || !!dockPv?.set;
+  if (b.hidden) return;
+  const ref = $('#alRef');
+  if (k < 2 && (ref.value === 'sel' || ref.value === 'key')) ref.value = 'frame';
+  for (const o of ref.options) o.disabled = k < 2 && (o.value === 'sel' || o.value === 'key');
+  for (const x of $$('[data-al]', b)) x.disabled = k < (AL_NEED[x.dataset.al] || 1);
+}
+function alignOp(op) {
+  const ids = topSel().filter((id) => !isLocked(id));
+  const items = ids.map((id) => { const el = stage.querySelector(`[data-id="${CSS.escape(id)}"]`); return { id, n: locate(id).node, r: el && (drawnBox([el], ownNode) || unionRect([el])) }; }).filter((x) => x.r);
+  if (!items.length) { toast('Zaznaczone elementy nie są widoczne w bieżącym czasie', true); return; }
+  const W = scene.width, H = scene.height, refK = $('#alRef').value;
+  const uni = items.reduce((u, { r }) => ({ x1: Math.min(u.x1, r.x1), y1: Math.min(u.y1, r.y1), x2: Math.max(u.x2, r.x2), y2: Math.max(u.y2, r.y2) }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
+  const keyIt = items.find((x) => x.id === selId) || items[0];
+  const R = refK === 'frame' ? { x1: 0, y1: 0, x2: W, y2: H } : refK === 'safe' ? { x1: W * 0.05, y1: H * 0.05, x2: W * 0.95, y2: H * 0.95 } : refK === 'key' ? keyIt.r : uni;
+  const moves = new Map(); // id → [dx, dy] w px kadru
+  const mv = (it, dx, dy) => { if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) moves.set(it.id, [dx, dy]); };
+  const cx = (r) => (r.x1 + r.x2) / 2, cy = (r) => (r.y1 + r.y2) / 2;
+  const others = refK === 'key' ? items.filter((x) => x !== keyIt) : items;
+  if (op === 'l') for (const it of others) mv(it, R.x1 - it.r.x1, 0);
+  else if (op === 'r') for (const it of others) mv(it, R.x2 - it.r.x2, 0);
+  else if (op === 'cx') for (const it of others) mv(it, cx(R) - cx(it.r), 0);
+  else if (op === 't') for (const it of others) mv(it, 0, R.y1 - it.r.y1);
+  else if (op === 'b') for (const it of others) mv(it, 0, R.y2 - it.r.y2);
+  else if (op === 'cy') for (const it of others) mv(it, 0, cy(R) - cy(it.r));
+  else if (op === 'dx' || op === 'dy') {
+    const hz = op === 'dx', a1 = hz ? 'x1' : 'y1', a2 = hz ? 'x2' : 'y2';
+    const so = [...items].sort((p, q) => (p.r[a1] + p.r[a2]) - (q.r[a1] + q.r[a2]));
+    const span = so[so.length - 1].r[a2] - so[0].r[a1], sum = so.reduce((t0, it) => t0 + it.r[a2] - it.r[a1], 0), g = (span - sum) / (so.length - 1);
+    let pos = so[0].r[a1];
+    for (const it of so) { const d = pos - it.r[a1]; mv(it, hz ? d : 0, hz ? 0 : d); pos += it.r[a2] - it.r[a1] + g; }
+  } else if (op === 'row' || op === 'col') {
+    const hz = op === 'row', a1 = hz ? 'x1' : 'y1', a2 = hz ? 'x2' : 'y2', g = +$('#alGap').value || 0;
+    const so = [...items].sort((p, q) => p.r[a1] - q.r[a1]);
+    let pos = so[0].r[a1];
+    for (const it of so) { const d = pos - it.r[a1]; mv(it, hz ? d : 0, hz ? 0 : d); pos += it.r[a2] - it.r[a1] + g; }
+  } else if (op === 'mw' || op === 'mh') {
+    const p = op === 'mw' ? 'w' : 'h', target = op === 'mw' ? keyIt.r.x2 - keyIt.r.x1 : keyIt.r.y2 - keyIt.r.y1;
+    const bad = [];
+    checkpoint();
+    for (const it of items) {
+      if (it === keyIt) continue;
+      const xf = parentXf(it.id), rot = ((xf.rot + num(it.n, 'rotation')) % 180 + 180) % 180;
+      if (!TYPES[it.n.type]?.props.includes(p) || it.n.type === 'group' || (rot > 0.01 && rot < 179.99)) { bad.push(it.n.name || it.n.type); continue; }
+      setProp(it.n, p, Math.max(1, Math.round(target / (xf.sc * (scl(it.n) || 1)))));
+    }
+    refresh(); syncProps(); renderTimeline(); updateSel();
+    toast(bad.length ? `Pominięte (obrót, grupa albo brak ${p === 'w' ? 'szerokości' : 'wysokości'}): ${bad.join(', ')}` : `${p === 'w' ? 'Szerokość' : 'Wysokość'} jak „${keyIt.n.name || keyIt.n.type}”`, !!bad.length);
+    return;
+  }
+  if (!moves.size) { toast('Już wyrównane'); return; }
+  checkpoint();
+  for (const [id, [dx, dy]] of moves) { const [lx, ly] = toLocal(dx, dy, parentXf(id)); shiftNode(locate(id).node, lx, ly); }
+  refresh(); syncProps(); renderTimeline(); updateSel();
+}
+$('#alignBar').addEventListener('mousedown', (e) => e.stopPropagation());
+$('#alignBar').addEventListener('click', (e) => { const b = e.target.closest('[data-al]'); if (b && !b.disabled) alignOp(b.dataset.al); });
+
 // ------------------------------------------------------------ zaznaczanie ramką (K1)
 // Przeciągnięcie od pustego miejsca kanwy: ramka zaznacza elementy, które coś rysują (jak chwytanie klikiem – pojemniki
 // bez wypełnienia nie), przecinane przez ramkę; Alt – tylko całe w ramce. Shift / Ctrl – dodaje do zaznaczenia,
@@ -2690,7 +2779,7 @@ function snapAxis(vals, cands, thr, grid) {
 function updateSel() {
   const o = $('#sel');
   const el = selId && stage.querySelector(`[data-id="${CSS.escape(selId)}"]`);
-  if (!el || el.style.display === 'none') { o.style.display = 'none'; $('#selLbl').style.display = 'none'; if ($('#selx').dataset.h) { $('#selx').innerHTML = ''; $('#selx').dataset.h = ''; } return; }
+  if (!el || el.style.display === 'none') { $('#alignBar').hidden = true; o.style.display = 'none'; $('#selLbl').style.display = 'none'; if ($('#selx').dataset.h) { $('#selx').innerHTML = ''; $('#selx').dataset.h = ''; } return; }
   const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
   const n = selNode();
   // obrót (własny i przodków) obraca też ramkę: uchwyt rozmiaru jest w rogu elementu, nie w rogu obrysu osiowego
@@ -2718,9 +2807,10 @@ function updateSel() {
   for (const id of mb ? selAll() : selMore) {
     const e2 = stage.querySelector(`[data-id="${CSS.escape(id)}"]`); if (!e2 || e2.style.display === 'none') continue;
     const r2b = e2.getBoundingClientRect();
-    hx += `<div class="selx" style="left:${r2b.left - b.left}px;top:${r2b.top - b.top}px;width:${r2b.width}px;height:${r2b.height}px"></div>`;
+    hx += `<div class="selx${mb && id === selId ? ' key' : ''}" style="left:${r2b.left - b.left}px;top:${r2b.top - b.top}px;width:${r2b.width}px;height:${r2b.height}px"></div>`;
   }
   const sx = $('#selx'); if (sx.dataset.h !== hx) { sx.innerHTML = hx; sx.dataset.h = hx; }
+  syncAlignBar();
 }
 
 box.addEventListener('mousedown', (e) => {

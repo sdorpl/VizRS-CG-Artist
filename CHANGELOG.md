@@ -2,6 +2,8 @@
 
 ## Niewydane
 
+- **Wyrównaj i rozmieść zaznaczone** (plan `docs/plany/PLAN-edycja-na-kanwie.md`, etap K3): pasek na kanwie – wyrównanie krawędzi i środków do zaznaczenia, elementu kluczowego, kadru albo obszaru grafiki 90%; rozmieszczenie z równymi odstępami, rząd / kolumna z odstępem, szerokość / wysokość jak element kluczowy. DOKUMENTACJA §4.
+- **Poprawka:** Ctrl+Z po zapisie przywracał stary znacznik zapisu sceny – kolejny zapis kończył się fałszywym pytaniem o konflikt („zmieniona przez kogoś innego”).
 - **Edycja na kanwie – reszta etapu K2:** kilka zaznaczonych ma wspólną ramkę z 8 uchwytami – skalowanie położeń i ramek (Shift – proporcje, Alt – od środka; tekst – ramka, nie czcionka; grupy – tylko położenie); przy zmianie rozmiaru przeciągana krawędź przyciąga się do kadru, prowadnic, innych elementów i scen odniesienia (Ctrl – bez). DOKUMENTACJA §4.
 - **Uchwyty na kanwie** (plan `docs/plany/PLAN-edycja-na-kanwie.md`, etap K2): 8 uchwytów rozmiaru (rogi i boki; przeciwległy róg / bok stoi, także w elemencie i grupie obróconej), Shift – proporcje, Alt – od środka, kółko obrotu (Shift – co 15°); etykieta z kątem pod obrysem. DOKUMENTACJA §4.
 - **Poprawka:** uchwyt rozmiaru na kanwie nie działał (od 26.11.3) – kliknięcie w niego kończyło się błędem skryptu i nic się nie zmieniało.

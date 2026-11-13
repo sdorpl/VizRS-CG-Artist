@@ -1,6 +1,6 @@
 # PLAN: edycja elementów na kanwie (K1–K5)
 
-> Stan: **K1 i K2 zrobione** (2026-11-13; przy okazji naprawiony uchwyt rozmiaru, który od 26.11.3 nie działał). Przyciąganie przy zmianie rozmiaru – tylko element bez obrotu (własnego i grup). Dalej: K3–K5. Decyzje z §6 przyjęte wg propozycji (polecenie użytkownika „zacznij wdrażać”): scena – S + przeciągnięcie, ramka – przecinane (Alt – całe w środku), skalowanie tekstu – ramka, wyrównanie – pasek nad kanwą, K5 – tak, po K1–K4.
+> Stan: **K1–K3 zrobione** (2026-11-13; przy okazji naprawiony uchwyt rozmiaru, który od 26.11.3 nie działał). Przyciąganie przy zmianie rozmiaru – tylko element bez obrotu (własnego i grup). Dalej: K4, K5. K3: pasek w lewym górnym rogu kanwy (wyśrodkowany nachodził na narzędzia kanwy); przy okazji naprawione Ctrl+Z po zapisie (fałszywy konflikt). Decyzje z §6 przyjęte wg propozycji (polecenie użytkownika „zacznij wdrażać”): scena – S + przeciągnięcie, ramka – przecinane (Alt – całe w środku), skalowanie tekstu – ramka, wyrównanie – pasek nad kanwą, K5 – tak, po K1–K4.
 > Wchłania P8 z `../VizRS CG System/docs/plany/PLAN-panel-wlasciwosci.md` (edycja wielu zaznaczonych – zaznaczanie wielokrotne już jest).
 
 ## 1. Problem

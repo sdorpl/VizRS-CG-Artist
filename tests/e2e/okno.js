@@ -319,6 +319,48 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
     ok(M.c && near(M.c.w, 300, 0.01), 'przeciągana krawędź przyciąga się do krawędzi sąsiedniego elementu', M.c);
     ok(M.e && near(M.e.w, 295), 'Ctrl – zmiana rozmiaru bez przyciągania', M.e);
 
+    // 1g. wyrównaj i rozmieść (K3): góry do zaznaczenia, rozmieszczenie w poziomie, rząd co 24 px, szerokość jak kluczowy,
+    //     pojedynczy element do prawej krawędzi kadru, jedno Ctrl+Z cofa operację
+    const adata = path.join(tmp, 'align');
+    fs.mkdirSync(adata, { recursive: true });
+    fs.writeFileSync(path.join(adata, 'show.json'), JSON.stringify({ rev: 1, scenes: [
+      { id: 'al', name: 'Wyrównanie', layer: 'main', width: 1920, height: 1080, duration: 2, stops: [1], nodes: [
+        rr('a', 100, 100, 100, 50), rr('b', 400, 130, 200, 50), rr('c', 850, 90, 150, 50)] },
+    ] }));
+    const alg = run(['--data', adata], write('align.js', `(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
+      await sleep(400);
+      const r = {}, box = document.querySelector('#box');
+      const st = document.querySelector('#stage').getBoundingClientRect(), k = st.width / 1920;
+      const at = (x, y) => ({ clientX: st.left + x * k, clientY: st.top + y * k, button: 0, bubbles: true, detail: 1 });
+      const state = async () => { window.__vizrsCmd('save'); await sleep(700); return Object.fromEntries((await (await fetch('/api/show')).json()).scenes[0].nodes.map((n) => [n.id, n.props])); };
+      const op = async (o) => { document.querySelector('#alignBar [data-al="' + o + '"]').click(); await sleep(150); };
+      const ref = (v) => { const s = document.querySelector('#alRef'); s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); };
+      r.barHidden0 = document.querySelector('#alignBar').hidden;
+      box.dispatchEvent(new MouseEvent('mousedown', at(50, 50))); dispatchEvent(new MouseEvent('mousemove', at(500, 150))); dispatchEvent(new MouseEvent('mousemove', at(1100, 250))); dispatchEvent(new MouseEvent('mouseup', at(1100, 250))); await sleep(200);
+      r.bar = !document.querySelector('#alignBar').hidden; r.key = document.querySelectorAll('#selx .selx.key').length;
+      ref('sel'); await op('t'); r.top = await state();
+      await op('dx'); r.dist = await state();
+      await op('row'); r.row = await state();
+      ref('key'); await op('mw'); r.mw = await state();
+      box.dispatchEvent(new MouseEvent('mousedown', at(1500, 700))); dispatchEvent(new MouseEvent('mouseup', at(1500, 700))); await sleep(150);
+      box.dispatchEvent(new MouseEvent('mousedown', at(150, 115))); dispatchEvent(new MouseEvent('mouseup', at(150, 115))); await sleep(200);
+      r.refOne = document.querySelector('#alRef').value; r.distOff = document.querySelector('#alignBar [data-al="dx"]').disabled;
+      await op('r'); r.right = await state();
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true })); await sleep(150);
+      r.undo = await state();
+      (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
+    })();`), 'align');
+    const xs = (o) => o && ['a', 'b', 'c'].map((id) => o[id].x);
+    ok(alg.barHidden0 === true && alg.bar === true && alg.key === 1, 'pasek wyrównania przy zaznaczeniu, element kluczowy z pełną ramką', alg);
+    ok(alg.top && ['a', 'b', 'c'].every((id) => near(alg.top[id].y, 90)), 'wyrównanie górnych krawędzi do zaznaczenia', alg.top);
+    ok(JSON.stringify(xs(alg.dist)) === JSON.stringify([100, 425, 850]), 'rozmieszczenie w poziomie – równe odstępy', xs(alg.dist));
+    ok(JSON.stringify(xs(alg.row)) === JSON.stringify([100, 224, 448]), 'rząd z odstępem 24 px', xs(alg.row));
+    ok(alg.mw && alg.mw.b.w === 100 && alg.mw.c.w === 100 && alg.mw.a.w === 100, 'szerokość jak element kluczowy', alg.mw);
+    ok(alg.refOne === 'frame' && alg.distOff === true && alg.right && near(alg.right.a.x, 1820) && alg.undo && near(alg.undo.a.x, 100),
+      'jeden element: do kadru (prawa krawędź), rozmieszczanie wyłączone, Ctrl+Z po zapisie cofa i zapisuje się bez konfliktu', { refOne: alg.refOne, right: alg.right?.a, undo: alg.undo?.a });
+
     // 2. jedna instancja: drugie uruchomienie przekazuje prośbę i kończy pracę; vizrs nie wystartuje na tym katalogu
     const first = spawn(APP, ['--data', data], { env: ENV, stdio: 'ignore' });
     for (let i = 0; i < 50 && !fs.existsSync(path.join(data, '.vizrs.lock')); i++) await sleep(100);
