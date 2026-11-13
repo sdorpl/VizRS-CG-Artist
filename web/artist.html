@@ -59,6 +59,16 @@
   #alignBar input { width: 46px; }
   #alignBar .sep { width: 1px; height: 16px; background: var(--line, #333); margin: 0 3px; }
   .selx.key { border-style: solid; border-width: 2px; }
+  #ctxMenu { position: fixed; z-index: 50; min-width: 220px; max-height: 80vh; overflow: auto; background: var(--panel, #1b1f26); border: 1px solid var(--line, #333);
+    border-radius: 6px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.5); font-size: 12px; }
+  #ctxMenu[hidden] { display: none; }
+  #ctxMenu button { display: flex; width: 100%; align-items: center; gap: 12px; border: 0; background: none; text-align: left; padding: 4px 8px; border-radius: 4px; height: auto; }
+  #ctxMenu button:hover:not(:disabled) { background: var(--acc); color: var(--acc-ink, #000); }
+  #ctxMenu button:disabled { opacity: .4; }
+  #ctxMenu button span { flex: 1; }
+  #ctxMenu kbd { font: 11px ui-monospace, monospace; opacity: .7; }
+  #ctxMenu hr { border: 0; border-top: 1px solid var(--line, #333); margin: 4px 0; }
+  #ctxMenu .h4 { padding: 4px 8px 2px; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--acc); }
   #box.smove { cursor: grab; }
   #dockBar b { color: #2fd4c8; font-weight: 600; }
   #dockBar .mono { font: 12px ui-monospace, monospace; }
@@ -339,6 +349,7 @@
       <div id="overWarn" hidden></div>
       <div id="dockBar" hidden></div>
       <div id="marq" hidden></div>
+      <div id="ctxMenu" hidden></div>
       <div id="alignBar" hidden>
         <select id="alRef" title="Wyrównaj względem"><option value="sel">do zaznaczenia</option><option value="key">do kluczowego</option><option value="frame">do kadru</option><option value="safe">do obszaru grafiki 90%</option></select>
         <button data-al="l" title="Wyrównaj lewe krawędzie">⇤</button><button data-al="cx" title="Wyrównaj środki w poziomie">↔</button><button data-al="r" title="Wyrównaj prawe krawędzie">⇥</button>
@@ -2536,6 +2547,115 @@ function alignOp(op) {
 $('#alignBar').addEventListener('mousedown', (e) => e.stopPropagation());
 $('#alignBar').addEventListener('click', (e) => { const b = e.target.closest('[data-al]'); if (b && !b.disabled) alignOp(b.dataset.al); });
 
+// ------------------------------------------------------------ menu kontekstowe kanwy i schowek elementów (K4)
+// Prawy klik na elemencie (zaznacza go, jeśli nie był) albo na pustym miejscu. Schowek elementów: localStorage okna
+// (`vizrs.clipNodes`) – działa między scenami i oknami; wklejenie w korzeń sceny w tym samym miejscu na ekranie
+// (położenie grupy nadrzędnej doliczone, bez jej obrotu i skali), w tej samej scenie – przesunięte o 20 px.
+function copyNodes(cut) {
+  const ids = topSel(); if (!ids.length) return;
+  const nodes = ids.map((id) => { const L = locate(id), o = originOf(L.parent?.id || null); return { node: structuredClone(L.node), ox: o.x, oy: o.y }; });
+  try { localStorage.setItem('vizrs.clipNodes', JSON.stringify({ scene: scene.id, nodes })); } catch { toast('Schowek: za dużo danych', true); return; }
+  if (cut) {
+    if (ids.some(isLocked)) { toast('Element jest zablokowany – nie można wyciąć', true); return; }
+    treeOp('del'); toast(`Wycięto: ${ids.length} ${plElem(ids.length)}`);
+  } else toast(`Skopiowano: ${ids.length} ${plElem(ids.length)}`);
+}
+function pasteNodes() {
+  let clip = null;
+  try { clip = JSON.parse(localStorage.getItem('vizrs.clipNodes') || 'null'); } catch { /* uszkodzony wpis */ }
+  if (!clip?.nodes?.length) { toast('Schowek elementów jest pusty', true); return; }
+  checkpoint();
+  const same = clip.scene === scene.id, ids = [];
+  for (const { node, ox, oy } of clip.nodes) {
+    const c = cloneNode(node);
+    if (same && !/_kopia$/.test(c.name || '')) c.name = (c.name || c.type) + '_kopia';
+    shiftNode(c, (+ox || 0) + (same ? 20 : 0), (+oy || 0) + (same ? 20 : 0));
+    scene.nodes.push(c); ids.push(c.id);
+  }
+  selId = ids[0]; selMore = ids.slice(1);
+  player.setScene(scene); player.seek(t);
+  renderTree(); renderProps(); renderTimeline();
+  toast(`Wklejono: ${ids.length} ${plElem(ids.length)}`);
+}
+const hasClip = () => { try { return !!JSON.parse(localStorage.getItem('vizrs.clipNodes') || 'null')?.nodes?.length; } catch { return false; } };
+function selectAllNodes() { const ids = scene.nodes.map((n) => n.id).filter((id) => !isLocked(id)); select(ids[0], ids.slice(1)); }
+/** Kolejność warstw zaznaczonych w ich listach: front / back – na wierzch / na spód (koniec listy rysuje się na wierzchu). */
+function zOrder(op) {
+  const ids = topSel(); if (!ids.length) return;
+  if (op === 'up' || op === 'down') { treeOp(op === 'up' ? 'down' : 'up'); return; }
+  checkpoint();
+  const nodes = ids.map((id) => locate(id).node);
+  for (const n of op === 'front' ? nodes : [...nodes].reverse()) {
+    const L = locate(n.id); L.list.splice(L.index, 1);
+    if (op === 'front') L.list.push(n); else L.list.unshift(n);
+  }
+  player.setScene(scene); player.seek(t); renderTree(); renderTimeline(); updateSel();
+}
+function toggleFlag(k) {
+  const ns = topSel().map((id) => locate(id).node); if (!ns.length) return;
+  checkpoint();
+  const on = !ns.every((n) => n[k]);
+  for (const n of ns) { if (on) n[k] = true; else delete n[k]; }
+  refresh(); renderTree(); updateSel();
+  toast(`${k === 'locked' ? (on ? 'Zablokowano' : 'Odblokowano') : (on ? 'Ukryto' : 'Pokazano')}: ${ns.length} ${plElem(ns.length)}`);
+}
+/** Elementy rysujące pod kursorem (od wierzchu) – także zasłonięte. */
+function nodesAt(x, y) {
+  const out = [];
+  for (const e of document.elementsFromPoint(x, y)) {
+    const el = e.closest?.('.vz-node');
+    if (!el || !stage.contains(el) || out.includes(el.dataset.id) || !shownEl(el)) continue;
+    const n = locate(el.dataset.id)?.node;
+    if (!drawsNode(n) || !drawnClientRects(el, n).some((r) => inR(r, x, y))) continue;
+    out.push(el.dataset.id);
+  }
+  return out;
+}
+function ctxMenu(e) {
+  const m = $('#ctxMenu'), hit = hitNode(e.clientX, e.clientY);
+  if (hit && !selAll().includes(hit.dataset.id)) select(hit.dataset.id);
+  const k = topSel().length, n = selNode(), under = nodesAt(e.clientX, e.clientY);
+  const b = (act, label, key = '', off = false) => `<button data-cx="${act}" ${off ? 'disabled' : ''}><span>${label}</span>${key ? `<kbd>${key}</kbd>` : ''}</button>`;
+  const nm = (id) => esc(locate(id)?.node.name || locate(id)?.node.type || id);
+  let h = '';
+  if (hit && k) {
+    const P = n && locate(n.id)?.parent;
+    h += b('dup', 'Duplikuj', 'Ctrl+D') + b('copy', 'Kopiuj', 'Ctrl+C') + b('cut', 'Wytnij', 'Ctrl+X') + b('paste', 'Wklej', 'Ctrl+V', !hasClip()) + b('del', 'Usuń', 'Del') + '<hr>'
+      + b('group', 'Grupuj', 'Ctrl+G', k < 2) + b('ungroup', 'Rozgrupuj', 'Ctrl+Shift+G', !(k === 1 && n?.type === 'group')) + '<hr>'
+      + '<div class="h4">Kolejność</div>' + b('front', 'Na wierzch') + b('zup', 'Wyżej') + b('zdown', 'Niżej') + b('back', 'Na spód') + '<hr>'
+      + '<div class="h4">Wyrównaj (pasek: względem)</div>' + b('al:l', 'Lewe krawędzie') + b('al:cx', 'Środki w poziomie') + b('al:r', 'Prawe krawędzie') + b('al:t', 'Górne krawędzie') + b('al:cy', 'Środki w pionie') + b('al:b', 'Dolne krawędzie') + '<hr>'
+      + b('lock', 'Zablokuj / odblokuj') + b('hide', 'Ukryj / pokaż') + b('parent', P ? `Zaznacz grupę „${nm(P.id)}”` : 'Zaznacz grupę nadrzędną', 'dwuklik', !P) + b('tree', 'Pokaż w drzewie');
+    if (under.length > 1) h += '<hr><div class="h4">Zaznacz pod kursorem</div>' + under.map((id) => b('pick:' + id, (id === selId ? '● ' : '') + nm(id))).join('');
+  } else {
+    h += b('paste', 'Wklej', 'Ctrl+V', !hasClip()) + b('all', 'Zaznacz wszystko', 'Ctrl+A', !scene.nodes.length) + '<hr>'
+      + b('guides', cv.show ? 'Ukryj prowadnice' : 'Pokaż prowadnice') + b('refs', rf.on ? 'Ukryj sceny odniesienia' : 'Pokaż sceny odniesienia', 'Shift+R') + b('fit', 'Dopasuj widok', 'Shift+1') + '<hr>' + b('scene', 'Ustawienia sceny');
+  }
+  m.innerHTML = h; m.hidden = false;
+  const W = innerWidth, H = innerHeight, r = m.getBoundingClientRect();
+  m.style.left = Math.min(e.clientX, W - r.width - 4) + 'px'; m.style.top = Math.min(e.clientY, H - r.height - 4) + 'px';
+}
+const ctxClose = () => { $('#ctxMenu').hidden = true; };
+$('#box').addEventListener('contextmenu', (e) => {
+  if (e.target.closest('.vpop, #alignBar, #dockBar')) return;
+  e.preventDefault(); lastArea = 'canvas'; ctxMenu(e);
+});
+$('#ctxMenu').addEventListener('mousedown', (e) => e.stopPropagation());
+$('#ctxMenu').addEventListener('click', (e) => {
+  const a = e.target.closest('[data-cx]')?.dataset.cx; if (!a || e.target.closest('[data-cx]').disabled) return;
+  ctxClose();
+  if (a.startsWith('pick:')) { select(a.slice(5)); return; }
+  if (a.startsWith('al:')) { alignOp(a.slice(3)); return; }
+  ({
+    dup: () => treeOp('dup'), copy: () => copyNodes(false), cut: () => copyNodes(true), paste: pasteNodes, del: () => treeOp('del'),
+    group: () => treeOp('group'), ungroup: () => treeOp('ungroup'), front: () => zOrder('front'), back: () => zOrder('back'), zup: () => zOrder('up'), zdown: () => zOrder('down'),
+    lock: () => toggleFlag('locked'), hide: () => toggleFlag('hidden'), parent: () => { const P = locate(selId)?.parent; if (P) select(P.id); },
+    tree: () => { const it = $(`#tree .item[data-id="${CSS.escape(selId || '')}"]`); it?.scrollIntoView({ block: 'center' }); it?.animate([{ background: 'var(--acc)' }, { background: '' }], 700); },
+    all: selectAllNodes, guides: () => $('#bSafe').click(), refs: toggleRefs, fit: resetView, scene: () => select(null),
+  })[a]?.();
+});
+addEventListener('mousedown', (e) => { if (!e.target.closest('#ctxMenu')) ctxClose(); }, true);
+addEventListener('blur', ctxClose);
+
 // ------------------------------------------------------------ zaznaczanie ramką (K1)
 // Przeciągnięcie od pustego miejsca kanwy: ramka zaznacza elementy, które coś rysują (jak chwytanie klikiem – pojemniki
 // bez wypełnienia nie), przecinane przez ramkę; Alt – tylko całe w ramce. Shift / Ctrl – dodaje do zaznaczenia,
@@ -3412,6 +3532,7 @@ addEventListener('keydown', (e) => {
   if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); doRedo(); return; }
   if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); treeOp('dup'); return; }
   if (mod && e.key.toLowerCase() === 'g') { e.preventDefault(); treeOp(e.shiftKey ? 'ungroup' : 'group'); return; }
+  if (e.key === 'Escape' && !$('#ctxMenu').hidden) { ctxClose(); return; }
   if (dockPv && (e.key === 'Escape' || (e.key === 'Enter' && dockPv.set))) { e.preventDefault(); dockEnd(e.key === 'Enter'); return; }
   if (e.key === 'Escape') {
     const open = $$('.vpop').filter((x) => !x.hidden);
@@ -3422,6 +3543,13 @@ addEventListener('keydown', (e) => {
   if (e.key === ' ') { e.preventDefault(); if (player.playing) player.playing = false; else $('#pPlay').click(); return; }
   if (mod && e.key.toLowerCase() === 'c' && lastArea === 'timeline') { e.preventDefault(); copyKeys(); return; }
   if (mod && e.key.toLowerCase() === 'v' && lastArea === 'timeline') { e.preventDefault(); pasteKeys(); return; }
+  if (mod && !e.shiftKey && lastArea !== 'timeline' && lastArea !== 'props') {
+    const kk = e.key.toLowerCase();
+    if (kk === 'c' && selId) { e.preventDefault(); copyNodes(false); return; }
+    if (kk === 'x' && selId) { e.preventDefault(); copyNodes(true); return; }
+    if (kk === 'v') { e.preventDefault(); pasteNodes(); return; }
+    if (kk === 'a') { e.preventDefault(); selectAllNodes(); return; }
+  }
   if (e.key.toLowerCase() === 'm' && !mod) { e.preventDefault(); addMarker(t); return; }
   if (e.shiftKey && !mod && e.code === 'Digit1') { e.preventDefault(); resetView(); return; }
   if (e.shiftKey && !mod && !e.altKey && e.code === 'KeyR') { e.preventDefault(); toggleRefs(); return; }

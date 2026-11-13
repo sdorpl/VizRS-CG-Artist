@@ -2,6 +2,7 @@
 
 ## Niewydane
 
+- **Menu kontekstowe kanwy i schowek elementów** (plan `docs/plany/PLAN-edycja-na-kanwie.md`, etap K4): prawy klik – duplikuj, kopiuj / wytnij / wklej, usuń, grupuj, kolejność (na wierzch … na spód), wyrównaj, zablokuj, ukryj, zaznacz grupę nadrzędną, pokaż w drzewie, **zaznacz pod kursorem** (także zasłonięte); na pustym miejscu – wklej, zaznacz wszystko, prowadnice, odniesienia, widok. Ctrl+C / X / V / A dla elementów (schowek działa między scenami i oknami). DOKUMENTACJA §4.
 - **Wyrównaj i rozmieść zaznaczone** (plan `docs/plany/PLAN-edycja-na-kanwie.md`, etap K3): pasek na kanwie – wyrównanie krawędzi i środków do zaznaczenia, elementu kluczowego, kadru albo obszaru grafiki 90%; rozmieszczenie z równymi odstępami, rząd / kolumna z odstępem, szerokość / wysokość jak element kluczowy. DOKUMENTACJA §4.
 - **Poprawka:** Ctrl+Z po zapisie przywracał stary znacznik zapisu sceny – kolejny zapis kończył się fałszywym pytaniem o konflikt („zmieniona przez kogoś innego”).
 - **Edycja na kanwie – reszta etapu K2:** kilka zaznaczonych ma wspólną ramkę z 8 uchwytami – skalowanie położeń i ramek (Shift – proporcje, Alt – od środka; tekst – ramka, nie czcionka; grupy – tylko położenie); przy zmianie rozmiaru przeciągana krawędź przyciąga się do kadru, prowadnic, innych elementów i scen odniesienia (Ctrl – bez). DOKUMENTACJA §4.

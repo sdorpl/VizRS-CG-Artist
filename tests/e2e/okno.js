@@ -361,6 +361,45 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
     ok(alg.refOne === 'frame' && alg.distOff === true && alg.right && near(alg.right.a.x, 1820) && alg.undo && near(alg.undo.a.x, 100),
       'jeden element: do kadru (prawa krawędź), rozmieszczanie wyłączone, Ctrl+Z po zapisie cofa i zapisuje się bez konfliktu', { refOne: alg.refOne, right: alg.right?.a, undo: alg.undo?.a });
 
+    // 1h. menu kontekstowe kanwy i schowek elementów (K4)
+    const cdata = path.join(tmp, 'ctx');
+    fs.mkdirSync(cdata, { recursive: true });
+    fs.writeFileSync(path.join(cdata, 'show.json'), JSON.stringify({ rev: 1, scenes: [
+      { id: 'cx', name: 'Menu', layer: 'main', width: 1920, height: 1080, duration: 2, stops: [1], nodes: [
+        rr('a', 100, 100, 200, 100), rr('b', 150, 130, 200, 100),
+        { id: 'g', type: 'group', name: 'g', props: { x: 500, y: 500, w: 400, h: 200 }, children: [rr('c', 0, 0, 200, 100)] }] },
+    ] }));
+    const ctx = run(['--data', cdata], write('ctx.js', `(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
+      await sleep(400);
+      const r = {}, box = document.querySelector('#box'), menu = document.querySelector('#ctxMenu');
+      const st = document.querySelector('#stage').getBoundingClientRect(), k = st.width / 1920;
+      const at = (x, y, o = {}) => ({ clientX: st.left + x * k, clientY: st.top + y * k, button: 2, bubbles: true, cancelable: true, ...o });
+      const cm = async (x, y) => { box.dispatchEvent(new MouseEvent('contextmenu', at(x, y))); await sleep(120); };
+      const pick = async (act) => { const b = menu.querySelector('[data-cx="' + act + '"]'); r['has_' + act] = !!b && !b.disabled; b?.click(); await sleep(150); };
+      const key = (k2, o = {}) => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: k2, bubbles: true, ...o }));
+      await cm(200, 160);
+      r.menu = !menu.hidden; r.under = [...menu.querySelectorAll('[data-cx^="pick:"]')].map((b) => b.dataset.cx.slice(5));
+      await pick('pick:a'); r.picked = document.querySelector('#pname')?.value; r.menuClosed = menu.hidden;
+      await cm(120, 110); await pick('front');
+      key('c', { ctrlKey: true }); await sleep(100); key('v', { ctrlKey: true }); await sleep(200);
+      r.pasted = document.querySelector('#pname')?.value;
+      await cm(550, 550); await pick('parent'); r.parent = document.querySelector('#pname')?.value;
+      await cm(600, 650); await pick('lock');
+      await cm(1500, 900); r.empty = !!menu.querySelector('[data-cx="all"]'); await pick('all');
+      r.all = document.querySelector('#propsTitle').textContent;
+      window.__vizrsCmd('save'); await sleep(800);
+      r.nodes = (await (await fetch('/api/show')).json()).scenes[0].nodes.map((n) => ({ id: n.id, name: n.name, x: n.props.x, y: n.props.y, locked: !!n.locked }));
+      (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
+    })();`), 'ctx');
+    ok(ctx.menu === true && JSON.stringify(ctx.under) === JSON.stringify(['b', 'a']) && ctx.picked === 'a' && ctx.menuClosed === true, 'menu kontekstowe: „zaznacz pod kursorem” wybiera zasłonięty element', ctx);
+    const cn = ctx.nodes || [];
+    ok(JSON.stringify(cn.slice(0, 3).map((n) => n.id)) === JSON.stringify(['b', 'g', 'a']), '„na wierzch” przenosi element na koniec listy (rysowany na wierzchu)', cn.map((n) => n.id));
+    ok(ctx.pasted === 'a_kopia' && cn.some((n) => n.name === 'a_kopia' && n.x === 120 && n.y === 120), 'Ctrl+C / Ctrl+V – kopia w tej samej scenie przesunięta o 20 px', { pasted: ctx.pasted, cn });
+    ok(ctx.parent === 'g' && cn.find((n) => n.id === 'g')?.locked === true, '„zaznacz grupę nadrzędną” i „zablokuj” z menu', { parent: ctx.parent, cn });
+    ok(ctx.empty === true && ctx.all === 'Właściwości – 3 elementy', 'menu pustego miejsca: „zaznacz wszystko” bez zablokowanych', ctx.all);
+
     // 2. jedna instancja: drugie uruchomienie przekazuje prośbę i kończy pracę; vizrs nie wystartuje na tym katalogu
     const first = spawn(APP, ['--data', data], { env: ENV, stdio: 'ignore' });
     for (let i = 0; i < 50 && !fs.existsSync(path.join(data, '.vizrs.lock')); i++) await sleep(100);
