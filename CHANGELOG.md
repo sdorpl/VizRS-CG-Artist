@@ -3,6 +3,7 @@
 ## Niewydane
 
 - **Strona z CG System v26.11.4** (`web/CG_SYSTEM`: `f88a487`): `renderer.js` – pierwsze ustawienie powiązania (dock) po powstaniu odtwarzacza bez przejścia, więc grafika wchodząca, gdy cel już jest na antenie, stoi od razu na miejscu (PLAN-ruch-belek A0). Pozostałe moduły bez zmian.
+- **Powiązania (dock) z podglądu** (plan `docs/plany/PLAN-pozycjonowanie-scen.md`, etap P4): przy regule w ustawieniach sceny **👁 Podgląd** – cele reguły jako sceny odniesienia „na antenie” i scena przesunięta o wynik powiązań z animacją (▶ powtórz), **✋ Ustaw z kanwy** – przeciągnięcie sceny (z przyciąganiem) albo strzałki zmieniają Δx / Δy reguły zamiast położenia sceny, Enter zatwierdza, Esc anuluje; **＋ Z odniesienia** – reguła z celem z wybranych scen odniesienia. Format `dock` bez zmian. DOKUMENTACJA §4.
 
 ## 26.11.4 – 2026-11-13
 

@@ -126,6 +126,61 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
     ok(refs.warn === true && refs.warnOff === true, 'ostrzeżenie o nachodzeniu na ticker pojawia się i znika', refs);
     ok(refs.y === '22' && refs.saved === 22 && showOf(rdata)?.scenes?.find((s) => s.id === 'belka')?.y === 22, 'dosunięcie belki 8 px nad ticker ustawia położenie sceny i trafia do show.json', refs);
 
+    // 1c. powiązanie (dock) z kanwy i z podglądu: „＋ Z odniesienia” (cel = ticker), przeciągnięcie belki o 100 px w górę
+    //     w trybie „Ustaw z kanwy” zmienia dy reguły, nie położenie sceny; podgląd przesuwa scenę o wynik reguł; Esc kończy
+    const ddata = path.join(tmp, 'dock');
+    fs.mkdirSync(ddata, { recursive: true });
+    fs.writeFileSync(path.join(ddata, 'show.json'), JSON.stringify({ rev: 1, scenes: [
+      { id: 'belka', name: 'Belka', layer: 'main', width: 1920, height: 1080, duration: 2, stops: [1], nodes: [rect('bar', 160, 820, 1600, 110)] },
+      { id: 'ticker', name: 'Ticker', layer: 'back', width: 1920, height: 1080, duration: 2, stops: [1], nodes: [rect('pas', 160, 960, 1600, 60)] },
+    ] }));
+    const dock = run(['--data', ddata], write('dock.js', `(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
+      await sleep(400);
+      const r = {}, key = (k, o = {}) => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, ...o }));
+      const tf = () => document.querySelector('#stage > .vz-scene').style.transform;
+      document.querySelector('#vRefs').click(); await sleep(150);
+      const c = document.querySelector('#pRefs [data-rfid="ticker"]'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); await sleep(300);
+      document.querySelector('#vRefs').click();
+      document.querySelector('#tree .item[data-id=""]').click(); await sleep(150);
+      document.querySelector('#dkRef').click(); await sleep(200);
+      r.target = document.querySelector('[data-dk="0::target"]')?.value;
+      r.bar = !document.querySelector('#dockBar').hidden;
+      const st = document.querySelector('#stage').getBoundingClientRect(), k = st.width / 1920;
+      const at = (x, y, o = {}) => ({ clientX: st.left + x * k, clientY: st.top + y * k, button: 0, bubbles: true, detail: 1, ...o });
+      document.querySelector('#box').dispatchEvent(new MouseEvent('mousedown', at(960, 870)));
+      dispatchEvent(new MouseEvent('mousemove', at(960, 820, { ctrlKey: true })));
+      dispatchEvent(new MouseEvent('mousemove', at(960, 770, { ctrlKey: true })));
+      dispatchEvent(new MouseEvent('mouseup', at(960, 770))); await sleep(100);
+      r.during = tf();
+      key('Enter'); await sleep(200);
+      r.dy = document.querySelector('[data-dk="0::dy"]')?.value;
+      r.sceneY = document.querySelector('[data-sp="y"]').value;
+      r.after = tf();
+      document.querySelector('[data-dkpv="0"]').click(); await sleep(100);
+      r.preview = tf(); r.refs = document.querySelectorAll('#refsU .vz-scene[data-ref="ticker"]').length;
+      key('Escape'); await sleep(100);
+      r.previewOff = tf(); r.barOff = document.querySelector('#dockBar').hidden;
+      document.querySelector('[data-dkset="0"]').click(); await sleep(100);
+      key('ArrowUp', { shiftKey: true }); await sleep(50);
+      r.arrow = tf();
+      key('Escape'); await sleep(150);
+      r.dyCancel = document.querySelector('[data-dk="0::dy"]')?.value;
+      window.__vizrsCmd('save'); await sleep(800);
+      const b = (await (await fetch('/api/show')).json()).scenes.find((s) => s.id === 'belka');
+      r.saved = b?.dock; r.savedY = b?.y ?? 0;
+      (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
+    })();`), 'dock');
+    ok(dock.target === 'scene:Ticker' && dock.bar === true, '„＋ Z odniesienia” tworzy regułę z celem scene:Ticker i włącza „Ustaw z kanwy”', dock);
+    // przeciągnięcie myszą o 100 px kadru – ± 1 px z zaokrąglenia skali kanwy
+    const ddy = Number(dock.dy), tr = (v) => `translate(0px, ${v}px)`;
+    ok(Math.abs(ddy + 100) <= 1 && dock.during === tr(ddy) && dock.sceneY === '0' && dock.after === '', 'przeciągnięcie w „Ustaw z kanwy” zmienia dy reguły (−100), nie położenie sceny', dock);
+    ok(dock.preview === tr(ddy) && dock.refs === 1 && dock.previewOff === '' && dock.barOff === true, 'podgląd pokazuje cel i przesuwa scenę o wynik reguł, Esc kończy', dock);
+    ok(dock.arrow === tr(ddy - 10) && dock.dyCancel === dock.dy, 'strzałki w „Ustaw z kanwy” zmieniają przesunięcie, Esc anuluje', dock);
+    ok(dock.saved?.[0]?.target === 'scene:Ticker' && dock.saved?.[0]?.dy === ddy && dock.savedY === 0
+      && showOf(ddata)?.scenes?.find((s) => s.id === 'belka')?.dock?.[0]?.dy === ddy, 'reguła powiązania trafia do show.json', dock);
+
     // 2. jedna instancja: drugie uruchomienie przekazuje prośbę i kończy pracę; vizrs nie wystartuje na tym katalogu
     const first = spawn(APP, ['--data', data], { env: ENV, stdio: 'ignore' });
     for (let i = 0; i < 50 && !fs.existsSync(path.join(data, '.vizrs.lock')); i++) await sleep(100);

@@ -1,6 +1,6 @@
 # PLAN: pozycjonowanie scen względem siebie (ticker względem belki)
 
-> Stan: **P1–P3 zrobione, P4 częściowo** (2026-11-13: sceny odniesienia, przyciąganie do nich i całej sceny, dosuń / wyrównaj / szerokość jak cel, „jako powiązanie (dock)”). Także P2 w całości (pomiar Alt, ostrzeżenie o nachodzeniu). Do zrobienia: „Podgląd” i „Ustaw z kanwy” w tabeli dock z P4, P5–P6. Decyzje z §7 przyjęte domyślnie: wybór per scena, czas – stop point, bez P5. Zakres: VizRS CG Artist (`web/artist.html`); jedna część (P5) wymaga zmiany formatu w VizRS CG System.
+> Stan: **P1–P4 zrobione** (2026-11-13: sceny odniesienia, przyciąganie do nich i całej sceny, pomiar Alt, ostrzeżenie o nachodzeniu, dosuń / wyrównaj / szerokość jak cel, „jako powiązanie (dock)”; P4 – 👁 Podgląd, ✋ Ustaw z kanwy, ＋ Z odniesienia). P5 przeniesiony do `../VizRS CG System/docs/plany/PLAN-ruch-belek.md` (czeka na decyzje z jego §7), P6 – później. Decyzje z §7 przyjęte domyślnie: wybór per scena, czas – stop point, bez P5. Zakres: VizRS CG Artist (`web/artist.html`); jedna część (P5) wymaga zmiany formatu w VizRS CG System.
 
 ## 1. Problem
 
@@ -99,6 +99,9 @@ Dziś: tabela „Powiązania (dock)” z ręcznymi `Δx`, `Δy`. Dokładamy:
 Format bez zmian (`dock[{target, dx, dy, dur}]`), więc działa od razu na antenie, w Trio i w rendererze natywnym.
 
 ### P5. Dock względem krawędzi celu (zmiana formatu – najpierw CG System)
+
+> Rozpisane w `../VizRS CG System/docs/plany/PLAN-ruch-belek.md` (część Artist: A2 – lista celów, oś, krzywa i podgląd ruchu na kanwie; B – reguła krawędzi z odstępem). Poniższy szkic zostaje dla historii.
+
 
 To już jest w planach CG System: LUKI #7 („dock tylko przesuwa”) i `PLAN-jeden-ruch.md` J6 – `dock[]` z opcjonalnymi `edge` (`top|bottom|left|right`), `gap`
 (i ewentualnie `node` – element celu). Przesunięcie liczone z **rzeczywistego** prostokąta celu na antenie, więc ticker o zmiennej wysokości albo belka dwuwierszowa nie rozjeżdżają się.
