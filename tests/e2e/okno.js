@@ -400,6 +400,41 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
     ok(ctx.parent === 'g' && cn.find((n) => n.id === 'g')?.locked === true, '„zaznacz grupę nadrzędną” i „zablokuj” z menu', { parent: ctx.parent, cn });
     ok(ctx.empty === true && ctx.all === 'Właściwości – 3 elementy', 'menu pustego miejsca: „zaznacz wszystko” bez zablokowanych', ctx.all);
 
+    // 1i. edycja tekstu na kanwie (K5): dwuklik w zaznaczony tekst, Ctrl+Enter zatwierdza, Enter otwiera, Esc anuluje, Ctrl+Z cofa
+    const tdata = path.join(tmp, 'textedit');
+    fs.mkdirSync(tdata, { recursive: true });
+    fs.writeFileSync(path.join(tdata, 'show.json'), JSON.stringify({ rev: 1, scenes: [
+      { id: 'tx', name: 'Tekst', layer: 'main', width: 1920, height: 1080, duration: 2, stops: [1], nodes: [
+        { id: 'n1', type: 'text', name: 'tytul', props: { x: 300, y: 300, w: 800, h: 120, text: 'Stary [[tytuł]]', size: 60, align: 'center', valign: 'middle' } }] },
+    ] }));
+    const txe = run(['--data', tdata], write('textedit.js', `(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
+      await sleep(400);
+      const r = {}, box = document.querySelector('#box');
+      const st = document.querySelector('#stage').getBoundingClientRect(), k = st.width / 1920;
+      const at = (x, y, d) => ({ clientX: st.left + x * k, clientY: st.top + y * k, button: 0, bubbles: true, detail: d });
+      const click = async (d) => { box.dispatchEvent(new MouseEvent('mousedown', at(700, 360, d))); dispatchEvent(new MouseEvent('mouseup', at(700, 360, d))); await sleep(150); };
+      const text = async () => { window.__vizrsCmd('save'); await sleep(700); return (await (await fetch('/api/show')).json()).scenes[0].nodes[0].props.text; };
+      await click(1); await click(2);
+      let ta = document.querySelector('#txEdit');
+      r.open = !!ta; r.val = ta?.value; r.hidden = document.querySelector('#stage [data-id="n1"]').classList.contains('vz-editing'); r.focus = document.activeElement === ta;
+      ta.value = 'Nowy [[tytuł]]\\nwiersz 2'; ta.dispatchEvent(new Event('input', { bubbles: true }));
+      ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true })); await sleep(150);
+      r.closed = !document.querySelector('#txEdit') && !document.querySelector('#stage .vz-editing');
+      r.t1 = await text();
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await sleep(150);
+      ta = document.querySelector('#txEdit'); r.enterOpen = !!ta;
+      ta.value = 'porzucony'; ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await sleep(150);
+      r.t2 = await text();
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true })); await sleep(150);
+      r.t3 = await text();
+      (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
+    })();`), 'textedit');
+    ok(txe.open === true && txe.val === 'Stary [[tytuł]]' && txe.hidden === true && txe.focus === true, 'dwuklik w zaznaczony tekst otwiera edycję w miejscu (napis renderera ukryty, surowy tekst)', txe);
+    ok(txe.closed === true && txe.t1 === 'Nowy [[tytuł]]\nwiersz 2', 'Ctrl+Enter zatwierdza tekst (z wyróżnieniem i nowym wierszem)', txe);
+    ok(txe.enterOpen === true && txe.t2 === txe.t1 && txe.t3 === 'Stary [[tytuł]]', 'Enter otwiera edycję, Esc anuluje, Ctrl+Z cofa zmianę tekstu', txe);
+
     // 2. jedna instancja: drugie uruchomienie przekazuje prośbę i kończy pracę; vizrs nie wystartuje na tym katalogu
     const first = spawn(APP, ['--data', data], { env: ENV, stdio: 'ignore' });
     for (let i = 0; i < 50 && !fs.existsSync(path.join(data, '.vizrs.lock')); i++) await sleep(100);

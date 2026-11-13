@@ -62,6 +62,10 @@
   #ctxMenu { position: fixed; z-index: 50; min-width: 220px; max-height: 80vh; overflow: auto; background: var(--panel, #1b1f26); border: 1px solid var(--line, #333);
     border-radius: 6px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.5); font-size: 12px; }
   #ctxMenu[hidden] { display: none; }
+  #stage .vz-node.vz-editing { visibility: hidden !important; }
+  #txEdit { position: absolute; z-index: 8; margin: 0; padding: 0; border: 0; outline: 1px dashed var(--acc); background: rgba(0,0,0,.45); resize: none; overflow: hidden;
+    white-space: pre-wrap; transform-origin: 50% 50%; caret-color: var(--acc); box-sizing: border-box; }
+  #txEditInfo { position: absolute; z-index: 8; font-size: 10px; background: var(--acc); color: #000; padding: 1px 5px; pointer-events: none; white-space: nowrap; }
   #ctxMenu button { display: flex; width: 100%; align-items: center; gap: 12px; border: 0; background: none; text-align: left; padding: 4px 8px; border-radius: 4px; height: auto; }
   #ctxMenu button:hover:not(:disabled) { background: var(--acc); color: var(--acc-ink, #000); }
   #ctxMenu button:disabled { opacity: .4; }
@@ -463,6 +467,7 @@ function checkpoint() {
   redo = []; setDirty(true);
 }
 function restore(json) {
+  if (txEd) endTextEdit(false);
   // rev to znacznik zapisu na serwerze, nie treść: cofnięcie po zapisie nie może wrócić do starego (fałszywy konflikt)
   const rev = scene.rev;
   scene = JSON.parse(json);
@@ -635,6 +640,7 @@ function openScene(s) {
   if (!(scene.duration > 0)) scene.duration = 1;
   selId = null; selMore = []; selKey = null; t = 0; undo = []; redo = [];
   setDirty(false);
+  if (txEd) endTextEdit(false);
   player?.destroy();
   dockPv = null; $('#dockBar').hidden = true;
   player = new ScenePlayer(stage, scene, {}, { editor: true });
@@ -2656,6 +2662,63 @@ $('#ctxMenu').addEventListener('click', (e) => {
 addEventListener('mousedown', (e) => { if (!e.target.closest('#ctxMenu')) ctxClose(); }, true);
 addEventListener('blur', ctxClose);
 
+// ------------------------------------------------------------ edycja tekstu na kanwie (K5)
+// Dwuklik w zaznaczony tekst albo Enter: pole w miejscu napisu (czcionka, rozmiar, grubość, wyrównanie, kolor, obrót
+// własny i grup – jak ramka zaznaczenia), napis renderera ukryty na czas edycji. Tekst surowy: [[wyróżnienie]], nowe
+// wiersze i składnia cyklu zostają bez zmian. Ctrl+Enter albo klik obok – zatwierdza (jeden krok cofania), Esc – anuluje.
+// Element z polem kontrolnym: edytuje się wartość domyślna (w Trio – wartość strony).
+let txEd = null; // { n, el, ta, info, v0 }
+function startTextEdit(n) {
+  if (txEd) endTextEdit(true);
+  if (!n || n.type !== 'text' || isLocked(n.id)) return false;
+  const el = stage.querySelector(`[data-id="${CSS.escape(n.id)}"]`); if (!el || !shownEl(el)) return false;
+  const b = $('#box').getBoundingClientRect(), r = el.getBoundingClientRect(), xf = parentXf(n.id);
+  const k = scale * xf.sc * (scl(n) || 1), rot = xf.rot + num(n, 'rotation');
+  const w = Math.max(40, el.offsetWidth * k), h = Math.max(20, el.offsetHeight * k), cx = (r.left + r.right) / 2 - b.left, cy = (r.top + r.bottom) / 2 - b.top;
+  const p = (x) => propAt(n, x, t, null), ta = document.createElement('textarea');
+  ta.id = 'txEdit'; ta.spellcheck = true; ta.lang = 'pl';
+  ta.value = String(p('text') ?? '');
+  const fs = Math.max(4, (+p('size') || 48) * k);
+  Object.assign(ta.style, {
+    left: cx - w / 2 + 'px', top: cy - h / 2 + 'px', width: w + 'px', minHeight: '0', height: h + 'px', transform: rot ? `rotate(${rot}deg)` : '',
+    font: `${p('italic') ? 'italic ' : ''}${p('weight') || 700} ${fs}px "${p('font') || 'Inter'}", sans-serif`, lineHeight: String(+p('lineHeight') || 1.15),
+    textAlign: p('align') || 'left', color: /^#|^rgb/.test(String(p('color'))) ? p('color') : '#ffffff', textTransform: p('upper') ? 'uppercase' : 'none',
+  });
+  const info = document.createElement('span');
+  info.id = 'txEditInfo';
+  info.textContent = `${n.fields?.text ? `pole „${n.fields.text}” – wartość domyślna · ` : ''}Ctrl+Enter – zatwierdź · Esc – anuluj`;
+  Object.assign(info.style, { left: r.left - b.left + 'px', top: Math.max(0, r.top - b.top - 18) + 'px' });
+  $('#box').append(ta, info);
+  el.classList.add('vz-editing');
+  // wyrównanie w pionie jak w rendererze (valign): odstęp u góry pola
+  const va = p('valign') || 'middle';
+  const fit = () => {
+    ta.style.paddingTop = '0px'; ta.style.height = '0px';
+    const sh = ta.scrollHeight, pad = Math.max(0, h - sh) * (va === 'middle' ? 0.5 : va === 'bottom' ? 1 : 0);
+    ta.style.paddingTop = pad + 'px'; ta.style.height = Math.max(h, sh + pad) + 'px';
+  };
+  ta.addEventListener('input', fit);
+  ta.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Escape') { e.preventDefault(); endTextEdit(false); } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); endTextEdit(true); }
+    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); endTextEdit(true); save(); }
+  });
+  ta.addEventListener('blur', () => { if (txEd?.ta === ta) endTextEdit(true); });
+  ta.addEventListener('mousedown', (e) => e.stopPropagation());
+  txEd = { n, el, ta, info, v0: ta.value };
+  updateSel(); fit(); ta.focus(); ta.select();
+  return true;
+}
+function endTextEdit(commit) {
+  const ed = txEd; if (!ed) return;
+  txEd = null;
+  ed.el.classList.remove('vz-editing'); ed.ta.remove(); ed.info.remove();
+  if (commit && ed.ta.value !== ed.v0 && locate(ed.n.id)) {
+    checkpoint(); setProp(ed.n, 'text', ed.ta.value); refresh(); syncProps(); renderTimeline();
+  }
+  updateSel(); queueGuides();
+}
+
 // ------------------------------------------------------------ zaznaczanie ramką (K1)
 // Przeciągnięcie od pustego miejsca kanwy: ramka zaznacza elementy, które coś rysują (jak chwytanie klikiem – pojemniki
 // bez wypełnienia nie), przecinane przez ramkę; Alt – tylko całe w ramce. Shift / Ctrl – dodaje do zaznaczenia,
@@ -2898,6 +2961,7 @@ function snapAxis(vals, cands, thr, grid) {
 
 function updateSel() {
   const o = $('#sel');
+  if (txEd) { o.style.display = 'none'; $('#selLbl').style.display = 'none'; $('#alignBar').hidden = true; return; } // edycja tekstu – bez ramki i uchwytów
   const el = selId && stage.querySelector(`[data-id="${CSS.escape(selId)}"]`);
   if (!el || el.style.display === 'none') { $('#alignBar').hidden = true; o.style.display = 'none'; $('#selLbl').style.display = 'none'; if ($('#selx').dataset.h) { $('#selx').innerHTML = ''; $('#selx').dataset.h = ''; } return; }
   const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
@@ -2985,6 +3049,7 @@ box.addEventListener('mousedown', (e) => {
       if (all.includes(hitId)) { const rest = all.filter((x) => x !== hitId); select(rest[0], rest.slice(1)); } else select(hitId, all);
       return;
     }
+    if (e.detail >= 2 && hitId === selId && !selMore.length && locate(hitId)?.node.type === 'text' && startTextEdit(locate(hitId).node)) return; // dwuklik w zaznaczony tekst – edycja w miejscu
     if (e.detail >= 2) { // dwuklik: grupa nadrzędna (kolejny dwuklik – jeszcze wyżej)
       const base = inSel(hitId) || hitId, P = locate(base)?.parent;
       if (P) select(P.id); else if (!inSel(hitId)) select(hitId);
@@ -3533,6 +3598,7 @@ addEventListener('keydown', (e) => {
   if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); treeOp('dup'); return; }
   if (mod && e.key.toLowerCase() === 'g') { e.preventDefault(); treeOp(e.shiftKey ? 'ungroup' : 'group'); return; }
   if (e.key === 'Escape' && !$('#ctxMenu').hidden) { ctxClose(); return; }
+  if (e.key === 'Enter' && !mod && !dockPv?.set && lastArea !== 'timeline' && selId && !selMore.length && selNode()?.type === 'text') { e.preventDefault(); startTextEdit(selNode()); return; }
   if (dockPv && (e.key === 'Escape' || (e.key === 'Enter' && dockPv.set))) { e.preventDefault(); dockEnd(e.key === 'Enter'); return; }
   if (e.key === 'Escape') {
     const open = $$('.vpop').filter((x) => !x.hidden);
