@@ -67,8 +67,11 @@ vizrs-cg-artist [connect] [opcje] [PLIK]
 | `--local` | – | praca lokalna mimo zapisanego łączenia przy uruchomieniu |
 | `--probe JS --probe-out JSON` | – | test: po wczytaniu strony wykonaj skrypt, zapisz wynik `probe:…`, zakończ (pytania strony dostają od razu ostatni przycisk – „Anuluj”) |
 | – | `VIZRS_DEVTOOLS=1` | narzędzia deweloperskie WebView (Widok → Narzędzia deweloperskie, CmdOrCtrl+Shift+I); bez tej zmiennej tylko w kompilacji testowej |
+| – | `VIZRS_GPU` | akceleracja WebKitGTK na Linuksie: `auto` (domyślnie), `on`, `off`, `x11`, `system` – niżej |
 | `--help`, `-h` | – | pomoc |
 | `--version`, `-V` | – | wersja programu |
+
+**Akceleracja sprzętowa (Linux, WebKitGTK)** – `src/gpu.rs`, ten sam plik w VizRS CG Artist, VizRS CG System (`source/shell`) i VizRS Live (`desktop/`): przy starcie, przed GTK, okno ustawia zmienne WebKitGTK. Sterownik własnościowy **NVIDIA** (węzeł `renderD*` sterownika `nvidia`, `nvidia-drm.modeset` nie „N”): `WEBKIT_FORCE_DMABUF_RENDERER=1` i `__NV_DISABLE_EXPLICIT_SYNC=1` – bez tego WebKitGTK sam wyłącza akcelerację („Policy: never” w `webkit://gpu`) i rysuje na CPU (pomiar 2026-11-13, Quadro P400, sterownik 580, KDE Wayland: animacja 5 → 61 kl./s; samo wymuszenie DMA-BUF na Waylandzie kończy się błędem protokołu 71). Inne karty (Mesa: Intel, AMD, nouveau) i maszyny bez GPU – wybór zostaje przy WebKitGTK. Zmienne `WEBKIT_*` ustawione przez użytkownika mają pierwszeństwo. `VIZRS_GPU`: `auto` (domyślnie; `on` – to samo), `off` – bez akceleracji (zepsuty sterownik), `x11` – okno przez XWayland (`GDK_BACKEND=x11`) z akceleracją, `system` – bez zmian. Decyzja trafia na standardowe wyjście błędów (`GPU: …`). Windows (WebView2) i macOS (WKWebView) – akceleracja systemu, bez zmian.
 
 Błędne argumenty: komunikat na stderr, kod wyjścia 1.
 

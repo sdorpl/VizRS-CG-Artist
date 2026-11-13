@@ -11,6 +11,7 @@ mod bridge;
 mod client;
 mod connect;
 mod deploy;
+mod gpu;
 mod http;
 mod local;
 mod paths;
@@ -1440,6 +1441,11 @@ fn on_menu(app: &AppHandle, id: &str) {
 // ------------------------------------------------------------------ start
 
 fn main() {
+    // akceleracja WebKitGTK: zmienne środowiska przed startem GTK i przed powstaniem wątków (gpu.rs)
+    let gpu_note = gpu::prepare(None);
+    if !gpu_note.is_empty() {
+        eprintln!("GPU: {gpu_note}");
+    }
     let argv: Vec<String> = std::env::args().skip(1).collect();
     let args = match parse_args(&argv) {
         Ok(a) => a,
