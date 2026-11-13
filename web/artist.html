@@ -31,7 +31,15 @@
   .sqinfo { padding: 0 10px 4px 110px; font: 11px ui-monospace, monospace; color: #8b93a1; display: flex; flex-wrap: wrap; gap: 8px; }
   .sqinfo .warn { color: #ffb020; } .sqinfo .bad { color: #ff4d4d; }
   #sel { position: absolute; border: 1px solid var(--acc); pointer-events: none; box-shadow: 0 0 0 1px rgba(0,0,0,.6); display: none; z-index: 5; }
-  #sel .h { position: absolute; right: -6px; bottom: -6px; width: 11px; height: 11px; background: var(--acc); border: 1px solid #000; pointer-events: auto; cursor: nwse-resize; }
+  #sel .h { position: absolute; width: 11px; height: 11px; margin: -6px 0 0 -6px; background: var(--acc); border: 1px solid #000; pointer-events: auto; }
+  #sel .h[data-h="nw"] { left: 0; top: 0; cursor: nwse-resize; } #sel .h[data-h="n"] { left: 50%; top: 0; cursor: ns-resize; }
+  #sel .h[data-h="ne"] { left: 100%; top: 0; cursor: nesw-resize; } #sel .h[data-h="e"] { left: 100%; top: 50%; cursor: ew-resize; }
+  #sel .h[data-h="se"] { left: 100%; top: 100%; cursor: nwse-resize; } #sel .h[data-h="s"] { left: 50%; top: 100%; cursor: ns-resize; }
+  #sel .h[data-h="sw"] { left: 0; top: 100%; cursor: nesw-resize; } #sel .h[data-h="w"] { left: 0; top: 50%; cursor: ew-resize; }
+  #sel .hr { position: absolute; left: 50%; top: -26px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--bg-deep, #111); border: 2px solid var(--acc); pointer-events: auto; cursor: grab; }
+  #sel .hr::after { content: ''; position: absolute; left: 4px; top: 10px; width: 1px; height: 12px; background: var(--acc); }
+  #sel.noh .h, #sel.noh .hr, #sel.nor .hr, #sel.now .h[data-h="e"], #sel.now .h[data-h="w"], #sel.nohh .h[data-h="n"], #sel.nohh .h[data-h="s"] { display: none; }
+  #sel.now.nohh .h { display: none; }
   #sel { transform-origin: 50% 50%; }
   #selLbl { position: absolute; display: none; z-index: 5; pointer-events: none; font-size: 10px; background: var(--acc); color: #000; padding: 1px 4px; white-space: nowrap; transform: translateY(-100%); }
   #overWarn { position: absolute; left: 8px; top: 8px; z-index: 6; pointer-events: none; max-width: 60%; font-size: 11px; line-height: 1.4; color: #ffd0cf; background: rgba(60,12,12,.88); border: 1px solid #ff4d4d; border-radius: 4px; padding: 3px 8px; }
@@ -39,6 +47,9 @@
   #dockBar { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 8; display: flex; align-items: center; gap: 6px; max-width: 90%;
     font-size: 12px; color: var(--fg, #eee); background: rgba(10,40,44,.92); border: 1px solid #2fd4c8; border-radius: 6px; padding: 4px 6px 4px 10px; }
   #dockBar[hidden] { display: none; }
+  #marq { position: absolute; z-index: 6; pointer-events: none; border: 1px dashed var(--acc); background: color-mix(in srgb, var(--acc) 12%, transparent); }
+  #marq[hidden] { display: none; }
+  #box.smove { cursor: grab; }
   #dockBar b { color: #2fd4c8; font-weight: 600; }
   #dockBar .mono { font: 12px ui-monospace, monospace; }
   .ftable button.on { border-color: #2fd4c8; color: #2fd4c8; }
@@ -305,7 +316,7 @@
   </section>
   <div class="gutter" id="gL" data-k="l" title="Przeciągnij, aby zmienić szerokość (dwuklik = domyślna)"></div>
 
-  <section class="panel" id="canvasP" data-hint="Kanwa: przeciągnij element · dwuklik = zaznacz grupę nadrzędną · Ctrl / Shift+klik = dodaj do zaznaczenia · róg = rozmiar · strzałki = 1 px (Shift = 10 px) · klik w puste miejsce = ustawienia sceny (przeciągnięcie = przesuń całą scenę) · kółko = zoom · środkowy przycisk = przesuwanie widoku · Shift+1 / 2 / 3 = dopasuj / 100% / zaznaczony">
+  <section class="panel" id="canvasP" data-hint="Kanwa: przeciągnij element · dwuklik = zaznacz grupę nadrzędną · Ctrl / Shift+klik = dodaj do zaznaczenia · uchwyty = rozmiar (Shift – proporcje, Alt – od środka), kółko = obrót (Shift – co 15°) · strzałki = 1 px (Shift = 10 px) · klik w puste miejsce = ustawienia sceny · przeciągnięcie od pustego miejsca = zaznaczanie ramką (Shift / Ctrl – dodaj, Ctrl+Shift – odejmij, Alt – tylko całe w ramce) · S + przeciągnięcie = przesuń całą scenę) · kółko = zoom · środkowy przycisk = przesuwanie widoku · Shift+1 / 2 / 3 = dopasuj / 100% / zaznaczony">
     <div id="box">
       <div id="bg" class="checker"></div>
       <div id="refsU" class="refs"></div>
@@ -313,10 +324,11 @@
       <div id="refsO" class="refs"></div>
       <svg id="guides"></svg>
       <div id="selx"></div>
-      <div id="sel"><div class="h"></div></div>
+      <div id="sel"><div class="h" data-h="nw"></div><div class="h" data-h="n"></div><div class="h" data-h="ne"></div><div class="h" data-h="e"></div><div class="h" data-h="se"></div><div class="h" data-h="s"></div><div class="h" data-h="sw"></div><div class="h" data-h="w"></div><div class="hr" title="Obrót (Shift – co 15°)"></div></div>
       <span id="selLbl" class="lbl"></span>
       <div id="overWarn" hidden></div>
       <div id="dockBar" hidden></div>
+      <div id="marq" hidden></div>
       <div id="info"></div>
       <div id="pGuides" class="vpop" hidden></div>
       <div id="pBg" class="vpop" hidden></div>
@@ -492,6 +504,13 @@ function shiftNode(n, dx, dy) {
 }
 /** Zaznaczenie: główny węzeł (panel właściwości) + dodatkowe (Ctrl / Shift+klik). */
 const selAll = () => (selId ? [selId, ...selMore.filter((id) => id !== selId)] : []);
+/** Edycja wielu zaznaczonych (P8): czy zaznaczono kilka elementów; pozostałe zaznaczone z właściwością p (bez zablokowanych). */
+const multiSel = () => selAll().length > 1;
+function multiOthers(n, p) {
+  if (!multiSel()) return [];
+  return selAll().filter((id) => id !== n.id && !isLocked(id)).map((id) => locate(id)?.node).filter((m) => m && TYPES[m.type]?.props.includes(p));
+}
+const plElem = (k) => (k === 1 ? 'element' : k % 10 >= 2 && k % 10 <= 4 && (k % 100 < 12 || k % 100 > 14) ? 'elementy' : 'elementów');
 /** Zaznaczone bez tych, których przodek też jest zaznaczony (przesuwa się i tak razem z nim). */
 function topSel() {
   const ids = selAll().filter((id) => locate(id));
@@ -742,7 +761,8 @@ function renderProps() {
   $('#ptools').hidden = !n;
   if (!n) { $('#propsTitle').textContent = 'Scena'; renderSceneProps(); return; }
   const def = TYPES[n.type];
-  $('#propsTitle').textContent = 'Właściwości – ' + def.label;
+  const msel = multiSel() ? selAll().map((id) => locate(id)?.node).filter(Boolean) : [];
+  $('#propsTitle').textContent = msel.length > 1 ? `Właściwości – ${msel.length} ${plElem(msel.length)}` : 'Właściwości – ' + def.label;
   for (const b of $$('[data-ptab]')) b.classList.toggle('on', b.dataset.ptab === pui.tab);
   $('#pall').classList.toggle('on', pui.all);
   $('#pall').textContent = pui.all ? 'Wszystko' : 'Podstawowe';
@@ -754,7 +774,8 @@ function renderProps() {
   const val = (k) => propAt(n, k, t, null);
   const tkMode = n.type === 'ticker' ? val('tickerMode') : null;
   const TK_HIDE = { crawl: ['hold'], roll: ['speed', 'crawlFrom', 'sep', 'sepStyle', 'sepColor'], wipe: ['speed', 'crawlFrom', 'sep', 'sepStyle', 'sepColor'], whip: ['speed', 'crawlFrom', 'sep', 'sepStyle', 'sepColor'] };
-  const own = new Set(def.props);
+  // kilka zaznaczonych: tylko właściwości wspólne dla ich typów
+  const own = new Set(def.props.filter((p) => msel.every((m) => TYPES[m.type]?.props.includes(p))));
   const shown = (p) => {
     if (!own.has(p) || (tkMode && TK_HIDE[tkMode]?.includes(p))) return false;
     const s = propState(n, p);
@@ -765,7 +786,9 @@ function renderProps() {
   const inert = (p) => WHEN[p] && !WHEN[p](val);
   const comboOf = new Map(); for (const c of COMBOS) for (const p of c.props) comboOf.set(p, c);
 
-  let wl = `<div class="phead"><span class="ic">${def.icon}</span><input id="pname" class="grow" value="${esc(n.name)}" title="Nazwa kontenera"></div>`;
+  let wl = msel.length > 1
+    ? `<div class="phead"><span class="ic">⧉</span><span class="grow" title="Zmiana właściwości dotyczy wszystkich zaznaczonych, które ją mają; „—” – różne wartości">${esc(Object.entries(msel.reduce((o, m) => { const l = TYPES[m.type]?.label || m.type; o[l] = (o[l] || 0) + 1; return o; }, {})).map(([l, k]) => `${k} × ${l}`).join(', '))}</span></div>`
+    : `<div class="phead"><span class="ic">${def.icon}</span><input id="pname" class="grow" value="${esc(n.name)}" title="Nazwa kontenera"></div>`;
   const groups = []; // [nazwa, html]
   const add = (g, html) => { let e = groups.find((x) => x[0] === g); if (!e) groups.push(e = [g, '']); e[1] += html; };
   const done = new Set();
@@ -869,6 +892,7 @@ function renderProps() {
     ? fl.map(([p, f]) => `<div class="pr" style="grid-template-columns:1fr 1fr 24px"><span>${esc(PROPS[p]?.label || p)}</span><span class="pill fld">${esc(f)}</span><button class="icon fbtn on" data-field="${p}" title="Zmień lub usuń pole kontrolne"><i class="ico link"></i></button></div>`).join('')
     : `<div class="dim pnote"><i class="ico link"></i> przy właściwości wystawia ją jako pole kontrolne: operator Trio wpisze tu wartość na stronie. <b>[[tekst]]</b> w tekście = wyróżnienie.</div>`);
 
+  if (msel.length > 1) ruch = dane = `<div class="dim pnote">Ruch, warianty i pola kontrolne ustawia się dla jednego elementu – zaznacz jeden (klik na kanwie albo w drzewie).</div>`;
   el.innerHTML = `<div class="ptab" data-tab="wl" ${pui.tab === 'wl' ? '' : 'hidden'}>${wl}</div><div class="ptab" data-tab="ruch" ${pui.tab === 'ruch' ? '' : 'hidden'}>${ruch}</div><div class="ptab" data-tab="dane" ${pui.tab === 'dane' ? '' : 'hidden'}>${dane}</div>`;
   syncProps(true);
   applySearch();
@@ -1008,6 +1032,20 @@ function syncProps(force) {
   }
   syncRadius(n);
   markProps(n);
+  if (multiSel()) syncMulti(n, force);
+}
+/** Kilka zaznaczonych: pole z różnymi wartościami jest puste z „—”, przełącznik – nieokreślony; ◆ i pola kontrolne – tylko dla jednego. */
+function syncMulti(n, force) {
+  for (const inp of $$('[data-p]', $('#props'))) {
+    if (!force && document.activeElement === inp) continue;
+    const p = inp.dataset.p, vs = [n, ...multiOthers(n, p)].map((m) => JSON.stringify(propAt(m, p, t, null)));
+    const diff = vs.some((v) => v !== vs[0]);
+    if (inp.dataset.ph0 == null) inp.dataset.ph0 = inp.placeholder || '';
+    if (inp.type === 'checkbox') { inp.indeterminate = diff; continue; }
+    inp.placeholder = diff ? '—' : inp.dataset.ph0;
+    if (diff) inp.value = '';
+  }
+  for (const b of $$('[data-key], [data-field]', $('#props'))) { b.disabled = true; b.title = 'Klucze animacji i pola kontrolne – dla jednego elementu'; }
 }
 /** Schemat zaokrąglenia: puste pola pokazują wartość dziedziczoną, podgląd ma kształt i proporcje elementu. */
 function syncRadius(n) {
@@ -1318,8 +1356,17 @@ function setProp(n, p, v) {
   if (tr?.length && PROPS[p]?.anim) setKey(n, p, t, v);
   else { n.props ||= {}; n.props[p] = v; }
 }
-/** Zmiana z panelu: przy blokadzie proporcji szerokość i wysokość zmieniają się razem. */
+/** Zmiana z panelu: przy blokadzie proporcji szerokość i wysokość zmieniają się razem. Przy kilku zaznaczonych – wszystkim,
+ *  które mają tę właściwość: położenie x / y przesuwa się o tyle samo (układ zostaje), inne właściwości dostają tę samą wartość. */
 function setPropUI(n, p, v) {
+  const old = +propAt(n, p, t, null);
+  setPropOne(n, p, v);
+  for (const m of multiOthers(n, p)) {
+    if ((p === 'x' || p === 'y') && typeof v === 'number' && Number.isFinite(old)) setPropOne(m, p, Math.round((+propAt(m, p, t, null) + v - old) * 1000) / 1000);
+    else setPropOne(m, p, v);
+  }
+}
+function setPropOne(n, p, v) {
   if (pui.ratio && (p === 'w' || p === 'h')) {
     const o = p === 'w' ? 'h' : 'w', old = +propAt(n, p, t, null), oo = +propAt(n, o, t, null);
     if (old > 0 && oo > 0) setProp(n, o, Math.round(oo * v / old * 1000) / 1000);
@@ -1444,7 +1491,7 @@ function onPropInput(e) {
     const cur = parseColor(propAt(n, p, t, null));
     let v = inp.value;
     if (cur && cur[3] < 1) v += Math.round(cur[3] * 255).toString(16).padStart(2, '0');
-    setProp(n, p, v); refresh(); syncProps(); return;
+    setPropUI(n, p, v); refresh(); syncProps(); return;
   }
   if (inp.dataset.sp) {
     if (e.type === 'change' && inp.tagName !== 'SELECT') return;
@@ -1524,9 +1571,9 @@ $('#props').addEventListener('click', async (e) => {
   }
   if (e.target.closest('[data-ratio]')) { pui.ratio = !pui.ratio; savePui(); e.target.closest('[data-ratio]').classList.toggle('on', pui.ratio); return; }
   const an = e.target.closest('[data-anchor]');
-  if (an && n) { const [ax, ay] = an.dataset.anchor.split(','); checkpoint(); setProp(n, 'anchorX', ax); setProp(n, 'anchorY', ay); refresh(); syncProps(); return; }
+  if (an && n) { const [ax, ay] = an.dataset.anchor.split(','); checkpoint(); setPropUI(n, 'anchorX', ax); setPropUI(n, 'anchorY', ay); refresh(); syncProps(); return; }
   const sg = e.target.closest('[data-seg]');
-  if (sg && n) { checkpoint(); setProp(n, sg.dataset.seg, sg.dataset.v); refresh(); syncProps(); return; }
+  if (sg && n) { checkpoint(); setPropUI(n, sg.dataset.seg, sg.dataset.v); refresh(); syncProps(); return; }
   const kb = e.target.closest('[data-key]');
   if (kb && n) { checkpoint(); toggleKey(n, kb.dataset.key); refresh(); syncProps(); renderTimeline(); renderTree(); return; }
   const fb = e.target.closest('[data-field]');
@@ -1542,7 +1589,7 @@ $('#props').addEventListener('click', async (e) => {
     renderTree(); syncProps(); return;
   }
   const ub = e.target.closest('[data-upload]');
-  if (ub && n) { const a = await uploadAsset(ub.dataset.accept); if (a) { checkpoint(); setProp(n, ub.dataset.upload, a.name); renderProps(); refresh(); } return; }
+  if (ub && n) { const a = await uploadAsset(ub.dataset.accept); if (a) { checkpoint(); setPropUI(n, ub.dataset.upload, a.name); renderProps(); refresh(); } return; }
   if (e.target.closest('[data-mofit]')) { fitMotionTiming(); return; }
   if (e.target.id === 'pkAdd') { const a = await uploadAsset(); if (a) { checkpoint(); scene.packAssets = [...new Set([...(scene.packAssets || []), a.name])]; renderProps(); refresh(); } return; }
   const pkr = e.target.closest('[data-pkrm]');
@@ -2272,6 +2319,101 @@ function relApply(op, forNode) {
 }
 const nameIn = (s, id) => { let nm = id; walk(s.nodes, (n) => { if (n.id === id) { nm = n.name || n.type; return false; } }); return nm; };
 
+// ------------------------------------------------------------ uchwyty: rozmiar z każdego rogu i boku, obrót (K2)
+// Renderer: x / y – punkt zaczepienia, obrót i skala wokół środka ramki. Przy zmianie rozmiaru przeciwległy róg / bok stoi
+// w miejscu (także element obrócony i w obróconej grupie): środek ramki liczony od punktu stałego. Shift – proporcje
+// (bok z Shift – druga oś od środka), Alt – od środka. Jedno przeciągnięcie = jeden krok cofania.
+function resizeDrag(n, h, e) {
+  const el = stage.querySelector(`[data-id="${CSS.escape(n.id)}"]`);
+  const sxk = h.includes('e') ? 1 : h.includes('w') ? -1 : 0, syk = h.includes('s') ? 1 : h.includes('n') ? -1 : 0;
+  const pxf = parentXf(n.id), rot = num(n, 'rotation') * Math.PI / 180, sc = scl(n) || 1;
+  const xf = { rot: pxf.rot + num(n, 'rotation'), sc: pxf.sc * sc };
+  let w0 = num(n, 'w'), h0 = num(n, 'h');
+  if (!(w0 > 0)) w0 = el?.offsetWidth || 0;
+  if (!(h0 > 0)) h0 = el?.offsetHeight || 0;
+  const x0 = num(n, 'x'), y0 = num(n, 'y'), an = anchorOff(n, 1, 1), tp = TYPES[n.type]?.props || [];
+  const rs = (u, v) => [(u * Math.cos(rot) - v * Math.sin(rot)) * sc, (u * Math.sin(rot) + v * Math.cos(rot)) * sc];
+  const cx0 = x0 - an.x * w0 + w0 / 2, cy0 = y0 - an.y * h0 + h0 / 2;
+  const sx = e.clientX, sy = e.clientY;
+  let moved = false;
+  const mv = (ev) => {
+    if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 3) return;
+    if (!moved) { checkpoint(); moved = true; }
+    const [dx, dy] = toLocal((ev.clientX - sx) / scale, (ev.clientY - sy) / scale, xf);
+    const k2 = ev.altKey ? 2 : 1;
+    let w1 = w0 + sxk * dx * k2, h1 = h0 + syk * dy * k2;
+    if (ev.shiftKey && w0 > 0 && h0 > 0) {
+      const k = sxk && syk ? Math.max(w1 / w0, h1 / h0) : sxk ? w1 / w0 : h1 / h0;
+      w1 = w0 * k; h1 = h0 * k;
+    }
+    w1 = Math.max(1, Math.round(w1)); h1 = Math.max(1, Math.round(h1));
+    // punkt stały: przeciwległy róg / bok; Alt – środek; oś bez uchwytu – punkt zaczepienia (Shift – środek)
+    const fx = ev.altKey ? 0.5 : sxk === 1 ? 0 : sxk === -1 ? 1 : ev.shiftKey ? 0.5 : an.x;
+    const fy = ev.altKey ? 0.5 : syk === 1 ? 0 : syk === -1 ? 1 : ev.shiftKey ? 0.5 : an.y;
+    const [ox0, oy0] = rs((fx - 0.5) * w0, (fy - 0.5) * h0), [ox1, oy1] = rs((fx - 0.5) * w1, (fy - 0.5) * h1);
+    const cx1 = cx0 + ox0 - ox1, cy1 = cy0 + oy0 - oy1;
+    if (tp.includes('w')) setProp(n, 'w', w1);
+    if (tp.includes('h')) setProp(n, 'h', h1);
+    setProp(n, 'x', Math.round((cx1 + an.x * w1 - w1 / 2) * 100) / 100);
+    setProp(n, 'y', Math.round((cy1 + an.y * h1 - h1 / 2) * 100) / 100);
+    refresh(); syncProps();
+  };
+  const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); if (moved) { renderTimeline(); updateSel(); } };
+  addEventListener('mousemove', mv); addEventListener('mouseup', up);
+}
+/** Obrót wokół środka ramki (jak w rendererze); Shift – co 15°. */
+function rotateDrag(n, e) {
+  const el = stage.querySelector(`[data-id="${CSS.escape(n.id)}"]`); if (!el) return;
+  const rc = el.getBoundingClientRect(), cx = (rc.left + rc.right) / 2, cy = (rc.top + rc.bottom) / 2;
+  const r0 = num(n, 'rotation'), a0 = Math.atan2(e.clientY - cy, e.clientX - cx);
+  let moved = false;
+  const mv = (ev) => {
+    if (!moved) { checkpoint(); moved = true; }
+    let r = r0 + (Math.atan2(ev.clientY - cy, ev.clientX - cx) - a0) * 180 / Math.PI;
+    r = ((r + 180) % 360 + 360) % 360 - 180;
+    r = ev.shiftKey ? Math.round(r / 15) * 15 : Math.round(r * 10) / 10;
+    setProp(n, 'rotation', r); refresh(); syncProps(); updateSel();
+  };
+  const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); if (moved) renderTimeline(); };
+  addEventListener('mousemove', mv); addEventListener('mouseup', up);
+}
+
+// ------------------------------------------------------------ zaznaczanie ramką (K1)
+// Przeciągnięcie od pustego miejsca kanwy: ramka zaznacza elementy, które coś rysują (jak chwytanie klikiem – pojemniki
+// bez wypełnienia nie), przecinane przez ramkę; Alt – tylko całe w ramce. Shift / Ctrl – dodaje do zaznaczenia,
+// Ctrl+Shift – odejmuje. Zablokowane i niewidoczne pomija. Klik bez ruchu – odznacza (ustawienia sceny).
+// Całą scenę przesuwa przytrzymany S + przeciągnięcie.
+let sHeld = false;
+const setSHeld = (v) => { if (sHeld !== v) { sHeld = v; $('#box').classList.toggle('smove', v); } };
+addEventListener('keydown', (e) => {
+  if ((e.key === 's' || e.key === 'S') && !e.ctrlKey && !e.metaKey && !e.altKey && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) setSHeld(true);
+});
+addEventListener('keyup', (e) => { if (e.key === 's' || e.key === 'S') setSHeld(false); });
+addEventListener('blur', () => setSHeld(false));
+function marquee(e) {
+  const sub = (e.ctrlKey || e.metaKey) && e.shiftKey, add = !sub && (e.shiftKey || e.ctrlKey || e.metaKey);
+  const base = add || sub ? selAll() : [];
+  const sx = e.clientX, sy = e.clientY, bx = $('#box').getBoundingClientRect(), st0 = stage.getBoundingClientRect(), mq = $('#marq');
+  const cands = drawnRects(stage, ownNode, t).filter((c) => !isLocked(c.id));
+  let moved = false, last = null;
+  const mv = (ev) => {
+    if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 3) return;
+    moved = true;
+    const x1 = Math.min(sx, ev.clientX), y1 = Math.min(sy, ev.clientY), x2 = Math.max(sx, ev.clientX), y2 = Math.max(sy, ev.clientY);
+    Object.assign(mq.style, { left: x1 - bx.left + 'px', top: y1 - bx.top + 'px', width: x2 - x1 + 'px', height: y2 - y1 + 'px' }); mq.hidden = false;
+    const a = { x1: (x1 - st0.left) / scale, y1: (y1 - st0.top) / scale, x2: (x2 - st0.left) / scale, y2: (y2 - st0.top) / scale };
+    const hit = cands.filter(({ r }) => (ev.altKey ? r.x1 >= a.x1 && r.x2 <= a.x2 && r.y1 >= a.y1 && r.y2 <= a.y2 : r.x1 < a.x2 && r.x2 > a.x1 && r.y1 < a.y2 && r.y2 > a.y1)).map((c) => c.id);
+    const ids = sub ? base.filter((id) => !hit.includes(id)) : [...new Set([...base, ...hit])];
+    const k = ids.join(',');
+    if (k !== last) { last = k; select(ids[0], ids.slice(1)); }
+  };
+  const up = () => {
+    removeEventListener('mousemove', mv); removeEventListener('mouseup', up); mq.hidden = true;
+    if (!moved && !add && !sub && selId) select(null);
+  };
+  addEventListener('mousemove', mv); addEventListener('mouseup', up);
+}
+
 // ------------------------------------------------------------ powiązania (dock) z podglądu i z kanwy
 // 👁 Podgląd: cele reguły (scene:<nazwa>, layer:<warstwa>) jako sceny odniesienia „na antenie”, bieżąca scena przesunięta
 // o wynik wszystkich powiązań tak, jak liczy renderer.recomputeDock (suma reguł, które trafiają; własna warstwa nie wyzwala),
@@ -2489,9 +2631,15 @@ function updateSel() {
     const cx = (r.left + r.right) / 2 - b.left, cy = (r.top + r.bottom) / 2 - b.top;
     Object.assign(o.style, { display: 'block', left: cx - w / 2 + 'px', top: cy - h / 2 + 'px', width: w + 'px', height: h + 'px', transform: `rotate(${rot}deg)` });
   } else Object.assign(o.style, { display: 'block', left: r.left - b.left + 'px', top: r.top - b.top + 'px', width: r.width + 'px', height: r.height + 'px', transform: '' });
+  // uchwyty: rozmiar tylko dla właściwości, które typ ma; obrót – gdy ma rotation; kilka zaznaczonych albo zablokowany – bez uchwytów
+  const tp = n ? TYPES[n.type]?.props || [] : [];
+  o.classList.toggle('noh', !n || multiSel() || isLocked(n.id));
+  o.classList.toggle('now', !tp.includes('w')); o.classList.toggle('nohh', !tp.includes('h')); o.classList.toggle('nor', !tp.includes('rotation'));
   const lb = $('#selLbl');
-  Object.assign(lb.style, { display: 'block', left: r.left - b.left - 1 + 'px', top: r.top - b.top - 2 + 'px' });
-  lb.textContent = n ? `${n.name}  ${Math.round(propAt(n, 'x', t))}, ${Math.round(propAt(n, 'y', t))}  ${Math.round(propAt(n, 'w', t))}×${Math.round(propAt(n, 'h', t))}${selMore.length ? `  (+${selMore.length})` : ''}` : '';
+  // etykieta pod obrysem, gdy nad nim jest kółko obrotu (inaczej by je zasłaniała)
+  const below = !o.classList.contains('noh') && !o.classList.contains('nor');
+  Object.assign(lb.style, { display: 'block', left: r.left - b.left - 1 + 'px', top: (below ? r.bottom - b.top + 4 : r.top - b.top - 2) + 'px', transform: below ? 'none' : '' });
+  lb.textContent = n ? `${n.name}  ${Math.round(propAt(n, 'x', t))}, ${Math.round(propAt(n, 'y', t))}  ${Math.round(propAt(n, 'w', t))}×${Math.round(propAt(n, 'h', t))}${num(n, 'rotation') ? `  ∠ ${Math.round(num(n, 'rotation') * 10) / 10}°` : ''}${selMore.length ? `  (+${selMore.length})` : ''}` : '';
   // pozostałe zaznaczone (Ctrl / Shift+klik): ramki przerywane
   let hx = '';
   for (const id of selMore) {
@@ -2514,11 +2662,12 @@ box.addEventListener('mousedown', (e) => {
     return;
   }
   if (e.button !== 0) return;
-  const handle = e.target.closest('#sel .h');
+  const handle = e.target.closest('#sel .h, #sel .hr');
   const setD = dockPv?.set ? dockPv : null; // „Ustaw z kanwy”: każde przeciągnięcie przesuwa scenę i zmienia Δx / Δy reguły
   const nodeEl = !handle && !setD && hitNode(e.clientX, e.clientY);
+  if (!handle && !nodeEl && !setD && !sHeld) { e.preventDefault(); marquee(e); return; }
   if (!handle && !nodeEl) {
-    // puste miejsce: zaznacz scenę; przeciągnięcie przesuwa całą scenę (scene.x / y)
+    // S + przeciągnięcie (albo „Ustaw z kanwy” powiązania): przesuwa całą scenę (scene.x / y)
     if (selId) select(null);
     e.preventDefault();
     const sx = e.clientX, sy = e.clientY, x0 = setD ? setD.dx : +scene.x || 0, y0 = setD ? setD.dy : +scene.y || 0; let moved = false;
@@ -2544,7 +2693,7 @@ box.addEventListener('mousedown', (e) => {
     return;
   }
   e.preventDefault();
-  const hitId = nodeEl?.dataset.id;
+  const hitId = nodeEl ? nodeEl.dataset.id : null; // nodeEl bywa false (uchwyt), nie tylko null
   // czy kliknięty element jest zaznaczony sam albo przez zaznaczoną grupę nadrzędną
   const inSel = (id) => selAll().find((s) => s === id || isDesc(locate(s)?.node || {}, id));
   if (hitId) {
@@ -2561,19 +2710,9 @@ box.addEventListener('mousedown', (e) => {
   const n = selNode(); if (!n) return;
   const sx = e.clientX, sy = e.clientY;
   let moved = false;
-  if (handle) { // róg ramki: wymiar głównego zaznaczenia, w jego własnym układzie (obrót i skala)
+  if (handle) { // uchwyty ramki: rozmiar (8 uchwytów) albo obrót głównego zaznaczenia
     if (isLocked(n.id)) return;
-    const xf0 = parentXf(n.id), xf = { rot: xf0.rot + num(n, 'rotation'), sc: xf0.sc * (scl(n) || 1) };
-    const w0 = num(n, 'w'), h0 = num(n, 'h');
-    const mv = (ev) => {
-      const [dx, dy] = toLocal((ev.clientX - sx) / scale, (ev.clientY - sy) / scale, xf);
-      if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 3) return;
-      if (!moved) { checkpoint(); moved = true; }
-      setProp(n, 'w', Math.max(0, Math.round(w0 + dx))); setProp(n, 'h', Math.max(0, Math.round(h0 + dy)));
-      refresh(); syncProps();
-    };
-    const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); if (moved) renderTimeline(); };
-    addEventListener('mousemove', mv); addEventListener('mouseup', up);
+    if (handle.classList.contains('hr')) rotateDrag(n, e); else resizeDrag(n, handle.dataset.h, e);
     return;
   }
   // przesuwanie całego zaznaczenia; ruch myszy przeliczony na układ rodzica każdego elementu (obrót i skala grup)

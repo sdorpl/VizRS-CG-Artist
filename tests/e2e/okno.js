@@ -181,6 +181,101 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
     ok(dock.saved?.[0]?.target === 'scene:Ticker' && dock.saved?.[0]?.dy === ddy && dock.savedY === 0
       && showOf(ddata)?.scenes?.find((s) => s.id === 'belka')?.dock?.[0]?.dy === ddy, 'reguła powiązania trafia do show.json', dock);
 
+    // 1d. zaznaczanie ramką i edycja wielu zaznaczonych (K1): ramka przez 3 z 4 prostokątów, kolor wszystkim jednym krokiem
+    //     cofania, „—” przy różnych szerokościach, S + przeciągnięcie przesuwa scenę, klik w puste miejsce odznacza
+    const mdata = path.join(tmp, 'marq');
+    fs.mkdirSync(mdata, { recursive: true });
+    fs.writeFileSync(path.join(mdata, 'show.json'), JSON.stringify({ rev: 1, scenes: [
+      { id: 'kafle', name: 'Kafle', layer: 'main', width: 1920, height: 1080, duration: 2, stops: [1], nodes: [
+        rect('k1', 100, 100, 200, 100), rect('k2', 400, 100, 250, 100), rect('k3', 700, 100, 200, 100), rect('k4', 100, 700, 200, 100)] },
+    ] }));
+    const marq = run(['--data', mdata], write('marq.js', `(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
+      await sleep(400);
+      const r = {}, box = document.querySelector('#box');
+      const st = document.querySelector('#stage').getBoundingClientRect(), k = st.width / 1920;
+      const at = (x, y, o = {}) => ({ clientX: st.left + x * k, clientY: st.top + y * k, button: 0, bubbles: true, detail: 1, ...o });
+      const drag = async (a, b, o = {}) => { box.dispatchEvent(new MouseEvent('mousedown', at(...a, o))); dispatchEvent(new MouseEvent('mousemove', at((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, o))); dispatchEvent(new MouseEvent('mousemove', at(...b, o))); await sleep(50); r.marqShown = r.marqShown || !document.querySelector('#marq').hidden; dispatchEvent(new MouseEvent('mouseup', at(...b, o))); await sleep(150); };
+      await drag([50, 50], [800, 300]);
+      r.title = document.querySelector('#propsTitle').textContent;
+      r.marqHidden = document.querySelector('#marq').hidden;
+      const w = document.querySelector('#props [data-p="w"]'); r.wVal = w?.value; r.wPh = w?.placeholder;
+      const c = document.querySelector('#props input[data-p="color"]'); c.focus(); c.value = '#ff0000'; c.dispatchEvent(new Event('input', { bubbles: true })); c.blur(); await sleep(150);
+      window.__vizrsCmd('save'); await sleep(800);
+      const col = async () => (await (await fetch('/api/show')).json()).scenes[0].nodes.map((n) => n.props.color);
+      r.colors = await col();
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true })); await sleep(150);
+      window.__vizrsCmd('save'); await sleep(800);
+      r.undone = await col();
+      await drag([50, 650], [400, 850], { shiftKey: true });
+      r.added = document.querySelector('#propsTitle').textContent;
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 's', bubbles: true }));
+      await drag([1500, 900], [1500, 860]);
+      document.body.dispatchEvent(new KeyboardEvent('keyup', { key: 's', bubbles: true }));
+      r.sceneY = document.querySelector('[data-sp="y"]')?.value;
+      box.dispatchEvent(new MouseEvent('mousedown', at(1500, 500))); dispatchEvent(new MouseEvent('mouseup', at(1500, 500))); await sleep(150);
+      r.cleared = document.querySelector('#propsTitle').textContent;
+      (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
+    })();`), 'marq');
+    ok(marq.title === 'Właściwości – 3 elementy' && marq.marqShown === true && marq.marqHidden === true, 'ramka zaznacza 3 z 4 prostokątów (ramka widoczna w trakcie, znika po puszczeniu)', marq);
+    ok(marq.wVal === '' && marq.wPh === '—', 'różne szerokości zaznaczonych – pole puste z „—”', marq);
+    ok(JSON.stringify(marq.colors) === JSON.stringify(['#ff0000', '#ff0000', '#ff0000', '#336699'])
+      && JSON.stringify(marq.undone) === JSON.stringify(['#336699', '#336699', '#336699', '#336699']), 'kolor z panelu trafia do trzech zaznaczonych, jedno Ctrl+Z cofa wszystkie', marq);
+    ok(marq.added === 'Właściwości – 4 elementy', 'Shift + ramka dodaje do zaznaczenia', marq);
+    // przesunięcie o 40 px (± przyciąganie do kadru i prowadnic)
+    ok(Number(marq.sceneY) <= -30 && Number(marq.sceneY) >= -50 && marq.cleared === 'Scena', 'S + przeciągnięcie przesuwa scenę, klik w puste miejsce odznacza', marq);
+
+    // 1e. uchwyty (K2): róg nw (róg se stoi), bok e elementu obróconego o 90° (bok w stoi), Shift – proporcje, obrót co 15°
+    const hdata = path.join(tmp, 'handles');
+    fs.mkdirSync(hdata, { recursive: true });
+    const rr = (id, x, y, w, h, extra = {}) => ({ id, type: 'rect', name: id, props: { x, y, w, h, color: '#336699', ...extra } });
+    fs.writeFileSync(path.join(hdata, 'show.json'), JSON.stringify({ rev: 1, scenes: [
+      { id: 'uch', name: 'Uchwyty', layer: 'main', width: 1920, height: 1080, duration: 2, stops: [1], nodes: [
+        rr('a', 400, 300, 200, 100), rr('b', 1200, 300, 200, 100, { rotation: 90 }), rr('c', 400, 700, 200, 100), rr('d', 1200, 700, 200, 100, { anchorX: 'center', anchorY: 'middle' })] },
+    ] }));
+    const hand = run(['--data', hdata], write('handles.js', `(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
+      await sleep(400);
+      const r = {}, box = document.querySelector('#box');
+      const st = document.querySelector('#stage').getBoundingClientRect(), k = st.width / 1920;
+      const at = (x, y, o = {}) => ({ clientX: st.left + x * k, clientY: st.top + y * k, button: 0, bubbles: true, detail: 1, ...o });
+      const pick = async (x, y) => { box.dispatchEvent(new MouseEvent('mousedown', at(x, y))); dispatchEvent(new MouseEvent('mouseup', at(x, y))); await sleep(200); };
+      // przeciągnięcie uchwytu o (dx, dy) px kadru
+      const grab = async (sel, dx, dy, o = {}) => {
+        const h = document.querySelector(sel), b = h.getBoundingClientRect(), x = (b.left + b.right) / 2, y = (b.top + b.bottom) / 2;
+        const ev = (X, Y) => ({ clientX: X, clientY: Y, button: 0, bubbles: true, detail: 1, ...o });
+        h.dispatchEvent(new MouseEvent('mousedown', ev(x, y)));
+        dispatchEvent(new MouseEvent('mousemove', ev(x + dx * k / 2, y + dy * k / 2))); dispatchEvent(new MouseEvent('mousemove', ev(x + dx * k, y + dy * k)));
+        dispatchEvent(new MouseEvent('mouseup', ev(x + dx * k, y + dy * k))); await sleep(150);
+      };
+      await pick(500, 350);
+      r.handles = [...document.querySelectorAll('#sel .h')].filter((h) => getComputedStyle(h).display !== 'none').length;
+      await grab('#sel .h[data-h="nw"]', -50, -20);
+      await pick(1300, 350);
+      await grab('#sel .h[data-h="e"]', 0, 40);
+      await pick(500, 750);
+      await grab('#sel .h[data-h="se"]', 100, 10, { shiftKey: true });
+      await pick(1300, 750);
+      const hr = document.querySelector('#sel .hr').getBoundingClientRect();
+      await grab('#sel .hr', 200, 200, { shiftKey: true });
+      window.__vizrsCmd('save'); await sleep(800);
+      r.nodes = (await (await fetch('/api/show')).json()).scenes[0].nodes.map((n) => ({ id: n.id, ...n.props }));
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true })); await sleep(150);
+      r.undoRot = +(document.querySelector('#props [data-p="rotation"]')?.value || 0);
+      (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
+    })();`), 'handles');
+    const N = Object.fromEntries((hand.nodes || []).map((n) => [n.id, n]));
+    const near = (a, b, e = 1.5) => Math.abs(a - b) <= e;
+    ok(hand.handles === 8, 'zaznaczony prostokąt ma 8 uchwytów rozmiaru', hand);
+    ok(N.a && near(N.a.w, 250) && near(N.a.h, 120) && near(N.a.x + N.a.w, 600) && near(N.a.y + N.a.h, 400), 'róg nw zmienia rozmiar, róg se stoi w miejscu', N.a);
+    // b: obrót 90° wokół środka, punkt zaczepienia lewy górny; bok w (lokalnie) = środek ramki − R·(w/2, 0)
+    const wMid = (n) => { const cx = n.x + n.w / 2, cy = n.y + n.h / 2; return [cx + 0 * n.w / 2, cy - n.w / 2]; };
+    ok(N.b && near(N.b.w, 240) && near(N.b.h, 100) && near(wMid(N.b)[0], 1300) && near(wMid(N.b)[1], 250), 'bok e elementu obróconego o 90° – przeciągnięcie w dół wydłuża, bok w stoi', N.b);
+    ok(N.c && near(N.c.w / N.c.h, 2, 0.02) && near(N.c.w, 300) && near(N.c.x, 400) && near(N.c.y, 700), 'Shift na rogu trzyma proporcje, róg nw stoi', N.c);
+    ok(N.d && N.d.rotation % 15 === 0 && N.d.rotation !== 0 && hand.undoRot === 0, 'obrót uchwytem z Shift co 15°, jedno Ctrl+Z cofa', { d: N.d, undoRot: hand.undoRot });
+
     // 2. jedna instancja: drugie uruchomienie przekazuje prośbę i kończy pracę; vizrs nie wystartuje na tym katalogu
     const first = spawn(APP, ['--data', data], { env: ENV, stdio: 'ignore' });
     for (let i = 0; i < 50 && !fs.existsSync(path.join(data, '.vizrs.lock')); i++) await sleep(100);
