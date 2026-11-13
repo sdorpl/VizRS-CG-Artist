@@ -2,6 +2,8 @@
 
 ## Niewydane
 
+- **Strona z CG System v26.11.4** (`web/CG_SYSTEM`: `f88a487`): `renderer.js` – pierwsze ustawienie powiązania (dock) po powstaniu odtwarzacza bez przejścia, więc grafika wchodząca, gdy cel już jest na antenie, stoi od razu na miejscu (PLAN-ruch-belek A0). Pozostałe moduły bez zmian.
+
 ## 26.11.4 – 2026-11-13
 
 - **Położenie scen względem siebie** (plan `docs/plany/PLAN-pozycjonowanie-scen.md`, etapy P1–P3 i część P4): DOKUMENTACJA §4.
