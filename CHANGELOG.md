@@ -2,6 +2,9 @@
 
 ## Niewydane
 
+## 26.11.6 – 2026-11-14
+
+- **Strona z CG System v26.11.5** (`web/CG_SYSTEM`: commit wydania; moduły bez zmian względem `b5243dc`).
 - **Poprawka: połączenie z serwerem zdalnym** (zgłoszenie – S2): start z `--connect` albo z zapisanym łączeniem przy uruchomieniu nie sprawdzał serwera – przy braku lub złym tokenie otwierał się pusty edytor z błędem „wymagany token”. Teraz serwer jest sprawdzany jak w oknie połączenia, a przy błędzie otwiera się okno połączenia z adresem i powodem. Puste pole tokenu (i `--connect` bez `--token`) bierze token zapisany dla tego adresu albo dla tego samego hosta pod innym adresem (`https://…` przez proxy i `http://…:8788` wprost). DOKUMENTACJA §8.
 - **Poprawka: okno szersze niż ekran przy skalowaniu ułamkowym** (zgłoszenie: 1920×1080, KDE Plasma Wayland 125 %): okno bez maksymalizacji otwierało się w rozmiarze 1600×900 px logicznych, a ekran ma 1536×864 – interfejs wychodził poza krawędź. Rozmiar jest teraz przycinany do obszaru roboczego monitora (`src/screen.rs`, ten sam moduł w oknie Trio i aplikacji VizRS Live). DOKUMENTACJA §3.
 - **Maska warstwy** – strona z CG System `b5243dc` (`web/CG_SYSTEM`; plan jednego ruchu J5): nowa właściwość **maska (węzeł)** w grupie „Maska” panelu Właściwości – nazwa węzła z tej samej grupy, którego prostokąt przycina element (także w ruchu presetów: treść wjeżdża zza krawędzi maski); kanwa rysuje to tak samo jak antena i renderer natywny. Opis: DOKUMENTACJA CG System §4.3.
