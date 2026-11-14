@@ -2,6 +2,8 @@
 
 ## Niewydane
 
+## 26.11.8 – 2026-11-14
+
 - **Poprawka: puste, „rozjechane” okno na Linuksie z kartą NVIDIA** (zgłoszenie: KDE Plasma 125 %, Quadro P400, sterownik 580; od 26.11.5): rasteryzacja Skia na GPU wywracała proces strony WebKitGTK (`libnvidia-eglcore`) – po kilku sekundach albo przy zmianie rozmiaru okna treść znikała lub zostawała w starym rozmiarze. Przy NVIDIA warstwy rysuje teraz Skia na CPU, składa je dalej GPU (`WEBKIT_SKIA_ENABLE_CPU_RENDERING=1`; animacja bez zmian, 61–62 kl./s). Gdy proces strony mimo to padnie, okno samo wczytuje stronę od nowa zamiast zostawać puste. DOKUMENTACJA §3.
 - **Poprawka: połączenie z serwerem zdalnym bez skutku** – przełączenie okna na serwer szło skryptem w stronie i ginęło, gdy proces strony właśnie padł albo się wczytywał: tytuł pokazywał serwer, a w oknie zostawała praca lokalna („Nowa scena”). Okno przełącza się teraz samo (nawigacja okna), tytuł zmienia się dopiero po udanym przełączeniu.
 - **Poprawka: pośrednik nasłuchiwał dalej po rozłączeniu** – po przełączeniu na inny serwer albo na pracę lokalną poprzedni pośrednik zostawał na swoim porcie `127.0.0.1` (z tokenem starego serwera) aż do zamknięcia programu. Teraz zamyka gniazdo od razu. DOKUMENTACJA §8.

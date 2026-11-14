@@ -27,7 +27,8 @@ Od 26.11.x prace idą wg planów strony Artist (lista w [docs/README.md](README.
 | S13 | Położenie scen względem siebie (plan `plany/PLAN-pozycjonowanie-scen.md`, P1–P4) | zrobione – 26.11.4 (P1–P3), 26.11.5 (P4) |
 | S14 | Edycja na kanwie (plan `plany/PLAN-edycja-na-kanwie.md`, K1–K5) | zrobione – wydanie 26.11.5 |
 | S15 | Akceleracja WebKitGTK na Linuksie z NVIDIA (`src/gpu.rs`, `VIZRS_GPU`) | zrobione – wydanie 26.11.5 |
-| S16 | Jedna oś czasu (plan `../VizRS CG System/docs/plany/PLAN-jeden-ruch.md`, J1–J4 + maska warstwy J5) i rozmiar okna przy skalowaniu ułamkowym (`src/screen.rs`) | zrobione – „Niewydane” w CHANGELOG |
+| S17 | Niezawodność okna na Linuksie z NVIDIA (Skia na CPU, przeładowanie po awarii strony), przełączenie serwera nawigacją okna, zamykanie pośrednika | zrobione – wydanie 26.11.8 |
+| S16 | Jedna oś czasu (plan `../VizRS CG System/docs/plany/PLAN-jeden-ruch.md`, J1–J4 + maska warstwy J5) i rozmiar okna przy skalowaniu ułamkowym (`src/screen.rs`) | zrobione – wydania 26.11.6–26.11.7 |
 
 ## Następne zadanie
 Plany strony Artist: [plany/PLAN-pozycjonowanie-scen.md](plany/PLAN-pozycjonowanie-scen.md) P1–P4 i [plany/PLAN-edycja-na-kanwie.md](plany/PLAN-edycja-na-kanwie.md) K1–K5 – zrobione (wydanie 26.11.5); jedna oś czasu (J1–J4) i maska warstwy (J5) – „Niewydane” w CHANGELOG. Dalej P5 / ruch belek – `../VizRS CG System/docs/plany/PLAN-ruch-belek.md` (czeka na decyzje z §7).
