@@ -2,6 +2,8 @@
 
 ## Niewydane
 
+## 26.11.7 – 2026-11-14
+
 - **Poprawka: skalowanie ułamkowe na Linuksie** (zgłoszenie: 1920×1080, KDE Plasma Wayland 125 %, NVIDIA): WebKitGTK rysował stronę ×2 i kompozytor ją zmniejszał – nierówne cienkie linie, 2,56× więcej pikseli. W KDE przy niecałkowitej skali okno otwiera się teraz przez XWayland: ostre piksele, ta sama wielkość interfejsu, animacja 18 zamiast 5 kl./s (pomiar). `VIZRS_GPU=wayland` – jak dawniej. DOKUMENTACJA §3.
 - **Poprawka: „1:1” na kanwie** pokazywało scenę 1,25× za dużą przy skali 125 % – teraz piksel sceny = piksel ekranu, procent kanwy w pikselach ekranu; nowa zmienna `VIZRS_SCALE` dla pulpitów innych niż KDE. DOKUMENTACJA §3.
 - **Poprawka: układ paneli ginął po każdym starcie** – serwer strony dostawał losowy port, a WebKit trzyma `localStorage` osobno dla portu (szerokości paneli, ustawienia podglądu kanwy, zwinięte sekcje). Port jest teraz stały dla użytkownika (zajęty – losowy). DOKUMENTACJA §12.
