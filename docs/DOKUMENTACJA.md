@@ -135,6 +135,16 @@ Menu trzyma się konwencji systemu:
 
 Pozycje strony wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, Shift+1/2/3, Shift+R, Alt – pomiar, Spacja, M) obsługuje strona, nie powłoka okna – dzięki temu działają prawidłowo także w polach tekstowych; menu je tylko pokazuje. Na macOS strona przyjmuje też ⌘ zamiast Ctrl. Cofnij / Ponów w menu synchronizują się ze stanem aktywności zgłaszanym przez stronę (`sync_menu`).
 
+### Oś czasu – ruch i klucze w jednym widoku
+
+Plan: `../VizRS CG System/docs/plany/PLAN-jeden-ruch.md` (J1–J4). Format sceny bez zmian: presety ruchu to `node.motion`, klucze – `anim`; renderer składa jedno z drugim.
+
+- **Jeden widok** (dawny przełącznik „≣ Sekwencja” usunięty): każdy element z ruchem albo kluczami ma **wiersz elementu** z klipami presetów – wejście (niebieski), efekt tekstu IN / OUT (cieńszy pasek pod spodem), pętla (kreskowany pas od końca wejścia do ostatniego stopu), wyjście (pomarańczowy, od ostatniego stop pointu); czasy liczone jak w rendererze (`motion.js`: opóźnienie, „po węźle”, rozłożenie tekstu). Pod wierszem elementu – wiersze kluczy jego właściwości; ▾ / ▸ zwija je (zwinięty wiersz pokazuje „◆ liczba”). Zaznaczony element jest na górze i ma wiersz zawsze (także bez ruchu – żeby dodać preset).
+- **Klipy myszą:** przeciągnięcie – opóźnienie, prawa krawędź – czas (Shift – co 0,05 s); klip wejścia przeciągnięty **w pionie** na wiersz innego elementu ustawia „po węźle” (wchodzi po jego wejściu; pętla sekwencji jest odrzucana), ↳ na klipie i przy nazwie. **Klik** w klip – głowica na jego początku i zakładka **Ruch** na tej fazie. **Dwuklik** albo prawy klik w pusty wiersz elementu – menu „＋ wejście / wyjście / efekt tekstu IN / OUT / pętla” (tylko brakujące) i „Zrób preset z kluczy”. **Prawy klik** w klip – „Rozbij na klucze”, „Pokaż w zakładce Ruch”, „Usuń”.
+- **Klucze i presety razem:** wiersz klucza właściwości, którą zmienia też preset, ma znacznik **„+ preset”** (składają się). **Rozbij na klucze** (jedna faza; „◆ Na klucze” w pasku – obie) nie odmawia przy istniejących kluczach: preset dodaje się do ścieżki – położenie, skos, rozmycie, przycięcie przez różnicę, krycie i skala przez iloraz względem spoczynku w chwili startu fazy. Typy bez odpowiednika w kluczach (przesłony, obroty, odwrócenia, pętle, efekty tekstu) – pozycja nieaktywna z podpowiedzią. **Z kluczy** (◇ w pasku albo menu wiersza) bierze zaznaczone klucze (klik, Shift, ramka na osi) – tylko ich właściwości; odmawia, gdy element ma już preset tej fazy.
+- **Zakładka Ruch:** na górze **Klucze (◆)** – przycisk na każdą właściwość z kluczami (skok do ścieżki, zaznaczenie pierwszego klucza, głowica na nim); niżej fazy w kolejności czasu: wejście, tekst IN, pętla, wyjście, tekst OUT, efekt tła, punkt ruchu, „po węźle”.
+- Pasek **SEKWENCJA** (kaskada, po kolei, kopiuj ruch, na klucze, z kluczy, usuń ruch, dopasuj) i pasek zaznaczonego klucza są widoczne zawsze.
+
 ## 5. Pliki
 
 - **Zapisz jako:** pobrania strony (eksport sceny, paczka) otwierają systemowe okno zapisu (wtyczka `tauri-plugin-dialog`).

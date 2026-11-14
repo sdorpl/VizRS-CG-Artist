@@ -2,6 +2,7 @@
 
 ## Niewydane
 
+- **Jedna oś czasu** (plan `../VizRS CG System/docs/plany/PLAN-jeden-ruch.md`, etapy J1–J4): presety ruchu jako klipy w wierszu elementu, a pod nim jego klucze – bez przełącznika „Sekwencja”. Klipy: przeciągnięcie (opóźnienie, czas), w pionie na inny element – „po węźle”, klik – zakładka Ruch na tej fazie, dwuklik w wiersz – dodaj fazę, prawy klik – rozbij na klucze / usuń. Klucze i presety tej samej właściwości razem (znacznik „+ preset”); „Rozbij na klucze” scala z istniejącymi kluczami zamiast odmawiać, „Z kluczy” – dla zaznaczonych kluczy. Zakładka Ruch: lista kluczy elementu ze skokiem do osi i fazy w kolejności czasu. DOKUMENTACJA §4.
 ## 26.11.5 – 2026-11-14
 
 - **Edycja tekstu na kanwie** (plan `docs/plany/PLAN-edycja-na-kanwie.md`, etap K5): dwuklik w zaznaczony tekst albo Enter – pole w miejscu napisu (czcionka, rozmiar, wyrównanie, kolor, obrót), tekst surowy z `[[wyróżnieniem]]` i wierszami; Ctrl+Enter / klik obok zatwierdza, Esc anuluje, Ctrl+S zatwierdza i zapisuje. DOKUMENTACJA §4.

@@ -436,6 +436,54 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
     ok(txe.closed === true && txe.t1 === 'Nowy [[tytuł]]\nwiersz 2', 'Ctrl+Enter zatwierdza tekst (z wyróżnieniem i nowym wierszem)', txe);
     ok(txe.enterOpen === true && txe.t2 === txe.t1 && txe.t3 === 'Stary [[tytuł]]', 'Enter otwiera edycję, Esc anuluje, Ctrl+Z cofa zmianę tekstu', txe);
 
+    // 1j. jedna oś czasu (J1–J4): klipy presetów i klucze w jednym widoku, przeciąganie klipu (opóźnienie, „po węźle”),
+    //     klik – zakładka Ruch, dwuklik – dodaj wyjście, „Rozbij na klucze” scala z istniejącymi kluczami, znacznik „+ preset”
+    const jdata = path.join(tmp, 'onetl');
+    fs.mkdirSync(jdata, { recursive: true });
+    fs.writeFileSync(path.join(jdata, 'show.json'), JSON.stringify({ rev: 1, scenes: [
+      { id: 'tl', name: 'Oś', layer: 'main', width: 1920, height: 1080, duration: 2, stops: [1], nodes: [
+        { id: 'r', type: 'rect', name: 'r', props: { x: 100, y: 100, w: 200, h: 100, color: '#336699' }, motion: { in: { type: 'fade', dur: 0.4 } }, anim: { opacity: [{ t: 1, v: 1 }, { t: 1.5, v: 0.5 }] } },
+        { id: 's', type: 'rect', name: 's', props: { x: 400, y: 100, w: 200, h: 100, color: '#336699' }, motion: { in: { type: 'fade', dur: 0.4 } } }] },
+    ] }));
+    const otl = run(['--data', jdata], write('onetl.js', `(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
+      await sleep(400);
+      const r = {}, q = (x) => document.querySelector(x);
+      const ev = (X, Y, o = {}) => ({ clientX: X, clientY: Y, button: 0, bubbles: true, cancelable: true, detail: 1, ...o });
+      const center = (el) => { const b = el.getBoundingClientRect(); return [b.left + Math.min(20, b.width / 2), (b.top + b.bottom) / 2]; };
+      r.noToggle = !q('#seqMode');
+      r.clip = !!q('#tl .tl-row.node[data-node="r"] .mb.in');
+      r.badge = !!q('#tl .tl-area[data-row="r|opacity"]')?.parentElement.querySelector('.pz');
+      const c = q('#tl .mb[data-mb="r|in"]'), pps = c.getBoundingClientRect().width / 0.4;
+      let [x, y] = center(c);
+      c.dispatchEvent(new MouseEvent('mousedown', ev(x, y))); dispatchEvent(new MouseEvent('mousemove', ev(x + 0.1 * pps, y))); dispatchEvent(new MouseEvent('mousemove', ev(x + 0.2 * pps, y))); dispatchEvent(new MouseEvent('mouseup', ev(x + 0.2 * pps, y))); await sleep(150);
+      [x, y] = center(q('#tl .mb[data-mb="r|in"]'));
+      q('#tl .mb[data-mb="r|in"]').dispatchEvent(new MouseEvent('mousedown', ev(x, y))); dispatchEvent(new MouseEvent('mouseup', ev(x, y))); await sleep(200);
+      r.tab = q('[data-ptab="ruch"]').classList.contains('on'); r.kjump = !!q('#props [data-kjump="opacity"]');
+      const row = q('#tl .tl-area[data-nrow="r"]'), rb = row.getBoundingClientRect();
+      row.dispatchEvent(new MouseEvent('dblclick', ev(rb.left + 1.8 * pps, (rb.top + rb.bottom) / 2))); await sleep(150);
+      r.addOut = !!q('#ctxMenu [data-cx="tl:add:out|r"]') && !q('#ctxMenu [data-cx="tl:add:out|r"]').disabled;
+      q('#ctxMenu [data-cx="tl:add:out|r"]').click(); await sleep(200);
+      [x, y] = center(q('#tl .mb[data-mb="r|in"]'));
+      q('#tl .mb[data-mb="r|in"]').dispatchEvent(new MouseEvent('contextmenu', ev(x, y, { button: 2 }))); await sleep(150);
+      const kb = q('#ctxMenu [data-cx="tl:keys:in|r"]'); r.keysOn = !!kb && !kb.disabled; kb?.click(); await sleep(200);
+      const sc = q('#tl .mb[data-mb="s|in"]'), rr = q('#tl .tl-row.node[data-node="r"]').getBoundingClientRect();
+      [x, y] = center(sc);
+      sc.dispatchEvent(new MouseEvent('mousedown', ev(x, y))); dispatchEvent(new MouseEvent('mousemove', ev(x, y - 20))); dispatchEvent(new MouseEvent('mousemove', ev(x, (rr.top + rr.bottom) / 2))); dispatchEvent(new MouseEvent('mouseup', ev(x, (rr.top + rr.bottom) / 2))); await sleep(200);
+      window.__vizrsCmd('save'); await sleep(800);
+      r.nodes = Object.fromEntries((await (await fetch('/api/show')).json()).scenes[0].nodes.map((n) => [n.id, { motion: n.motion, anim: n.anim }]));
+      (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
+    })();`), 'onetl');
+    const ON = otl.nodes || {};
+    ok(otl.noToggle === true && otl.clip === true && otl.badge === true, 'jedna oś czasu: bez przełącznika, klip wejścia w wierszu elementu, znacznik „+ preset” na kluczu krycia', otl);
+    ok(otl.tab === true && otl.kjump === true, 'klik w klip otwiera zakładkę Ruch z listą kluczy elementu', otl);
+    ok(otl.addOut === true && ON.r?.motion?.out?.type === 'fade', 'dwuklik w pusty wiersz elementu – menu „dodaj wyjście”', ON.r);
+    const op = ON.r?.anim?.opacity || [];
+    ok(otl.keysOn === true && !ON.r?.motion?.in && op.length > 2 && near(op[0].v, 0, 0.01) && near(op[0].t, 0.2, 0.03) && op.some((k) => near(k.t, 1.5) && near(k.v, 0.5)),
+      '„Rozbij na klucze” (wejście po przesunięciu o 0,2 s) scala fade z istniejącymi kluczami krycia', op);
+    ok(ON.s?.motion?.after === 'r', 'klip wejścia przeciągnięty w pionie na inny element ustawia „po węźle”', ON.s);
+
     // 2. jedna instancja: drugie uruchomienie przekazuje prośbę i kończy pracę; vizrs nie wystartuje na tym katalogu
     const first = spawn(APP, ['--data', data], { env: ENV, stdio: 'ignore' });
     for (let i = 0; i < 50 && !fs.existsSync(path.join(data, '.vizrs.lock')); i++) await sleep(100);
