@@ -15,6 +15,7 @@ mod gpu;
 mod http;
 mod local;
 mod paths;
+mod scale;
 mod screen;
 mod server;
 mod store;
@@ -63,6 +64,10 @@ const PAGE_CMDS: &[(&str, &str, &str)] = &[
     ("fit", "Dopasuj kanwę", "Shift+1"),
     ("z100", "Kanwa 100%", "Shift+2"),
     ("zsel", "Kanwa do zaznaczenia", "Shift+3"),
+    ("panelL", "Panel drzewa", "Ctrl+1"),
+    ("panelR", "Panel właściwości", "Ctrl+2"),
+    ("panelT", "Oś czasu", "Ctrl+3"),
+    ("canvasOnly", "Tylko kanwa", "Tab"),
     ("play", "Odtwórz / zatrzymaj", "Spacja"),
     ("marker", "Dodaj marker", "M"),
 ];
@@ -71,10 +76,12 @@ const PAGE_CMDS: &[(&str, &str, &str)] = &[
 const BACKGROUND: Color = Color(0x15, 0x17, 0x1a, 0xff);
 /// Most strony: `window.__vizrsPost(tekst)` → komenda `ipc`. `window.ipc` należy w Tauri do wry/Tauri
 /// (niezapisywalny), więc strona (`web/native.js`) i okno połączenia wołają `__vizrsPost`.
-/// `os` – strona dobiera do systemu czcionkę, przyciski okien i paski przewijania.
+/// `os` – strona dobiera do systemu czcionkę, przyciski okien i paski przewijania. `px` – pikseli ekranu na piksel CSS
+/// przy interfejsie 100 % (`scale::screen_scale`), `zoom` – powiększenie interfejsu: „1:1” kanwy liczy z `px × zoom`
+/// (`devicePixelRatio` przy skali ułamkowej kłamie – 2 zamiast 1.25 na Waylandzie, 1 przez XWayland).
 const IPC_SHIM: &str = r#"(() => {
   window.__vizrsPost = (m) => { window.__TAURI_INTERNALS__.invoke('ipc', { body: String(m) }).catch((e) => console.error('ipc', e)); };
-  window.__vizrsShell = { version: '__VERSION__', app: 'cg-artist', os: '__OS__' };
+  window.__vizrsShell = { version: '__VERSION__', app: 'cg-artist', os: '__OS__', px: __PX__, zoom: __ZOOM__ };
 })();"#;
 
 /// Skrót w etykiecie menu tak, jak pokazuje go system: Windows – w kolumnie skrótów (tabulator, jak w Win32),
@@ -457,10 +464,28 @@ fn start_remote(
 
 // ------------------------------------------------------------------ okna
 
-fn script() -> String {
+fn script(zoom: f64) -> String {
     IPC_SHIM
         .replace("__VERSION__", env!("CARGO_PKG_VERSION"))
         .replace("__OS__", std::env::consts::OS)
+        .replace("__PX__", &screen_px().to_string())
+        .replace("__ZOOM__", &zoom.to_string())
+}
+
+/// Pikseli ekranu na piksel CSS przy interfejsie 100 % (raz na proces).
+fn screen_px() -> f64 {
+    static PX: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
+    *PX.get_or_init(|| {
+        scale::screen_scale(
+            std::env::var("VIZRS_SCALE").ok().as_deref(),
+            scale::kde_xwayland(),
+        )
+    })
+}
+
+/// Powiększenie interfejsu do strony (`__vizrsShell.zoom`, zdarzenie `vizrs-zoom`) – „1:1” kanwy.
+fn zoom_js(z: f64) -> String {
+    format!("window.__vizrsShell&&(window.__vizrsShell.zoom={z},dispatchEvent(new Event('vizrs-zoom')))")
 }
 
 /// Wygląd okna zgodny z systemem: ciemny pasek tytułu i menu (Windows: tryb ciemny DWM, Linux: ciemny wariant
@@ -540,7 +565,9 @@ fn open_artist(app: &AppHandle, pending: Option<PathBuf>) {
     .min_inner_size(800.0, 500.0)
     .maximized(maximize)
     .visible(false)
-    .initialization_script(script())
+    .initialization_script(script(
+        st.zoom.filter(|z| (*z - 1.0).abs() > 0.01).unwrap_or(1.0),
+    ))
     .on_download(move |_, ev| on_download(&app_dl, ev))
     .on_page_load(|w, p| {
         if p.event() == PageLoadEvent::Finished {
@@ -641,7 +668,7 @@ fn open_connect(app: &AppHandle) {
     .maximizable(false)
     .minimizable(parent.is_none())
     .center()
-    .initialization_script(format!("{}\n{data}", script()));
+    .initialization_script(format!("{}\n{data}", script(1.0)));
     if let Some(p) = &parent {
         b = match b.parent(p) {
             Ok(b) => b,
@@ -1245,6 +1272,12 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     }
 
     let (fit, z100, zsel) = (cmd("fit")?, cmd("z100")?, cmd("zsel")?);
+    let (p_l, p_r, p_t, p_all) = (
+        cmd("panelL")?,
+        cmd("panelR")?,
+        cmd("panelT")?,
+        cmd("canvasOnly")?,
+    );
     let reload = item("reload", "Wczytaj ponownie", Some("F5"))?;
     let full = item("fullscreen", "Pełny ekran", Some("F11"))?;
     let zin = item("zoom-in", "Powiększ interfejs", Some("CmdOrCtrl+="))?;
@@ -1255,8 +1288,10 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         "Narzędzia deweloperskie",
         Some("CmdOrCtrl+Shift+I"),
     )?;
-    let (s6, s7, s8) = (sep()?, sep()?, sep()?);
-    let mut view: Vec<&Item> = vec![&fit, &z100, &zsel, &s6, &zin, &zout, &z0, &s7, &reload];
+    let (s5, s6, s7, s8) = (sep()?, sep()?, sep()?, sep()?);
+    let mut view: Vec<&Item> = vec![
+        &fit, &z100, &zsel, &s5, &p_l, &p_r, &p_t, &p_all, &s6, &zin, &zout, &z0, &s7, &reload,
+    ];
     // macOS: pełny ekran jest w menu Okno (systemowy, ⌃⌘F)
     if !mac {
         view.push(&full);
@@ -1367,6 +1402,7 @@ fn on_menu(app: &AppHandle, id: &str) {
             st.zoom
         };
         let _ = w.set_zoom(z);
+        let _ = w.eval(zoom_js(z));
     };
     match id {
         "new-window" => open_artist(app, None),

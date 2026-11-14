@@ -37,14 +37,14 @@ Zasady zgodności:
 
 ```
 vizrs-cg-artist (jeden proces Tauri 2)
- ├─ okna Artist (artist-*) ── WebView ──► serwer strony 127.0.0.1:<losowy> (strona z binarki)
+ ├─ okna Artist (artist-*) ── WebView ──► serwer strony 127.0.0.1:<stały port> (strona z binarki)
  │                                          ├─ praca lokalna: magazyn lokalny (show.json, assets/)
  │                                          └─ praca na serwerze: pośrednik do vizrs (/api, /assets, /events)
  ├─ okno „Połącz z serwerem” (connect) ── strona ui/connect.html (frontendDist)
  └─ jedna instancja (tauri-plugin-single-instance: Linux, Windows, macOS)
 ```
 
-- **Strona Artist z binarki:** strona jest zawsze serwowana z binarki przez serwer strony w procesie okna (`127.0.0.1`, losowy port, sekret → ciasteczko). Praca lokalna: API z magazynu lokalnego. Praca na serwerze (`--connect`, okno połączenia, dołączenie do `vizrs` pracującego na katalogu danych): ten sam serwer strony działa jako **pośrednik** (`src/local.rs`: `start_remote`, `proxy`) – `/api`, `/assets`, `/events` idą do serwera `vizrs` z tokenem trzymanym w oknie; **token nie trafia do strony**, a adres strony w oknie się nie zmienia (wcześniej okno wczytywało `/artist` bezpośrednio z serwera).
+- **Strona Artist z binarki:** strona jest zawsze serwowana z binarki przez serwer strony w procesie okna (`127.0.0.1`, stały port użytkownika – niżej, sekret → ciasteczko). Praca lokalna: API z magazynu lokalnego. Praca na serwerze (`--connect`, okno połączenia, dołączenie do `vizrs` pracującego na katalogu danych): ten sam serwer strony działa jako **pośrednik** (`src/local.rs`: `start_remote`, `proxy`) – `/api`, `/assets`, `/events` idą do serwera `vizrs` z tokenem trzymanym w oknie; **token nie trafia do strony**, a adres strony w oknie się nie zmienia (wcześniej okno wczytywało `/artist` bezpośrednio z serwera).
 - **Kolejność wyboru:** `--connect URL` → zapisane „łącz przy uruchomieniu” (o ile nie `--local`) → serwer `vizrs` działający
   na katalogu danych (plik `.vizrs.lock` + zgodny `instance` w `/health`; okno dołącza przez pośrednika, żeby `show.json` miał jednego
   zapisującego) → **magazyn lokalny**. Artist nie uruchamia `vizrs`.
@@ -69,13 +69,18 @@ vizrs-cg-artist [connect] [opcje] [PLIK]
 | `--local` | – | praca lokalna mimo zapisanego łączenia przy uruchomieniu |
 | `--probe JS --probe-out JSON` | – | test: po wczytaniu strony wykonaj skrypt, zapisz wynik `probe:…`, zakończ (pytania strony dostają od razu ostatni przycisk – „Anuluj”) |
 | – | `VIZRS_DEVTOOLS=1` | narzędzia deweloperskie WebView (Widok → Narzędzia deweloperskie, CmdOrCtrl+Shift+I); bez tej zmiennej tylko w kompilacji testowej |
-| – | `VIZRS_GPU` | akceleracja WebKitGTK na Linuksie: `auto` (domyślnie), `on`, `off`, `x11`, `system` – niżej |
+| – | `VIZRS_GPU` | akceleracja WebKitGTK na Linuksie: `auto` (domyślnie), `on`, `off`, `x11`, `wayland`, `system` – niżej |
+| – | `VIZRS_SCALE` | skala ekranu (np. `1.25`) do „1:1” na kanwie, gdy okno jej nie wykrywa (pulpity inne niż KDE) – niżej |
 | `--help`, `-h` | – | pomoc |
 | `--version`, `-V` | – | wersja programu |
 
 **Rozmiar okna a skalowanie ekranu** – `src/screen.rs` (ten sam plik w VizRS CG Artist, VizRS CG System i VizRS Live): okno otwierane bez maksymalizacji dostaje najwyżej 92 % szerokości i 90 % wysokości obszaru roboczego monitora w pikselach logicznych – przy skalowaniu ułamkowym (1920×1080 przy 125 % = 1536×864) domyślne 1600×900 albo rozmiar zapisany na innym ekranie nie wychodzi poza krawędź.
 
-**Akceleracja sprzętowa (Linux, WebKitGTK)** – `src/gpu.rs`, ten sam plik w VizRS CG Artist, VizRS CG System (`source/shell`) i VizRS Live (`desktop/`): przy starcie, przed GTK, okno ustawia zmienne WebKitGTK. Sterownik własnościowy **NVIDIA** (węzeł `renderD*` sterownika `nvidia`, `nvidia-drm.modeset` nie „N”): `WEBKIT_FORCE_DMABUF_RENDERER=1` i `__NV_DISABLE_EXPLICIT_SYNC=1` – bez tego WebKitGTK sam wyłącza akcelerację („Policy: never” w `webkit://gpu`) i rysuje na CPU (pomiar 2026-11-13, Quadro P400, sterownik 580, KDE Wayland: animacja 5 → 61 kl./s; samo wymuszenie DMA-BUF na Waylandzie kończy się błędem protokołu 71). Inne karty (Mesa: Intel, AMD, nouveau) i maszyny bez GPU – wybór zostaje przy WebKitGTK. Zmienne `WEBKIT_*` ustawione przez użytkownika mają pierwszeństwo. `VIZRS_GPU`: `auto` (domyślnie; `on` – to samo), `off` – bez akceleracji (zepsuty sterownik), `x11` – okno przez XWayland (`GDK_BACKEND=x11`) z akceleracją, `system` – bez zmian. Decyzja trafia na standardowe wyjście błędów (`GPU: …`). Windows (WebView2) i macOS (WKWebView) – akceleracja systemu, bez zmian.
+**Akceleracja sprzętowa (Linux, WebKitGTK)** – `src/gpu.rs`, ten sam plik w VizRS CG Artist, VizRS CG System (`source/shell`) i VizRS Live (`desktop/`): przy starcie, przed GTK, okno ustawia zmienne WebKitGTK. Sterownik własnościowy **NVIDIA** (węzeł `renderD*` sterownika `nvidia`, `nvidia-drm.modeset` nie „N”): `WEBKIT_FORCE_DMABUF_RENDERER=1` i `__NV_DISABLE_EXPLICIT_SYNC=1` – bez tego WebKitGTK sam wyłącza akcelerację („Policy: never” w `webkit://gpu`) i rysuje na CPU (pomiar 2026-11-13, Quadro P400, sterownik 580, KDE Wayland: animacja 5 → 61 kl./s; samo wymuszenie DMA-BUF na Waylandzie kończy się błędem protokołu 71). Inne karty (Mesa: Intel, AMD, nouveau) i maszyny bez GPU – wybór zostaje przy WebKitGTK. Zmienne `WEBKIT_*` ustawione przez użytkownika mają pierwszeństwo. `VIZRS_GPU`: `auto` (domyślnie; `on` – to samo), `off` – bez akceleracji (zepsuty sterownik), `x11` – okno przez XWayland (`GDK_BACKEND=x11`) z akceleracją, `wayland` – bez przełączania na XWayland przy skali ułamkowej, `system` – bez zmian. Decyzja trafia na standardowe wyjście błędów (`GPU: …`). Windows (WebView2) i macOS (WKWebView) – akceleracja systemu, bez zmian.
+
+**Skala ułamkowa (Linux, KDE Plasma Wayland)** – `src/scale.rs`, `src/gpu.rs`: GTK 3 / WebKitGTK 4.1 nie zna skalowania ułamkowego Waylanda – przy 125 % zaokrągla do 2, rysuje stronę w buforze ×2 (`devicePixelRatio` 2), a kompozytor zmniejsza ją ×0,625: cienkie linie mają raz 1, raz 2 px, a bufor ma 2,56× więcej pikseli (pomiar 2026-11-14, 1920×1080 przy 125 %, Quadro P400: animacja 5 kl./s, przez XWayland 18). W trybie `auto` sesja Wayland z niecałkowitą skalą programów X11 w `kwinrc` (`[Xwayland] Scale`, np. 1.25 – KDE ustawia ją, gdy programy X11 „skalują się same”, domyślnie w Plasmie 6) otwiera okno przez XWayland: natywne piksele, a WebKitGTK sam powiększa stronę o `Xft.dpi / 96` (interfejs ma tę samą wielkość). Wyłączenie: `VIZRS_GPU=wayland` albo `GDK_BACKEND=wayland`. Innych pulpitów okno nie przełącza (GNOME rozmywa programy X11 przy skali ułamkowej).
+
+**„1:1” na kanwie** – piksel sceny = piksel ekranu: okno podaje stronie skalę ekranu (`__vizrsShell.px`: `VIZRS_SCALE`, inaczej skala KDE z `kwinrc`, inaczej 1) i powiększenie interfejsu (`__vizrsShell.zoom`, zdarzenie `vizrs-zoom`), bo `devicePixelRatio` przy skali ułamkowej nie mówi prawdy. Procent kanwy jest w pikselach ekranu – przy 125 % „100%” to skala 0,8 pikseli CSS.
 
 Błędne argumenty: komunikat na stderr, kod wyjścia 1.
 
@@ -85,7 +90,7 @@ Błędne argumenty: komunikat na stderr, kod wyjścia 1.
 |---|---|
 | Plik | Nowe okno (CmdOrCtrl+Shift+N) · Nowa scena · Importuj… (CmdOrCtrl+O) · Zapisz (Ctrl+S) · Eksportuj scenę (.cgpack)… · Paczka .cgpack… · Wyślij na serwer… · Połącz z serwerem… (CmdOrCtrl+Shift+K) · Zamknij okno (CmdOrCtrl+W) · Zakończ (Linux: Ctrl+Q; Windows: bez skrótu – Alt+F4 zamyka okno) |
 | Edycja | Cofnij (Ctrl+Z) · Ponów (Ctrl+Y) · Duplikuj (Ctrl+D) · Usuń (Delete) |
-| Widok | Dopasuj kanwę (Shift+1) · Kanwa 100% (Shift+2) · Kanwa do zaznaczenia (Shift+3) · Powiększ interfejs (CmdOrCtrl+=) · Pomniejsz interfejs (CmdOrCtrl+−) · Interfejs 100% (CmdOrCtrl+0) · Wczytaj ponownie (F5; przy niezapisanych zmianach najpierw pytanie) · Pełny ekran (F11) · Narzędzia deweloperskie (tylko z `VIZRS_DEVTOOLS=1`) |
+| Widok | Dopasuj kanwę (Shift+1) · Kanwa 100% (Shift+2) · Kanwa do zaznaczenia (Shift+3) · Panel drzewa (Ctrl+1) · Panel właściwości (Ctrl+2) · Oś czasu (Ctrl+3) · Tylko kanwa (Tab) · Powiększ interfejs (CmdOrCtrl+=) · Pomniejsz interfejs (CmdOrCtrl+−) · Interfejs 100% (CmdOrCtrl+0) · Wczytaj ponownie (F5; przy niezapisanych zmianach najpierw pytanie) · Pełny ekran (F11) · Narzędzia deweloperskie (tylko z `VIZRS_DEVTOOLS=1`) |
 | Scena | Odtwórz / zatrzymaj (Spacja) · Dodaj marker (M) |
 | Pomoc | Pokaż logi · Otwórz katalog danych · Sprawdź aktualizacje · O programie |
 
@@ -137,7 +142,9 @@ Menu trzyma się konwencji systemu:
 - **Zaokrąglenie rogów i boków** (prostokąt, kod QR, obraz; panel Właściwości → Wygląd → **zaokrąglenie**): pole **wszystkie rogi** (`radius`) i przycisk **▸ osobno** rozwijający schemat prostokąta – pola rogów w narożnikach (↖ róg, róg ↗, ↙ róg, róg ↘), pola boków na krawędziach (bok górny / dolny / lewy / prawy – oba rogi przy boku: bok górny = 20 → zaokrąglona tylko góra), w środku podgląd kształtu rogów (w skali krótszego boku elementu). Schemat jest rozwinięty sam, gdy któryś róg albo bok jest użyty (• przy „osobno”). Róg, przy którym ustawione są dwa boki, jest eliptyczny (poziomo bok górny/dolny, pionowo lewy/prawy); ustawiony róg ma pierwszeństwo przed bokami. Puste pole (w scenie `-1`; prawy klik na etykiecie) dziedziczy: róg → z boków → „wszystkie rogi”; szara wartość w pustym polu to wynik dziedziczenia. **wyczyść rogi i boki** usuwa wszystkie nadpisania jednym krokiem cofania. Przeciąganie etykiety zaczyna od bieżącego zaokrąglenia. Właściwości `radiusTL`…`radiusBL`, `radiusL`…`radiusB` są animowalne i rysowane tak samo na antenie (CG System, także renderer natywny).
 - Ustawienia prowadnic, przyciągania i tła pamięta strona w `localStorage` (`vizrs.canvas`), scen odniesienia – `vizrs.refs` (wybór per scena, krycie, kolejność, czas, przyciąganie, ostrzeżenie), położenia względem innej sceny – `vizrs.rel` (cel, odstęp, tryb dock); dla tej instalacji okna, nie w `show.json`.
 
-Pozycje strony wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, Shift+1/2/3, Shift+R, Alt – pomiar, Spacja, M) obsługuje strona, nie powłoka okna – dzięki temu działają prawidłowo także w polach tekstowych; menu je tylko pokazuje. Na macOS strona przyjmuje też ⌘ zamiast Ctrl. Cofnij / Ponów w menu synchronizują się ze stanem aktywności zgłaszanym przez stronę (`sync_menu`).
+Pozycje strony wywołują `window.__vizrsCmd(akcja)`. Ich skróty (Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, Shift+1/2/3, Ctrl+1/2/3, Tab, Shift+R, Alt – pomiar, Spacja, M) obsługuje strona, nie powłoka okna – dzięki temu działają prawidłowo także w polach tekstowych; menu je tylko pokazuje. Na macOS strona przyjmuje też ⌘ zamiast Ctrl.
+
+**Układ paneli:** rozdzielacze między panelami (przeciągnięcie; dwuklik – rozmiar domyślny). Okno węższe niż 1700 px CSS (np. 1920×1080 przy 125 % = 1536 px) startuje z węższymi panelami: drzewo 260 px, właściwości 300 px, oś czasu 210 px (zamiast 270 / 350 / 260). Ctrl+1 / 2 / 3 chowa i pokazuje drzewo / właściwości / oś czasu, Tab (i ▣ w rogu kanwy) – tylko kanwa, drugi raz wszystko jak było. Rozmiary i panele schowane pojedynczo są zapamiętane (`localStorage` strony: `vizrs.artistLayout`, `vizrs.artistPanels`); „tylko kanwa” nie przechodzi na następny start. Przewijane panele wygaszają dół, dopóki niżej jest treść (paski przewijania WebKitGTK są nakładane i widać je dopiero przy ruchu kursora); lista rozwijana ucięta w wąskim panelu pokazuje wybraną pozycję w podpowiedzi. Cofnij / Ponów w menu synchronizują się ze stanem aktywności zgłaszanym przez stronę (`sync_menu`).
 
 ### Oś czasu – ruch i klucze w jednym widoku
 
@@ -288,7 +295,7 @@ Bez programu `vizrs` kroki z serwerem są pomijane. Katalogi konfiguracji i stan
 
 ## 12. Magazyn lokalny
 
-Praca bez serwera: okno uruchamia w swoim procesie serwer HTTP na `127.0.0.1:<losowy port>` (`src/http.rs`, `src/local.rs`),
+Praca bez serwera: okno uruchamia w swoim procesie serwer HTTP na `127.0.0.1:<stały port>` (wyliczony z katalogu domowego, 20000–31999, osobny dla pośrednika; zajęty – losowy; stały, bo WebKit trzyma `localStorage` – układ paneli, ustawienia podglądu – osobno dla każdego portu) (`src/http.rs`, `src/local.rs`),
 który podaje stronę z binarki (`web/`) i API na katalogu danych (`src/store.rs`). W trybie pracy na serwerze ten sam serwer działa jako pośrednik (`src/local.rs`: `proxy`), przekazując `/api`, `/assets` i strumień `/events` do serwera zdalnego.
 
 | Adres | Działanie |

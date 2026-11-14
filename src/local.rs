@@ -463,12 +463,39 @@ pub fn start_remote(url: &str, token: Option<String>) -> Result<Local, String> {
     )
 }
 
+/// Stały port strony dla użytkownika: WebKit trzyma `localStorage` (szerokości paneli, ustawienia podglądu kanwy,
+/// zwinięte sekcje) osobno dla każdego pochodzenia – z portem. Przy losowym porcie układ ginął po każdym starcie
+/// (zgłoszenie 2026-11-14). Port wynika z katalogu domowego, osobny dla pracy lokalnej i pośrednika, w zakresie
+/// 20000–31999 (poniżej portów efemerycznych Linuksa); zajęty – port losowy jak dawniej.
+fn preferred_port(key: &str, remote: bool) -> u16 {
+    // FNV-1a – stały między wydaniami (DefaultHasher nie gwarantuje stałości)
+    let h = key.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| {
+        (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
+    });
+    20000 + (h % 6000) as u16 * 2 + u16::from(remote)
+}
+
+/// Klucz użytkownika do `preferred_port` (katalog domowy; bez niego – nazwa użytkownika).
+fn user_key() -> String {
+    ["HOME", "USERPROFILE", "USER", "USERNAME"]
+        .iter()
+        .find_map(|k| std::env::var(k).ok().filter(|v| !v.is_empty()))
+        .unwrap_or_default()
+}
+
+/// Gniazdo na `127.0.0.1:port`; zajęty port (druga instancja na innym katalogu, inny program) – losowy.
+fn bind(port: u16) -> Result<TcpListener, String> {
+    TcpListener::bind(("127.0.0.1", port))
+        .or_else(|_| TcpListener::bind("127.0.0.1:0"))
+        .map_err(|e| format!("serwer strony: {e}"))
+}
+
 fn serve(
     store: Option<Store>,
     remote: Option<Remote>,
     data: Option<&Path>,
 ) -> Result<Local, String> {
-    let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("serwer strony: {e}"))?;
+    let listener = bind(preferred_port(&user_key(), remote.is_some()))?;
     let port = listener
         .local_addr()
         .map_err(|e| format!("serwer strony: {e}"))?
@@ -502,6 +529,30 @@ fn serve(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn staly_port_strony_osobny_dla_posrednika() {
+        let (a, b) = (
+            preferred_port("/home/a", false),
+            preferred_port("/home/a", true),
+        );
+        assert_eq!(
+            a,
+            preferred_port("/home/a", false),
+            "ten sam użytkownik – ten sam port"
+        );
+        assert_eq!(b, a + 1);
+        assert!((20000..32000).contains(&a) && (20000..32000).contains(&b));
+        assert_ne!(a, preferred_port("/home/b", false));
+    }
+
+    #[test]
+    fn zajety_port_strony_daje_losowy() {
+        let busy = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = busy.local_addr().unwrap().port();
+        let l = bind(port).unwrap();
+        assert_ne!(l.local_addr().unwrap().port(), port);
+    }
     use std::io::{BufRead, Read};
     use std::net::TcpStream;
 

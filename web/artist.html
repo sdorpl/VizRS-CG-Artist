@@ -10,7 +10,14 @@
 <link rel="stylesheet" href="/native.css">
 <style>
   body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-  #main { flex: 1; display: grid; grid-template-columns: var(--l, 270px) 4px minmax(240px, 1fr) 4px var(--r, 350px); grid-template-rows: minmax(160px, 1fr) 4px var(--t, 260px); min-height: 0; background: var(--bg-deep); }
+  #main { flex: 1; display: grid; grid-template-columns: var(--lv, var(--l, 270px)) var(--glv, 4px) minmax(240px, 1fr) var(--grv, 4px) var(--rv, var(--r, 350px)); grid-template-rows: minmax(160px, 1fr) var(--gtv, 4px) var(--tv, var(--t, 260px)); min-height: 0; background: var(--bg-deep); }
+  /* panele schowane (Ctrl+1 / 2 / 3, Tab – tylko kanwa): kolumna / wiersz o zerowym rozmiarze, rozmiar z rozdzielacza zostaje */
+  #main.noL { --lv: 0px; --glv: 0px; } #main.noR { --rv: 0px; --grv: 0px; } #main.noT { --tv: 0px; --gtv: 0px; }
+  #main.noL > #treeP, #main.noL > #gL, #main.noR > #propsP, #main.noR > #gR, #main.noT > #timeP, #main.noT > #gT { display: none; }
+  #vPanels.on { color: var(--acc); }
+  /* dalsza treść poniżej: paski przewijania WebKitGTK są nakładane (0 px, widać je dopiero przy ruchu kursora),
+     więc dół panelu wygasa, dopóki jest co przewijać */
+  .scroll.more { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent); }
   #treeP { grid-area: 1 / 1 / 2 / 2; }
   #gL { grid-area: 1 / 2 / 2 / 3; cursor: col-resize; }
   #canvasP { grid-area: 1 / 3 / 2 / 4; }
@@ -382,7 +389,7 @@
         <button id="vBg" class="icon" title="Tło kanwy (tylko podgląd – nie trafia do sceny)">▦</button>
         <span id="vZoom" title="Powiększenie podglądu">100%</span>
         <button id="vOut" class="icon" title="Pomniejsz podgląd">−</button><button id="vIn" class="icon" title="Powiększ podgląd">＋</button>
-        <button id="vFit" class="icon" title="Dopasuj całą scenę (Shift+1)">⤢</button><button id="v100" class="icon" title="Skala 100% (Shift+2)">1:1</button><button id="vSel" class="icon" title="Kadr na zaznaczony element (Shift+3)">⌖</button></div>
+        <button id="vFit" class="icon" title="Dopasuj całą scenę (Shift+1)">⤢</button><button id="v100" class="icon" title="Skala 100% – piksel sceny = piksel ekranu (Shift+2)">1:1</button><button id="vSel" class="icon" title="Kadr na zaznaczony element (Shift+3)">⌖</button><button id="vPanels" class="icon" title="Tylko kanwa – schowaj / pokaż panele (Tab; pojedynczo: Ctrl+1 drzewo, Ctrl+2 właściwości, Ctrl+3 oś czasu)">▣</button></div>
     </div>
   </section>
 
@@ -1994,22 +2001,31 @@ $('#tFit').onclick = () => treeOp('fit');
 // ------------------------------------------------------------ podgląd / płótno
 // zoom podglądu (jak w Trio): k – krotność względem dopasowania, x/y – przesunięcie w px pudełka
 let view = { k: 1, x: 0, y: 0 }, fit = { base: 1, ox: 0, oy: 0 };
+// wymiar sceny z zabezpieczeniem: scena bez width/height (stary zapis, scena z serwera) nie może dać NaN w transformacji
+const sceneW = () => +scene?.width || 1920, sceneH = () => +scene?.height || 1080;
+// pikseli ekranu na piksel CSS: okno podaje skalę ekranu i powiększenie interfejsu (__vizrsShell.px / zoom);
+// devicePixelRatio przy skali ułamkowej kłamie (2 zamiast 1.25 na Waylandzie, 1 przez XWayland). Bez okna – 1.
+const screenPx = () => { const sh = window.__vizrsShell; return sh?.px > 0 ? sh.px * (sh.zoom > 0 ? sh.zoom : 1) : 1; };
+// skala w procentach pikseli ekranu: 100% = piksel sceny na piksel ekranu
+const pct = () => Math.round(scale * screenPx() * 100) + '%';
+const infoText = (x, y) => `${x}, ${y}   ·   ${scene ? `${sceneW()}×${sceneH()}` : '–'}   ·   ${pct()}`;
 function applyView() {
-  const b = box.getBoundingClientRect(), w = scene.width * scale, h = scene.height * scale, M = 40;
+  const b = box.getBoundingClientRect(), w = sceneW() * scale, h = sceneH() * scale, M = 40;
   // scena nie może całkiem uciec z pola widzenia
   view.x = Math.min(b.width - M - fit.ox, Math.max(M - w - fit.ox, view.x));
   view.y = Math.min(b.height - M - fit.oy, Math.max(M - h - fit.oy, view.y));
   stage.style.transform = `translate(${fit.ox + view.x}px, ${fit.oy + view.y}px) scale(${scale})`;
-  $('#vZoom').textContent = Math.round(scale * 100) + '%';
-  $('#info').textContent = $('#info').textContent.replace(/\d+%$/, Math.round(scale * 100) + '%');
+  $('#vZoom').textContent = pct();
+  $('#info').textContent = $('#info').textContent.replace(/\d+%$/, pct());
   placeGuides(); updateSel();
 }
 function resize() {
   if (!scene) return;
-  const b = box.getBoundingClientRect(), old = fit.base, base = fitStage(stage, box, scene.width, scene.height);
+  const b = box.getBoundingClientRect(), old = fit.base, base = fitStage(stage, box, sceneW(), sceneH());
+  if (!(base > 0)) return; // pudełko kanwy bez wymiaru (panel schowany, okno w trakcie zmiany)
   // zmiana panelu: ten sam punkt sceny zostaje na środku
-  if (old > 0 && base > 0) { view.x *= base / old; view.y *= base / old; }
-  fit = { base, ox: (b.width - scene.width * base) / 2, oy: (b.height - scene.height * base) / 2 };
+  if (old > 0) { view.x *= base / old; view.y *= base / old; }
+  fit = { base, ox: (b.width - sceneW() * base) / 2, oy: (b.height - sceneH() * base) / 2 };
   scale = base * view.k;
   applyView();
 }
@@ -2029,7 +2045,8 @@ function zoomOn(cx, cy, s) {
   scale = s; applyView();
 }
 const boxMid = () => { const b = box.getBoundingClientRect(); return [b.width / 2, b.height / 2]; };
-const zoom100 = () => zoomOn(scene.width / 2, scene.height / 2, 1);
+const zoom100 = () => zoomOn(sceneW() / 2, sceneH() / 2, 1 / screenPx());
+addEventListener('vizrs-zoom', () => { if (scene) applyView(); }); // powiększenie interfejsu zmienia procent kanwy
 function zoomSel() {
   const el = selId && stage.querySelector(`[data-id="${CSS.escape(selId)}"]`);
   const r = el && el.style.display !== 'none' ? el.getBoundingClientRect() : null;
@@ -3178,7 +3195,7 @@ let descT = 0;
 box.addEventListener('mousemove', (e) => {
   const r = stage.getBoundingClientRect();
   const x = Math.round((e.clientX - r.left) / scale), y = Math.round((e.clientY - r.top) / scale);
-  $('#info').textContent = `${x}, ${y}   ·   ${scene?.width}×${scene?.height}   ·   ${Math.round(scale * 100)}%`;
+  $('#info').textContent = infoText(x, y);
 });
 
 // ------------------------------------------------------------ timeline
@@ -3721,6 +3738,8 @@ addEventListener('keydown', (e) => {
   }
   if (e.key.toLowerCase() === 'm' && !mod) { e.preventDefault(); addMarker(t); return; }
   if (e.shiftKey && !mod && e.code === 'Digit1') { e.preventDefault(); resetView(); return; }
+  if (mod && !e.shiftKey && !e.altKey && ['Digit1', 'Digit2', 'Digit3'].includes(e.code)) { e.preventDefault(); togglePanel('lrt'[+e.code.slice(5) - 1]); return; }
+  if (e.key === 'Tab' && !mod && !e.altKey && !e.shiftKey) { e.preventDefault(); canvasOnly(); return; }
   if (e.shiftKey && !mod && !e.altKey && e.code === 'KeyR') { e.preventDefault(); toggleRefs(); return; }
   if (e.shiftKey && !mod && e.code === 'Digit2') { e.preventDefault(); zoom100(); return; }
   if (e.shiftKey && !mod && e.code === 'Digit3') { e.preventDefault(); zoomSel(); return; }
@@ -3771,13 +3790,33 @@ const loaded = load().catch((e) => toast('Błąd: ' + e.message, true));
 const HINT0 = 'Ctrl+S zapisz · Ctrl+Z / Ctrl+Y cofnij / ponów · najedź na panel, aby zobaczyć jego skróty';
 $('#hint').textContent = HINT0;
 document.addEventListener('mouseover', (e) => { const h = e.target.closest?.('[data-hint]')?.dataset.hint || HINT0; if ($('#hint').textContent !== h) $('#hint').textContent = h; });
+// wygaszenie dołu przewijanych paneli (.scroll.more), dopóki niżej jest treść
+{
+  const more = (el) => el.classList.toggle('more', el.scrollHeight - el.clientHeight - el.scrollTop > 4);
+  const ro = new ResizeObserver((es) => es.forEach((e) => more(e.target)));
+  for (const el of $$('.scroll')) {
+    el.addEventListener('scroll', () => more(el), { passive: true });
+    ro.observe(el);
+    new MutationObserver(() => more(el)).observe(el, { childList: true, subtree: true });
+  }
+}
+// lista rozwijana ucięta w wąskim panelu („TickerWipe · l…”): podpowiedź pokazuje też wybraną pozycję w całości
+document.addEventListener('mouseover', (e) => {
+  const sl = e.target.closest?.('select'); if (!sl) return;
+  sl.dataset.tip ??= sl.title || '';
+  const v = sl.selectedOptions[0]?.textContent || '', tip = sl.dataset.tip;
+  sl.title = tip && v ? `${tip}: ${v}` : tip || v;
+});
 
 // ------------------------------------------------------------ rozdzielacze paneli (rozmiary zapamiętane w przeglądarce/oknie)
 const LAY = { l: [270, 170, 560], r: [350, 260, 680], t: [260, 120, 640] }; // domyślnie, min, max
+// mały ekran (np. 1920×1080 przy 125 % = 1536 px CSS): węższe panele domyślne, więcej miejsca na kanwę
+const COMPACT = { l: 260, r: 300, t: 210 }; // l: pasek narzędzi drzewa ma 256 px
+const defLay = (k) => (innerWidth < 1700 ? COMPACT[k] : LAY[k][0]);
 const lay = (() => { try { return JSON.parse(localStorage.getItem('vizrs.artistLayout')) || {}; } catch { return {}; } })();
 const setLay = (k, v) => { const [, lo, hi] = LAY[k]; lay[k] = Math.round(Math.max(lo, Math.min(hi, v))); $('#main').style.setProperty('--' + k, lay[k] + 'px'); };
 const saveLay = () => { try { localStorage.setItem('vizrs.artistLayout', JSON.stringify(lay)); } catch { /* brak localStorage */ } renderTimeline(); };
-for (const k of Object.keys(LAY)) setLay(k, +lay[k] || LAY[k][0]);
+for (const k of Object.keys(LAY)) setLay(k, +lay[k] || defLay(k));
 for (const g of document.querySelectorAll('.gutter')) {
   const k = g.dataset.k;
   g.addEventListener('pointerdown', (e) => {
@@ -3788,8 +3827,28 @@ for (const g of document.querySelectorAll('.gutter')) {
     const up = () => { g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); g.classList.remove('drag'); saveLay(); };
     g.addEventListener('pointermove', move); g.addEventListener('pointerup', up);
   });
-  g.addEventListener('dblclick', () => { setLay(k, LAY[k][0]); saveLay(); });
+  g.addEventListener('dblclick', () => { setLay(k, defLay(k)); saveLay(); });
 }
+// panele schowane: Ctrl+1 drzewo, Ctrl+2 właściwości, Ctrl+3 oś czasu, Tab – tylko kanwa (drugi raz – wszystko jak było)
+const PANELS = { l: 'noL', r: 'noR', t: 'noT' };
+const hid = (() => { try { return { l: false, r: false, t: false, ...JSON.parse(localStorage.getItem('vizrs.artistPanels')) }; } catch { return { l: false, r: false, t: false }; } })();
+let hidBefore = null; // stan przed „tylko kanwa”
+function applyPanels() {
+  for (const [k, c] of Object.entries(PANELS)) $('#main').classList.toggle(c, !!hid[k]);
+  $('#vPanels').classList.toggle('on', hid.l && hid.r && hid.t);
+  // „tylko kanwa” nie przechodzi na następny start (okno bez paneli zaskakuje) – zapisany jest stan sprzed niej
+  const keep = hidBefore || hid;
+  try { localStorage.setItem('vizrs.artistPanels', JSON.stringify({ l: keep.l, r: keep.r, t: keep.t })); } catch { /* brak localStorage */ }
+  if (!hid.t) requestAnimationFrame(renderTimeline);
+}
+function togglePanel(k) { hid[k] = !hid[k]; hidBefore = null; applyPanels(); }
+function canvasOnly() {
+  if (hid.l && hid.r && hid.t) Object.assign(hid, hidBefore || { l: false, r: false, t: false }), hidBefore = null;
+  else { hidBefore = { l: hid.l, r: hid.r, t: hid.t }; Object.assign(hid, { l: true, r: true, t: true }); }
+  applyPanels();
+}
+$('#vPanels').onclick = canvasOnly;
+applyPanels();
 
 // ------------------------------------------------------------ okno natywne: stan dla powłoki, komendy menu, kopia robocza
 const click = (id) => () => $(id).click();
@@ -3802,6 +3861,7 @@ const native = nativeBridge({
     new: click('#bNew'), save: () => save(), export: click('#bExp'), pack: click('#bPack'), deploy: () => deployDialog(),
     undo: doUndo, redo: doRedo, dup: () => treeOp('dup'), del: () => (lastArea === 'timeline' && selKey ? deleteSelKey() : treeOp('del')),
     fit: resetView, z100: zoom100, zsel: zoomSel, marker: () => addMarker(t),
+    panelL: () => togglePanel('l'), panelR: () => togglePanel('r'), panelT: () => togglePanel('t'), canvasOnly,
     play: () => { if (player.playing) player.playing = false; else $('#pPlay').click(); },
     file: async (f) => { await loaded; openFile(f); },
     // kopia robocza po awarii: propozycja przy otwarciu sceny
