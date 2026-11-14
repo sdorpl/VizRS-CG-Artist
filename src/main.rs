@@ -154,6 +154,8 @@ struct App {
     /// pośrednik do serwera (osobny przy każdym przełączeniu)
     proxy: Option<local::Local>,
     probe: Option<(String, PathBuf)>,
+    /// nieudane łączenie przy starcie (--connect, „przy uruchomieniu”): adres i komunikat dla okna połączenia
+    start_error: Option<(String, String)>,
     wins: HashMap<String, Win>,
     focused: Option<String>,
     next: u32,
@@ -608,13 +610,21 @@ fn open_connect(app: &AppHandle) {
         return;
     }
     let data = {
-        let a = state(app);
+        let mut a = state(app);
         let (current, token, local): (String, Option<String>, Option<&str>) = match &a.mode {
             Mode::Remote { url, token } => (url.clone(), token.clone(), None),
             Mode::Local => ("lokalnie".into(), None, Some("lokalnie")),
             Mode::None => (String::new(), None, None),
         };
-        connect::page_data(&connect::Saved::load(), &current, token.as_deref(), local)
+        let mut d = connect::page_data(&connect::Saved::load(), &current, token.as_deref(), local);
+        // nieudane łączenie przy starcie: adres i powód od razu w oknie (zamiast pustego edytora)
+        if let Some((url, msg)) = a.start_error.take() {
+            d.push_str(&format!(
+                "\nwindow.__vizrsConnStart = {};",
+                serde_json::json!({ "url": url, "error": msg })
+            ));
+        }
+        d
     };
     // okno dialogowe: stały rozmiar, bez maksymalizacji, nad oknem Artist (jeśli jest), bez paska menu programu
     let parent = state(app)
@@ -910,9 +920,9 @@ fn on_conn(app: &AppHandle, body: &str) {
             Err(e) => conn_error(app, &e),
         },
         connect::Msg::Connect(mut req) => {
-            // puste pole tokenu = token zapamiętany dla tego serwera
+            // puste pole tokenu = token zapamiętany dla tego serwera (albo dla tego samego hosta pod innym adresem)
             if req.token.is_none() {
-                req.token = connect::Saved::load().token_for(&req.url);
+                req.token = connect::Saved::load().token_for_or_host(&req.url);
             }
             let app = app.clone();
             std::thread::spawn(move || {
@@ -1479,6 +1489,7 @@ fn main() {
         store: None,
         proxy: None,
         probe,
+        start_error: None,
         wins: HashMap::new(),
         focused: None,
         next: 0,
@@ -1512,16 +1523,31 @@ fn main() {
             let menu = build_menu(&h)?;
             app.set_menu(menu)?;
             app.on_menu_event(|app, ev| on_menu(app, ev.id().as_ref()));
-            // serwer: zdalny (--connect albo zapisany „przy uruchomieniu”), inaczej praca lokalna
+            // serwer: zdalny (--connect albo zapisany „przy uruchomieniu”), inaczej praca lokalna; zdalny najpierw
+            // sprawdzony jak w oknie połączenia – zły token albo brak serwera = okno połączenia z powodem, nie pusty edytor
+            let mut first_kind = first_kind;
+            let mut remote = |url: String, tok: Option<String>, note: &str| match check_server(
+                &url,
+                tok.as_deref(),
+            ) {
+                Ok(()) => start_remote(&h, url, tok, note.into()),
+                Err(e) => {
+                    eprintln!("{url}: {e}");
+                    state(&h).start_error = Some((url, e));
+                    first_kind = Kind::Connect;
+                    Ok(())
+                }
+            };
             let started = if let Some(c) = connect_url {
-                start_remote(&h, c, token, "serwer zdalny (--connect)".into())
+                // bez --token: token zapisany dla tego adresu (albo hosta) – jak w oknie połączenia
+                let t = token.or_else(|| connect::Saved::load().token_for_or_host(&c));
+                remote(c, t, "serwer zdalny (--connect)")
             } else if let Some(a) = auto {
-                let t = connect::Saved::load().token_for(&a);
-                start_remote(
-                    &h,
+                let t = connect::Saved::load().token_for_or_host(&a);
+                remote(
                     a,
                     t,
-                    "serwer zdalny (łączenie przy uruchomieniu; praca lokalna: --local)".into(),
+                    "serwer zdalny (łączenie przy uruchomieniu; praca lokalna: --local)",
                 )
             } else if first_kind == Kind::Connect {
                 Ok(())
@@ -1645,6 +1671,7 @@ mod tests {
             store: None,
             proxy: None,
             probe: None,
+            start_error: None,
             wins: HashMap::new(),
             focused: None,
             next: 0,

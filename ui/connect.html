@@ -70,6 +70,9 @@ const $ = (id) => document.getElementById(id);
 const send = (m) => (window.__vizrsPost || window.ipc.postMessage)(JSON.stringify(m));
 $('now').textContent = 'Teraz: ' + (!C.current ? 'nie połączono' : C.remote ? C.current : 'praca lokalna');
 if (C.remote) { $('url').value = C.current; $('token').value = C.token || ''; $('auto').checked = C.auto === C.current; }
+// nieudane łączenie przy starcie (--connect, „przy uruchomieniu”): adres i powód
+const S = window.__vizrsConnStart;
+if (S && S.url) { $('url').value = S.url; $('err').textContent = S.error || ''; }
 function fill(s) {
   $('url').value = s.url; $('token').value = ''; $('keep').checked = s.hasToken;
   $('token').placeholder = s.hasToken ? 'zapamiętany – zostaw puste' : '';

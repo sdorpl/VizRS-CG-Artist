@@ -191,6 +191,8 @@ nagłówek pokazuje „Teraz: nie połączono”, a prośba kolejnego uruchomien
 
 Przycisk **Praca lokalna (bez serwera)** wraca do magazynu lokalnego (albo do `vizrs` pracującego na katalogu danych).
 
+**Token i sprawdzenie serwera:** puste pole tokenu (i `--connect` bez `--token`, i łączenie przy uruchomieniu) = token zapisany dla tego adresu, a gdy go nie ma – token zapisany dla **tego samego hosta** pod innym adresem (np. `https://cg.pl` przez proxy i `http://cg.pl:8788` wprost). Przed przełączeniem okno pyta serwer `GET /api/state` z tokenem (brak serwera, „Serwer wymaga tokenu.”, „Serwer odrzucił token.”, token tylko do wyjścia OBS). To samo przy starcie z `--connect` albo z zapisanym łączeniem przy uruchomieniu: gdy się nie uda, otwiera się okno połączenia z wpisanym adresem i powodem (dawniej – pusty edytor z błędem „wymagany token” na pasku).
+
 ## 9. Most strona → okno
 
 Strona wysyła komunikaty przez `window.__vizrsPost(tekst)`. W Tauri obiekt `window.ipc` należy do wry/Tauri i jest niezapisywalny, więc okno wstrzykuje `IPC_SHIM`:

@@ -135,6 +135,31 @@ impl Saved {
             .find(|(u, _)| u == url)
             .and_then(|(_, t)| t.clone())
     }
+
+    /// Token dla adresu, a gdy go nie zapisano – token zapisany dla tego samego hosta pod innym adresem
+    /// (np. `https://cg.pl` przez proxy i `http://cg.pl:8788` wprost to ten sam serwer).
+    pub fn token_for_or_host(&self, url: &str) -> Option<String> {
+        self.token_for(url).or_else(|| {
+            let h = host_of(url)?;
+            self.servers
+                .iter()
+                .find(|(u, t)| t.is_some() && host_of(u).as_deref() == Some(h.as_str()))
+                .and_then(|(_, t)| t.clone())
+        })
+    }
+}
+
+/// Sama nazwa hosta z adresu `http(s)://host[:port][/…]` (małe litery).
+fn host_of(url: &str) -> Option<String> {
+    let rest = url.split_once("://")?.1;
+    let hp = rest.split(['/', '?', '#']).next()?;
+    let host = hp.rsplit_once('@').map_or(hp, |(_, h)| h);
+    let host = if host.starts_with('[') {
+        host.split(']').next().map(|x| &x[1..]).unwrap_or(host)
+    } else {
+        host.split(':').next().unwrap_or(host)
+    };
+    (!host.is_empty()).then(|| host.to_ascii_lowercase())
 }
 
 /// Adres serwera: `http(s)://host[:port][/ścieżka]`, bez końcowego `/`. Sam host → `https://`.
@@ -343,5 +368,30 @@ mod tests {
         }
         assert!(page.contains("window.__vizrsPost"));
         assert!(page.contains("window.__vizrsConn"));
+    }
+
+    #[test]
+    fn token_tego_samego_hosta_gdy_adres_bez_tokenu() {
+        let s = Saved {
+            servers: vec![
+                ("https://s2.example.pl".into(), None),
+                ("http://s2.example.pl:8788".into(), Some("tok2".into())),
+                ("http://s1.example.pl:8788".into(), Some("tok1".into())),
+            ],
+            auto: None,
+        };
+        assert_eq!(
+            s.token_for_or_host("https://s2.example.pl").as_deref(),
+            Some("tok2")
+        );
+        assert_eq!(
+            s.token_for_or_host("http://s1.example.pl:8788").as_deref(),
+            Some("tok1")
+        );
+        assert_eq!(s.token_for_or_host("https://s3.example.pl"), None);
+        assert_eq!(
+            host_of("https://User@S2.Example.pl:443/a?b").as_deref(),
+            Some("s2.example.pl")
+        );
     }
 }

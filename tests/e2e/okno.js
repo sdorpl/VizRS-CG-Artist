@@ -566,6 +566,18 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
         ok(saved.servers?.[0]?.url === `http://127.0.0.1:${RPORT}` && saved.servers?.[0]?.token === TOKEN, 'serwer i token na liście zapisanych', saved);
         if (fs.existsSync(file)) ok((fs.statSync(file).mode & 0o077) === 0, 'lista zapisanych tylko dla właściciela');
         ok(!fs.existsSync(path.join(tmp, 'local', 'show.json')), 'połączenie zdalne nie zakłada magazynu lokalnego');
+        // 5b. --connect ze złym tokenem: okno połączenia z adresem i powodem (dawniej pusty edytor z błędem „wymagany token”);
+        //     --connect bez --token bierze token zapisany dla tego adresu (krok 4)
+        const BADP = write('badtok.js', `(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const $ = (i) => document.getElementById(i);
+  if (document.title === 'Połącz z serwerem') { (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify({ window: 'connect', url: $('url').value, err: $('err').textContent })); return; }
+  for (let i = 0; i < 80 && !document.querySelectorAll('#sceneSel option').length; i++) await sleep(100);
+  (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify({ window: 'artist', scenes: document.querySelectorAll('#sceneSel option').length }));
+})();`);
+        const bad = run(['--connect', `http://127.0.0.1:${RPORT}`, '--token', 'zly-token-12345678'], BADP, 'badtok');
+        ok(bad.window === 'connect' && bad.url === `http://127.0.0.1:${RPORT}` && /odrzucił token/.test(bad.err || ''), '--connect ze złym tokenem otwiera okno połączenia z adresem i powodem, nie pusty edytor', bad);
+        const savedTok = run(['--connect', `http://127.0.0.1:${RPORT}`], BADP, 'savedtok');
+        ok(savedTok.window === 'artist' && savedTok.scenes > 0, '--connect bez --token używa tokenu zapisanego dla serwera', savedTok);
 
         // 6. wysyłka z pracy lokalnej na serwer (zapisany z tokenem w kroku 4): nowa → bez zmian → konflikt → nadpisz
         const SRV = `http://127.0.0.1:${RPORT}`, ddata = path.join(tmp, 'deploy');
