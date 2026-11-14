@@ -15,6 +15,7 @@ mod gpu;
 mod http;
 mod local;
 mod paths;
+mod screen;
 mod server;
 mod store;
 mod web;
@@ -525,6 +526,7 @@ fn open_artist(app: &AppHandle, pending: Option<PathBuf>) {
         Err(_) => return error(app, "zły adres strony"),
     };
     let (w, h) = st.size.unwrap_or((1600.0, 900.0));
+    let (w, h) = screen::fit_to_screen(app, w, h); // skalowanie ułamkowe: okno nie większe niż ekran
     let app_dl = app.clone();
     let built = native_look(WebviewWindowBuilder::new(
         app,
