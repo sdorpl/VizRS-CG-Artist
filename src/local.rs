@@ -26,10 +26,13 @@ pub struct Local {
     pub secret: String,
     lock: Option<PathBuf>,
     instance: String,
+    /// zatrzymuje serwer strony – przy przełączeniu trybu stary pośrednik nie nasłuchuje dalej
+    stop: crate::http::Stop,
 }
 
 impl Drop for Local {
     fn drop(&mut self) {
+        self.stop.stop();
         if let Some(p) = &self.lock {
             let ours = std::fs::read_to_string(p)
                 .ok()
@@ -517,12 +520,13 @@ fn serve(
         hosts: [addr.clone(), format!("localhost:{port}")],
         origin: base.clone(),
     });
-    crate::http::serve(listener, Arc::new(move |req| handle(&st, req)));
+    let stop = crate::http::serve(listener, Arc::new(move |req| handle(&st, req)));
     Ok(Local {
         base,
         secret,
         lock,
         instance,
+        stop,
     })
 }
 
@@ -544,6 +548,26 @@ mod tests {
         assert_eq!(b, a + 1);
         assert!((20000..32000).contains(&a) && (20000..32000).contains(&b));
         assert_ne!(a, preferred_port("/home/b", false));
+    }
+
+    #[test]
+    fn posrednik_po_zamknieciu_nie_nasluchuje() {
+        let l = start_remote("http://127.0.0.1:9", None).unwrap();
+        let addr = l.base.trim_start_matches("http://").to_string();
+        assert!(std::net::TcpStream::connect(&addr).is_ok());
+        drop(l);
+        let mut closed = false;
+        for _ in 0..50 {
+            if std::net::TcpStream::connect(&addr).is_err() {
+                closed = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert!(
+            closed,
+            "port {addr} dalej nasłuchuje po zamknięciu pośrednika"
+        );
     }
 
     #[test]

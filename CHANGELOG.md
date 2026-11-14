@@ -2,6 +2,11 @@
 
 ## Niewydane
 
+- **Poprawka: puste, „rozjechane” okno na Linuksie z kartą NVIDIA** (zgłoszenie: KDE Plasma 125 %, Quadro P400, sterownik 580; od 26.11.5): rasteryzacja Skia na GPU wywracała proces strony WebKitGTK (`libnvidia-eglcore`) – po kilku sekundach albo przy zmianie rozmiaru okna treść znikała lub zostawała w starym rozmiarze. Przy NVIDIA warstwy rysuje teraz Skia na CPU, składa je dalej GPU (`WEBKIT_SKIA_ENABLE_CPU_RENDERING=1`; animacja bez zmian, 61–62 kl./s). Gdy proces strony mimo to padnie, okno samo wczytuje stronę od nowa zamiast zostawać puste. DOKUMENTACJA §3.
+- **Poprawka: połączenie z serwerem zdalnym bez skutku** – przełączenie okna na serwer szło skryptem w stronie i ginęło, gdy proces strony właśnie padł albo się wczytywał: tytuł pokazywał serwer, a w oknie zostawała praca lokalna („Nowa scena”). Okno przełącza się teraz samo (nawigacja okna), tytuł zmienia się dopiero po udanym przełączeniu.
+- **Poprawka: pośrednik nasłuchiwał dalej po rozłączeniu** – po przełączeniu na inny serwer albo na pracę lokalną poprzedni pośrednik zostawał na swoim porcie `127.0.0.1` (z tokenem starego serwera) aż do zamknięcia programu. Teraz zamyka gniazdo od razu. DOKUMENTACJA §8.
+- Ten sam moduł `gpu.rs` i odzyskiwanie po awarii procesu strony – w oknie Trio (VizRS CG System 26.11.7) i aplikacji VizRS Live 26.11.10.
+
 ## 26.11.7 – 2026-11-14
 
 - **Poprawka: skalowanie ułamkowe na Linuksie** (zgłoszenie: 1920×1080, KDE Plasma Wayland 125 %, NVIDIA): WebKitGTK rysował stronę ×2 i kompozytor ją zmniejszał – nierówne cienkie linie, 2,56× więcej pikseli. W KDE przy niecałkowitej skali okno otwiera się teraz przez XWayland: ostre piksele, ta sama wielkość interfejsu, animacja 18 zamiast 5 kl./s (pomiar). `VIZRS_GPU=wayland` – jak dawniej. DOKUMENTACJA §3.

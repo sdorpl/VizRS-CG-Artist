@@ -262,12 +262,46 @@ fn respond(mut s: TcpStream, res: Response) {
     }
 }
 
-/// Obsługa połączeń w wątkach; `handler` dostaje żądanie, zwraca odpowiedź.
-pub fn serve(listener: TcpListener, handler: Arc<dyn Fn(Request) -> Response + Send + Sync>) {
+/// Zatrzymanie serwera z `serve`: gniazdo przestaje nasłuchiwać, nowe połączenia dostają odmowę systemu.
+/// Połączenia w toku kończą się same (strumień `/events` – przy następnym zapisie do zamkniętej strony).
+pub struct Stop {
+    flag: Arc<std::sync::atomic::AtomicBool>,
+    addr: Option<std::net::SocketAddr>,
+}
+
+impl Stop {
+    pub fn stop(&self) {
+        if self.flag.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            return;
+        }
+        // obudź `accept` – pętla sprawdzi flagę i zwolni gniazdo
+        if let Some(a) = self.addr {
+            let _ = std::net::TcpStream::connect_timeout(&a, Duration::from_secs(1));
+        }
+    }
+}
+
+impl Drop for Stop {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+/// Obsługa połączeń w wątkach; `handler` dostaje żądanie, zwraca odpowiedź. Serwer działa, dopóki żyje zwrócony `Stop`.
+pub fn serve(
+    listener: TcpListener,
+    handler: Arc<dyn Fn(Request) -> Response + Send + Sync>,
+) -> Stop {
     let active = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let addr = listener.local_addr().ok();
+    let stopped = flag.clone();
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
             use std::sync::atomic::Ordering::SeqCst;
+            if stopped.load(SeqCst) {
+                break; // gniazdo zamyka się razem z `listener`
+            }
             if active.load(SeqCst) >= MAX_CONNS {
                 continue; // zamknięcie bez odpowiedzi – strona ponowi
             }
@@ -291,6 +325,7 @@ pub fn serve(listener: TcpListener, handler: Arc<dyn Fn(Request) -> Response + S
             });
         }
     });
+    Stop { flag, addr }
 }
 
 #[cfg(test)]

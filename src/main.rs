@@ -443,6 +443,7 @@ fn start_local(app: &AppHandle) -> Result<(), String> {
         state(app).store = Some(l);
     }
     let mut a = state(app);
+    a.proxy = None; // pośrednik do poprzedniego serwera przestaje nasłuchiwać
     a.mode = Mode::Local;
     a.note = LOCAL_NOTE.into();
     Ok(())
@@ -584,6 +585,7 @@ fn open_artist(app: &AppHandle, pending: Option<PathBuf>) {
                 }
             }
             spell_pl(&w);
+            reload_after_crash(app, &w);
             // Linux: nowe okno tao ustawia wariant GTK z ustawień systemu (portal) – przywróć ciemny
             app.set_theme(Some(Theme::Dark));
             // strona nie wczytała się szybko (wolny dysk, błąd) – okno i tak się pokazuje
@@ -613,6 +615,40 @@ fn spell_pl(w: &WebviewWindow) {
     });
     #[cfg(not(target_os = "linux"))]
     let _ = w;
+}
+
+/// Linux: proces strony WebKitGTK padł (sterownik GPU, brak pamięci) – WebKitGTK zostawia wtedy puste okno.
+/// Strona wczytuje się od nowa z adresu startowego bieżącego trybu (z sekretem: strona usuwa go z adresu, a ciasteczka
+/// `SameSite=Strict` WebKit nie wysyła przy wczytaniu po awarii – samo `reload()` kończyło się 401). Kopia robocza wraca
+/// jak po zamknięciu. Najwyżej 3 razy na minutę – przy awarii za każdym wczytaniem okno zostaje puste zamiast mielić w kółko.
+fn reload_after_crash(app: &AppHandle, w: &WebviewWindow) {
+    #[cfg(target_os = "linux")]
+    {
+        let app = app.clone();
+        let _ = w.with_webview(move |pv| {
+            use webkit2gtk::WebViewExt;
+            let recent = std::cell::RefCell::new(Vec::<Instant>::new());
+            pv.inner().connect_web_process_terminated(move |v, reason| {
+                let mut r = recent.borrow_mut();
+                r.retain(|t| t.elapsed() < Duration::from_secs(60));
+                let url = (r.len() < 3).then(|| state(&app).start_url()).flatten();
+                eprintln!(
+                    "proces strony zakończył się ({reason:?}){}",
+                    if url.is_some() {
+                        " – wczytuję stronę ponownie"
+                    } else {
+                        " – okno zostaje puste"
+                    }
+                );
+                if let Some(u) = url {
+                    r.push(Instant::now());
+                    v.load_uri(&u);
+                }
+            });
+        });
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = (app, w);
 }
 
 fn page_loaded(app: &AppHandle, label: &str) {
@@ -726,11 +762,19 @@ fn switch(app: &AppHandle) {
     if labels.is_empty() {
         return open_artist(app, None);
     }
-    let Some(url) = url else { return };
+    let Some(url) = url.and_then(|u| u.parse::<tauri::Url>().ok()) else {
+        return;
+    };
     for l in labels {
         if let Some(w) = app.get_webview_window(&l) {
-            let _ = w.set_title(&title);
-            let _ = w.eval(format!("location.replace({})", Value::from(url.clone())));
+            // nawigacja przez okno, nie skrypt strony: `eval` ginie, gdy proces strony właśnie padł albo
+            // wczytuje się od nowa – zostawał tytuł nowego serwera nad stroną starego (zgłoszenie 2026-11-14)
+            match w.navigate(url.clone()) {
+                Ok(()) => {
+                    let _ = w.set_title(&title);
+                }
+                Err(e) => eprintln!("przełączenie okna {l}: {e}"),
+            }
         }
     }
 }
