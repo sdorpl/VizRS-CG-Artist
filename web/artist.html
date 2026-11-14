@@ -444,6 +444,7 @@
 
 <script type="module">
 import * as PACK from '/cgpack.js';
+import { planDialog } from '/pack-ui.js';
 import * as MO from '/motion.js';
 import { PROPS, TYPES, FONTS, OFFLINE_FONTS, EASES, ScenePlayer, propAt, cornerRadii, layerZ, trackValue, walk, listFields, variantFields, uid, fitStage, parseColor, connectEvents } from '/renderer.js';
 import { mountTickerEditor } from '/ticker-items.js';
@@ -3603,14 +3604,9 @@ $('#bImp').onclick = () => {
 };
 async function importFile(f) {
   try {
-    if (/\.cgpack$/i.test(f.name)) {
-      const u8 = new Uint8Array(await f.arrayBuffer());
-      const kind = await PACK.packKind(u8);
-      if (!kind) throw new Error('to nie jest paczka .cgpack');
-      return importPack(await PACK.readPack(u8));
-    }
+    if (/\.cgpack$/i.test(f.name)) return await importPack(await PACK.readPack(new Uint8Array(await f.arrayBuffer())), f.name);
     const text = await f.text();
-    return importPack(PACK.legacyScenePack(text)); // dawny eksport sceny (.vizrs.json) – tylko odczyt
+    return await importPack(PACK.legacyScenePack(text), f.name); // dawny eksport sceny (.vizrs.json) – tylko odczyt
   } catch (e) { toast('Import: ' + e.message, true); }
 }
 // plik z menedżera plików albo ze skojarzenia: paczka i scena – import, obraz/wideo – nowy element, czcionka – do zasobów
@@ -3676,14 +3672,23 @@ $('#bPack').onclick = async () => {
     } catch (err) { toast('Paczka: ' + err.message, true); e.target.disabled = false; }
   });
 };
-async function importPack(pk) {
+// import paczki: najpierw plan (cgpack.planImport) – scena w innej wersji albo o zajętej nazwie czeka na decyzję
+// (zaktualizuj / kopia „… (2)” / pomiń), potem zapis wg planu; strony tylko w pracy na serwerze (lokalnie importuje je Trio)
+async function importPack(pk, fileName = '') {
   if (!(await confirmLeave())) return;
   await loadAssets();
   const withPages = TRIO;
-  const r = await PACK.importPack(pk, { api, existing: assets.map((a) => a.name), fetchAsset: fetchAssetBytes, upload: uploadBytes, sceneNames: scenes.map((s) => s.name), withPages });
-  scenes.push(...r.scenes);
+  const show = await api('GET', '/api/show');
+  const existing = assets.map((a) => a.name);
+  const plan = await PACK.planImport(pk, { show, existing, fetchAsset: fetchAssetBytes, withPages });
+  const ok = await planDialog(plan, { title: `Import paczki${fileName ? ` „${fileName}”` : ''}` });
+  if (!ok) return;
+  const r = await PACK.importPack(pk, { api, existing, fetchAsset: fetchAssetBytes, upload: uploadBytes, show, withPages, plan, fixRefs: ok.fixRefs });
+  scenes = (await api('GET', '/api/show')).scenes; // zaktualizowane sceny podmienione w miejscu, nowe dopisane
   await loadAssets();
-  if (r.scenes.length) openScene(r.scenes[r.scenes.length - 1]);
+  const last = r.scenes.at(-1) || r.updated.at(-1);
+  const pick = last && scenes.find((s) => s.id === last.id);
+  if (pick) openScene(pick); else if (scene) openScene(scenes.find((s) => s.id === scene.id) || scenes[0]);
   showReport(PACK.importSummary(r, withPages), r.report);
 }
 
@@ -3883,7 +3888,9 @@ const DEPLOY_STATUS = {
   same: ['bez zmian na serwerze od ostatniej wysyłki', ''],
   changed: ['zmieniona na serwerze od ostatniej wysyłki', 'warn'],
   foreign: ['na serwerze jest scena o tym id, niewysłana stąd', 'warn'],
+  'name-taken': ['na serwerze jest inna scena o tej nazwie – powstanie druga', 'warn'],
 };
+const DEPLOY_OVER = new Set(['changed', 'foreign']); // „nadpisz” – tylko scena o tym id zmieniona na serwerze
 async function deployDialog() {
   if (TRIO) return toast('Okno pracuje na serwerze – Zapisz od razu zmienia scenę na serwerze');
   if (dirty && !(await save())) return;
@@ -3928,7 +3935,7 @@ async function deployDialog() {
         const row = d.querySelector(`[data-row="${CSS.escape(sc.id)}"]`); if (!row) continue;
         const [txt, cls] = DEPLOY_STATUS[sc.status] || [sc.status, ''];
         const air = sc.onAir?.length ? ` · <b style="color:#e55">NA ANTENIE (${sc.onAir.map(esc).join(', ')})</b>` : '';
-        const over = cls ? ` <label title="Zastąp wersję na serwerze"><input type="checkbox" class="dpOver" data-over="${esc(sc.id)}"> nadpisz</label>` : '';
+        const over = DEPLOY_OVER.has(sc.status) ? ` <label title="Zastąp wersję na serwerze"><input type="checkbox" class="dpOver" data-over="${esc(sc.id)}"> nadpisz</label>` : '';
         row.querySelector('.dpSt').innerHTML = `<span style="${cls ? 'color:var(--warn,#e8b04b)' : ''}">${esc(txt)}</span>${air}${over}`;
       }
       const need = r.scenes.flatMap((sc) => PACK.sceneAssets(scenes.find((s) => s.id === sc.id) || {}, known)).filter((n, i, a) => a.indexOf(n) === i);

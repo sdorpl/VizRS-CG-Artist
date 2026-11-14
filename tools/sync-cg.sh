@@ -13,7 +13,10 @@ SRC="$CG/source/web"
 FD="$CG/source/src/fonts_data.rs"
 [ -f "$SRC/renderer.js" ] && [ -f "$FD" ] || { echo "Brak źródła CG System: $CG" >&2; exit 2; }
 DST="$TOP/web"
-SHARED="renderer.js motion.js qr.js richtext.js ticker-model.js ticker-items.js color-picker.js cgpack.js ui.css vizrs-ui.css"
+SHARED="renderer.js motion.js qr.js richtext.js ticker-model.js ticker-items.js color-picker.js cgpack.js pack-ui.js ui.css vizrs-ui.css"
+# wektory reguł plików paczki – czyta je test `deploy.rs` (te same przypadki co tests/cgpack.mjs w CG System)
+VEC_SRC="$CG/source/tests/vectors/cgpack-placer.json"
+VEC_DST="$TOP/tests/cgpack-placer.json"
 
 # fonts.css – to samo, co serwer `vizrs` podaje pod /fonts/fonts.css (src/fonts.rs + fonts_data.rs)
 fonts_css() {
@@ -40,6 +43,7 @@ if [ -n "$CHECK" ]; then
   for f in $SHARED $(font_files); do
     cmp -s "$SRC/$f" "$DST/$f" || { echo "różni się: web/$f" >&2; bad=1; }
   done
+  cmp -s "$VEC_SRC" "$VEC_DST" || { echo "różni się: tests/cgpack-placer.json" >&2; bad=1; }
   fonts_css | cmp -s - "$DST/fonts/fonts.css" || { echo "różni się: web/fonts/fonts.css" >&2; bad=1; }
   # nic poza listą (stare fonty po zmianie w CG System)
   (cd "$DST" && find fonts -type f ! -name fonts.css | sort) > "$DST/.lista.tmp"
@@ -51,6 +55,7 @@ fi
 
 mkdir -p "$DST"
 for f in $SHARED; do cp "$SRC/$f" "$DST/$f"; done
+mkdir -p "$(dirname "$VEC_DST")"; cp "$VEC_SRC" "$VEC_DST"
 rm -rf "$DST/fonts"
 for f in $(font_files); do mkdir -p "$DST/$(dirname "$f")"; cp "$SRC/$f" "$DST/$f"; done
 fonts_css > "$DST/fonts/fonts.css"

@@ -87,13 +87,30 @@ impl Server {
     }
 }
 
-/// Stan sceny wobec serwera.
-fn status(remote: Option<&Value>, recorded: Option<f64>) -> &'static str {
+/// Treść sceny bez `rev` (porównanie wersji lokalnej i serwera; kolejność kluczy nie ma znaczenia).
+fn content(v: &Value) -> Value {
+    let mut c = v.clone();
+    if let Some(o) = c.as_object_mut() {
+        o.remove("rev");
+    }
+    c
+}
+
+/// Stan sceny wobec serwera – te same nazwy co plan importu paczki (`cgpack.planImport`): `new`, `same`, `changed`,
+/// `name-taken`, a do tego `foreign` (scena o tym id na serwerze, niewysłana stąd – np. import paczki – i inna niż lokalna).
+/// `same` – serwer bez zmian od ostatniej wysyłki albo scena na serwerze ma tę samą treść co lokalna.
+fn status(
+    remote: Option<&Value>,
+    recorded: Option<f64>,
+    local: &Value,
+    name_taken: bool,
+) -> &'static str {
     match (remote, recorded) {
+        (None, _) if name_taken => "name-taken",
         (None, _) => "new",
+        (Some(r), _) if content(r) == content(local) => "same",
         (Some(r), Some(rev)) if r["rev"].as_f64() == Some(rev) => "same",
         (Some(_), Some(_)) => "changed",
-        // scena o tym id jest na serwerze, ale nie wysłana stąd (np. import paczki)
         (Some(_), None) => "foreign",
     }
 }
@@ -110,6 +127,9 @@ pub fn check(srv: &Server, scenes: &[Value], recorded: &Value) -> Result<Value, 
         .map(|s| {
             let id = s["id"].as_str().unwrap_or_default();
             let r = remote.iter().find(|x| x["id"].as_str() == Some(id));
+            let name_taken = remote
+                .iter()
+                .any(|x| x["id"].as_str() != Some(id) && x["name"] == s["name"]);
             let on_air: Vec<Value> = state["layers"]
                 .as_array()
                 .into_iter()
@@ -119,7 +139,7 @@ pub fn check(srv: &Server, scenes: &[Value], recorded: &Value) -> Result<Value, 
                 .collect();
             json!({
                 "id": id, "name": s["name"],
-                "status": status(r, recorded[id].as_f64()),
+                "status": status(r, recorded[id].as_f64(), s, name_taken),
                 "remoteName": r.map(|r| r["name"].clone()),
                 "onAir": on_air,
             })
@@ -350,8 +370,12 @@ pub fn rename_assets(v: &mut Value, map: &HashMap<String, String>) {
                             matches!(c, '"' | '\'' | ')' | '?' | '#') || c.is_whitespace()
                         })
                         .unwrap_or(rest.len());
-                    match map.get(&rest[..end]) {
-                        Some(n) => out.push_str(n),
+                    // jak `decodeURIComponent` w `cgpack.renameAssets`: `/assets/Moja%20Czcionka.ttf` to plik `Moja Czcionka.ttf`
+                    match map
+                        .get(&rest[..end])
+                        .or_else(|| map.get(&percent_decode(&rest[..end])))
+                    {
+                        Some(n) => out.push_str(&crate::url_escape(n)), // jak `encodeURIComponent`; nazwy z `safe_name` bez zmian
                         None => out.push_str(&rest[..end]),
                     }
                     rest = &rest[end..];
@@ -364,6 +388,26 @@ pub fn rename_assets(v: &mut Value, map: &HashMap<String, String>) {
         Value::Object(o) => o.values_mut().for_each(|x| rename_assets(x, map)),
         _ => {}
     }
+}
+
+/// `%XX` → bajty (UTF-8); niepoprawne sekwencje zostają bez zmian.
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        let hex = |c: u8| (c as char).to_digit(16);
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let (Some(h), Some(l)) = (hex(b[i + 1]), hex(b[i + 2])) {
+                out.push((h * 16 + l) as u8);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8(out).unwrap_or_else(|_| s.to_string())
 }
 
 /// Wysyła zasoby wg reguł plików i scenę (z odnośnikami do plików na serwerze). `expect` – zapamiętana rewizja
@@ -428,12 +472,68 @@ mod tests {
 
     #[test]
     fn statuses() {
-        let r = json!({ "id": "a", "rev": 3.0 });
-        assert_eq!(status(None, None), "new");
-        assert_eq!(status(None, Some(2.0)), "new");
-        assert_eq!(status(Some(&r), Some(3.0)), "same");
-        assert_eq!(status(Some(&r), Some(2.0)), "changed");
-        assert_eq!(status(Some(&r), None), "foreign");
+        let r = json!({ "id": "a", "rev": 3.0, "nodes": [1] });
+        let other = json!({ "id": "a", "nodes": [2] });
+        let same = json!({ "id": "a", "rev": 9.0, "nodes": [1] });
+        assert_eq!(status(None, None, &other, false), "new");
+        assert_eq!(status(None, Some(2.0), &other, false), "new");
+        assert_eq!(status(None, None, &other, true), "name-taken");
+        assert_eq!(status(Some(&r), Some(3.0), &other, false), "same");
+        assert_eq!(status(Some(&r), Some(2.0), &other, false), "changed");
+        assert_eq!(status(Some(&r), None, &other, false), "foreign");
+        // ta sama treść (np. scena trafiła na serwer importem paczki) – bez „nadpisz”
+        assert_eq!(status(Some(&r), None, &same, false), "same");
+        assert_eq!(status(Some(&r), Some(1.0), &same, false), "same");
+    }
+
+    /// Wspólne wektory reguł plików z VizRS CG System (`tests/cgpack-placer.json`, kopia przez `tools/sync-cg.sh`).
+    #[test]
+    fn placer_vectors() {
+        let v: Value = serde_json::from_str(include_str!("../tests/cgpack-placer.json")).unwrap();
+        for c in v["cases"].as_array().unwrap() {
+            let name = c["name"].as_str().unwrap();
+            let files: Vec<(String, Vec<u8>)> = c["existing"]
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(n, d)| (n.clone(), d.as_str().unwrap().as_bytes().to_vec()))
+                .collect();
+            let srv = Fake(std::cell::RefCell::new(files.into_iter().collect()));
+            let mut p = Placer::new(&srv, &srv.names());
+            for st in c["steps"].as_array().unwrap() {
+                if st["fresh"].as_bool() == Some(true) {
+                    p = Placer::new(&srv, &srv.names());
+                }
+                let from = st["from"].as_str().unwrap();
+                let got = p
+                    .place(from, st["data"].as_str().unwrap().as_bytes())
+                    .unwrap();
+                let status = match &got {
+                    Placed::Same(_) => "same",
+                    Placed::Reused(_) => "reused",
+                    Placed::New(_) => "new",
+                    Placed::Renamed(_) => "renamed",
+                };
+                assert_eq!(
+                    (status, got.name()),
+                    (st["status"].as_str().unwrap(), st["name"].as_str().unwrap()),
+                    "{name}: {from}"
+                );
+            }
+            let now: HashMap<String, String> = srv
+                .0
+                .borrow()
+                .iter()
+                .map(|(n, d)| (n.clone(), String::from_utf8(d.clone()).unwrap()))
+                .collect();
+            let want: HashMap<String, String> = c["files"]
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(n, d)| (n.clone(), d.as_str().unwrap().to_string()))
+                .collect();
+            assert_eq!(now, want, "{name}: stan assets");
+        }
     }
 
     /// Atrapa serwera: katalog zasobów z regułą nazw serwera.
@@ -513,5 +613,15 @@ mod tests {
             "url(/assets/b.ttf) /assets/a.ttfx"
         );
         assert_eq!(s["packAssets"][0], "b.ttf");
+        // odnośnik zakodowany jak w adresie (`encodeURIComponent`) – jak `cgpack.renameAssets`
+        let mut t = json!({ "text": "url(/assets/Moja%20Czcionka.ttf)" });
+        let map = HashMap::from([(
+            "Moja Czcionka.ttf".to_string(),
+            "Moja_Czcionka.ttf".to_string(),
+        )]);
+        rename_assets(&mut t, &map);
+        assert_eq!(t["text"], "url(/assets/Moja_Czcionka.ttf)");
+        assert_eq!(percent_decode("a%2"), "a%2");
+        assert_eq!(percent_decode("%C5%81"), "Ł");
     }
 }

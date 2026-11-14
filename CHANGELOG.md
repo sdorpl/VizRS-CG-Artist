@@ -2,6 +2,9 @@
 
 ## Niewydane
 
+- **Plan importu paczki `.cgpack`** (wspólny z Trio, VizRS CG System – plan PLAN-przenoszenie): przed zapisem okno pokazuje stan każdej sceny, strony i pliku; scena w innej wersji albo o zajętej nazwie czeka na wybór – **Zaktualizuj** (strony zostają), **Kopia** („nazwa (2)”) albo **Pomiń**. Import zachowuje `id` sceny z paczki, więc **⇧ Wyślij** i ponowny import nie tworzą duplikatów. Po imporcie lista scen jest wczytywana od nowa; błąd odczytu paczki trafia do komunikatu (dotąd ginął). DOKUMENTACJA §5.
+- **Wysyłka na serwer – stany jak w planie importu:** scena o tej samej treści na serwerze (np. po imporcie paczki) to *bez zmian*, nie „niewysłana stąd”; nowy stan *na serwerze jest inna scena o tej nazwie*; „nadpisz” tylko przy scenie zmienionej na serwerze. Odnośniki `/assets/…` zakodowane w adresie (`%20`) są przepisywane jak w paczce. Reguły plików sprawdza test na wspólnych wektorach z CG System (`tests/cgpack-placer.json`, kopiowany przez `tools/sync-cg.sh`). DOKUMENTACJA §13.
+
 ## 26.11.8 – 2026-11-14
 
 - **Poprawka: puste, „rozjechane” okno na Linuksie z kartą NVIDIA** (zgłoszenie: KDE Plasma 125 %, Quadro P400, sterownik 580; od 26.11.5): rasteryzacja Skia na GPU wywracała proces strony WebKitGTK (`libnvidia-eglcore`) – po kilku sekundach albo przy zmianie rozmiaru okna treść znikała lub zostawała w starym rozmiarze. Przy NVIDIA warstwy rysuje teraz Skia na CPU, składa je dalej GPU (`WEBKIT_SKIA_ENABLE_CPU_RENDERING=1`; animacja bez zmian, 61–62 kl./s). Gdy proces strony mimo to padnie, okno samo wczytuje stronę od nowa zamiast zostawać puste. DOKUMENTACJA §3.

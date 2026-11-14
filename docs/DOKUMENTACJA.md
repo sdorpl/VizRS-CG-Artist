@@ -166,6 +166,11 @@ Plan: `../VizRS CG System/docs/plany/PLAN-jeden-ruch.md` (J1–J4). Format sceny
 - **Przenoszenie grafiki – tylko `.cgpack`:** Eksportuj scenę zapisuje bieżącą scenę jako paczkę (z grafikami, czcionkami
   i stronami), Paczka .cgpack… – wybrane sceny. Importuj… przyjmuje paczkę `.cgpack` i dawny eksport
   sceny `.vizrs.json` (tylko odczyt, ten sam import co paczka, raport o brakujących plikach). Zasady: DOKUMENTACJA CG System §8.7.
+- **Plan importu** (okno `pack-ui.js`, wspólne z Trio): przed zapisem stan każdej sceny i pliku; scena o tym samym `id` w innej wersji
+  albo inna scena o tej samej nazwie czeka na wybór – **Zaktualizuj istniejącą** (strony zostają), **Dodaj jako kopię** („nazwa (2)”)
+  albo **Pomiń**; nowa scena dostaje `id` z paczki (późniejsza **⇧ Wyślij** i ponowny import rozpoznają ją bez duplikatu). W pracy
+  na serwerze plan obejmuje też strony (numer, nowy numer, przesunięcie, pominięcie); w pracy lokalnej strony pomija – zaimportuje je
+  Trio z tej samej paczki. Po imporcie lista scen jest wczytywana od nowa (zaktualizowana scena nie dubluje się na liście).
 - **Własne czcionki i grafiki** (⤒ przy polu, „＋ Wgraj i dołącz”, przeciągnięcie, skojarzenie, import paczki) trafiają do zasobów
   wg reguł plików paczki z CG System (`cgpack.assetPlacer`, DOKUMENTACJA CG System §8.7): nazwa jak na serwerze, czcionka już wgrana
   (ta sama treść, pod dowolną nazwą) nie powstaje drugi raz – element dostaje istniejącą, nic nie jest nadpisywane (zajęta nazwa,
@@ -330,16 +335,19 @@ Praca lokalna → serwer `vizrs` (studio, VPS), z którego Trio wydaje grafikę:
 - **Serwery:** tylko z listy zapisanych w oknie „Połącz z serwerem”; token bierze okno z `connections.json` („zapamiętaj token”),
   strona widzi tylko adresy. Dodanie serwera: Połącz z serwerem → adres, token, „zapamiętaj token” → Połącz, potem w tym samym
   oknie **Praca lokalna**. Ostatnio wybrany serwer strona pamięta (`localStorage`).
-- **Sprawdzenie** (`/api/deploy/check`, przy każdej zmianie wyboru): stan każdej sceny na serwerze – *nowa*, *bez zmian od ostatniej
-  wysyłki*, *zmieniona na serwerze od ostatniej wysyłki*, *na serwerze jest scena o tym id, niewysłana stąd* – oraz warstwy,
-  na których scena jest **na antenie** (pytanie przed wysłaniem), i liczba zasobów do wysłania.
+- **Sprawdzenie** (`/api/deploy/check`, przy każdej zmianie wyboru): stan każdej sceny na serwerze – te same nazwy co plan importu
+  paczki: *nowa* (`new`), *bez zmian* (`same` – serwer bez zmian od ostatniej wysyłki albo scena na serwerze ma tę samą treść, np. po
+  imporcie paczki), *zmieniona na serwerze od ostatniej wysyłki* (`changed`), *na serwerze jest scena o tym id, niewysłana stąd*
+  (`foreign`, inna treść), *na serwerze jest inna scena o tej nazwie – powstanie druga* (`name-taken`) – oraz warstwy, na których scena
+  jest **na antenie** (pytanie przed wysłaniem), i liczba zasobów do wysłania. **nadpisz** pojawia się tylko przy `changed` i `foreign`.
 - **Wysyłka** (`/api/deploy`): scena zapisana na dysku (niezapisane zmiany strona najpierw zapisuje), `PUT /api/scenes/<id>`
   z rewizją zapamiętaną po poprzedniej wysyłce (`deploy.json` w katalogu danych, osobno dla każdego serwera). Gdy scenę zmieniono na
   serwerze w międzyczasie, serwer odpowiada 409 – scena czeka na zaznaczenie **nadpisz** (wysyłka bez rewizji). Zasoby sceny
   (`cgpack.sceneAssets`) idą przed sceną wg reguł plików paczki (`deploy::Placer`, ta sama kolejność co `cgpack.assetPlacer`):
   czcionka już obecna na serwerze (ta sama treść) nie jest wysyłana drugi raz, plik o tej samej nazwie i treści jest pomijany,
   nic nie jest nadpisywane – zajęta nazwa z inną treścią → `nazwa_2.ext` (a przy ponownej wysyłce ta sama kopia, nie kolejna).
-  Odnośniki w scenie na serwerze wskazują plik na serwerze; scena lokalna zostaje bez zmian.
+  Odnośniki w scenie na serwerze wskazują plik na serwerze (także zakodowane w adresie, `/assets/Moja%20Czcionka.ttf`); scena lokalna
+  zostaje bez zmian. Przypadki reguł plików sprawdza test na wspólnych wektorach z CG System (`tests/cgpack-placer.json`).
 - Raport: wysłane sceny i zasoby, pominięte (już na serwerze), pliki zapisane na serwerze pod inną nazwą, konflikty i błędy serwera (walidacja `validate.rs`).
 - Klient: HTTP/1.1 przez `ureq` z TLS rustls (`src/client.rs`), `http://` i `https://`, token w `Authorization: Bearer`, odpowiedź do 64 MB, 20 s na żądanie, bez przekierowań (czysty Rust, jednakowy na Linux, Windows i macOS).
 
