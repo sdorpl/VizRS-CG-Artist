@@ -9,6 +9,7 @@ Trio (wydawanie na antenę) i wyjście dla OBS należą do VizRS CG System – A
 - Kanwa rysuje tym samym kodem co antena (moduły z VizRS CG System), plus to, czego przeglądarka nie daje:
   menu, systemowe „Zapisz jako”, pytanie o zapis przy zamykaniu, kopia robocza po awarii, jedna instancja,
   skojarzenia `.cgpack` (i odczyt dawnych `.vizrs.json`), przeciąganie plików, pisownia polska.
+- Edycja jak w programach graficznych: zaznaczanie ramką, edycja wielu elementów naraz, uchwyty rozmiaru i obrotu, wyrównywanie i rozmieszczanie, menu kontekstowe, edycja tekstu na kanwie, sceny odniesienia i powiązania z podglądu; presety ruchu i klucze na jednej osi czasu – [DOKUMENTACJA §4](docs/DOKUMENTACJA.md#4-menu-i-skróty).
 
 ## Pakiet VizRS
 

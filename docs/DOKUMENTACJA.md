@@ -14,6 +14,8 @@ kopię roboczą, jedną instancję, skojarzenia plików, przeciąganie plików i
 
 Most strona–okno opiera się na komendzie Tauri `ipc` wywoływanej przez `window.__vizrsPost` i zachowuje strukturę komunikatów znaną z `vizrs-shell`.
 
+**Edytor w skrócie:** kanwa ([§4](#4-menu-i-skróty)) ma zaznaczanie ramką, edycję wielu elementów naraz we właściwościach, 8 uchwytów rozmiaru i obrót, pasek wyrównywania i rozmieszczania, menu kontekstowe ze schowkiem między scenami oraz bezpośrednią edycję tekstu w miejscu. Sceny odniesienia umożliwiają podgląd innych scen show na kanwie, przyciąganie, pomiar odległości i ustawianie powiązań (dock) bezpośrednio z podglądu ([§4](#4-menu-i-skróty)). Jedna oś czasu ([§4](#4-menu-i-skróty)) łączy presety ruchu jako klipy w wierszu elementu z kluczami poszczególnych właściwości w jednym widoku. Właściwość maski warstwy pozwala przycinać elementy prostokątem innego węzła, działając wspólnie z ruchem presetów ([§4](#4-menu-i-skróty)).
+
 ### Pakiet VizRS – zgodność aplikacji
 
 VizRS CG Artist to jedna z czterech aplikacji pakietu VizRS, które mają być **zawsze ze sobą zgodne**: bieżące wersje wszystkich aplikacji działają razem.

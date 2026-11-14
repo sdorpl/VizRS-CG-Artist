@@ -4,6 +4,8 @@
 > a kiedyś także Android. Dziś Artist jest tylko na Linuksie (GTK 4 + WebKitGTK 6.0 – na Windows i macOS ich nie ma).
 > Zgodnie z planem wydzielenia (`../VizRS CG System/docs/plany/PLAN-artist-osobny.md` §7 pkt 1): Linux zostaje na GTK 4,
 > Windows i macOS dostają okno na **wry** (WebView2 / WKWebView) z tymi samymi modułami bez GUI i tym samym mostem.
+>
+> Aktualizacja 2026-11-14: Windows i macOS wydane na Tauri 2 od 0.3.0 (zamiast GTK 4 / wry – raport [RAPORT-tauri.md](RAPORT-tauri.md)); paczki z każdego wydania (`.msi`, `.exe`, `.dmg`); bez podpisu – LUKI #13. Android (P6) – nadal na później.
 
 ## 1. Cel
 
