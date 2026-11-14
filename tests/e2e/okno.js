@@ -269,11 +269,12 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
     const N = Object.fromEntries((hand.nodes || []).map((n) => [n.id, n]));
     const near = (a, b, e = 1.5) => Math.abs(a - b) <= e;
     ok(hand.handles === 8, 'zaznaczony prostokąt ma 8 uchwytów rozmiaru', hand);
-    ok(N.a && near(N.a.w, 250) && near(N.a.h, 120) && near(N.a.x + N.a.w, 600) && near(N.a.y + N.a.h, 400), 'róg nw zmienia rozmiar, róg se stoi w miejscu', N.a);
+    // róg se stoi dokładnie; wymiar ± kilka px kadru (mała kanwa pod Xvfb: 1 px ekranu = kilka px kadru)
+    ok(N.a && near(N.a.w, 250, 5) && near(N.a.h, 120, 5) && near(N.a.x + N.a.w, 600) && near(N.a.y + N.a.h, 400), 'róg nw zmienia rozmiar, róg se stoi w miejscu', N.a);
     // b: obrót 90° wokół środka, punkt zaczepienia lewy górny; bok w (lokalnie) = środek ramki − R·(w/2, 0)
     const wMid = (n) => { const cx = n.x + n.w / 2, cy = n.y + n.h / 2; return [cx + 0 * n.w / 2, cy - n.w / 2]; };
-    ok(N.b && near(N.b.w, 240) && near(N.b.h, 100) && near(wMid(N.b)[0], 1300) && near(wMid(N.b)[1], 250), 'bok e elementu obróconego o 90° – przeciągnięcie w dół wydłuża, bok w stoi', N.b);
-    ok(N.c && near(N.c.w / N.c.h, 2, 0.02) && near(N.c.w, 300) && near(N.c.x, 400) && near(N.c.y, 700), 'Shift na rogu trzyma proporcje, róg nw stoi', N.c);
+    ok(N.b && near(N.b.w, 240, 5) && near(N.b.h, 100) && near(wMid(N.b)[0], 1300) && near(wMid(N.b)[1], 250), 'bok e elementu obróconego o 90° – przeciągnięcie w dół wydłuża, bok w stoi', N.b);
+    ok(N.c && near(N.c.w / N.c.h, 2, 0.03) && near(N.c.w, 300, 5) && near(N.c.x, 400) && near(N.c.y, 700), 'Shift na rogu trzyma proporcje, róg nw stoi', N.c);
     ok(N.d && N.d.rotation % 15 === 0 && N.d.rotation !== 0 && hand.undoRot === 0, 'obrót uchwytem z Shift co 15°, jedno Ctrl+Z cofa', { d: N.d, undoRot: hand.undoRot });
 
     // 1f. reszta K2: wspólna ramka kilku zaznaczonych (róg se ×2 – położenia i ramki obu), przyciąganie przeciąganej krawędzi
