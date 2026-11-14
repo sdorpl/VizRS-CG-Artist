@@ -484,6 +484,31 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
       '„Rozbij na klucze” (wejście po przesunięciu o 0,2 s) scala fade z istniejącymi kluczami krycia', op);
     ok(ON.s?.motion?.after === 'r', 'klip wejścia przeciągnięty w pionie na inny element ustawia „po węźle”', ON.s);
 
+    // 1k. maska warstwy (J5, renderer z CG System): prostokąt węzła „okno” przycina pas na kanwie; pole w panelu
+    const kdata = path.join(tmp, 'mask');
+    fs.mkdirSync(kdata, { recursive: true });
+    fs.writeFileSync(path.join(kdata, 'show.json'), JSON.stringify({ rev: 1, scenes: [
+      { id: 'mk', name: 'Maska', layer: 'main', width: 1920, height: 1080, duration: 2, stops: [1], nodes: [
+        rr('okno', 300, 300, 600, 200, { opacity: 0 }), rr('pas', 100, 350, 1200, 120, { mask: 'okno' })] },
+    ] }));
+    const msk = run(['--data', kdata], write('mask.js', `(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 50 && document.querySelector('#conn')?.textContent !== 'połączono'; i++) await sleep(100);
+      await sleep(400);
+      const r = {}, el = document.querySelector('#stage [data-id="pas"]');
+      r.clip = el.style.clipPath;
+      const st = document.querySelector('#stage').getBoundingClientRect(), k = st.width / 1920, box = document.querySelector('#box');
+      box.dispatchEvent(new MouseEvent('mousedown', { clientX: st.left + 600 * k, clientY: st.top + 410 * k, button: 0, bubbles: true, detail: 1 })); dispatchEvent(new MouseEvent('mouseup', { clientX: st.left + 600 * k, clientY: st.top + 410 * k, bubbles: true }));
+      await sleep(200);
+      document.querySelector('[data-ptab="wl"]')?.click(); await sleep(100);
+      r.sel = document.querySelector('#pname')?.value; r.field = document.querySelector('#props [data-p="mask"]')?.value;
+      (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
+    })();`), 'mask');
+    // pas 100–1300 × 350–470, okno 300–900 × 300–500: lewo 200/1200 = 16,67%, prawo 400/1200 = 33,33%, góra/dół 0
+    const ins = /inset\(([\d.]+)% ([\d.]+)% ([\d.]+)% ([\d.]+)%\)/.exec(msk.clip || '');
+    ok(ins && near(+ins[1], 0, 0.1) && near(+ins[2], 33.333, 0.1) && near(+ins[3], 0, 0.1) && near(+ins[4], 16.667, 0.1), 'maska warstwy przycina element do prostokąta węzła maski (kanwa jak antena)', msk);
+    ok(msk.sel === 'pas' && msk.field === 'okno', 'pole „maska (węzeł)” w panelu Właściwości', msk);
+
     // 2. jedna instancja: drugie uruchomienie przekazuje prośbę i kończy pracę; vizrs nie wystartuje na tym katalogu
     const first = spawn(APP, ['--data', data], { env: ENV, stdio: 'ignore' });
     for (let i = 0; i < 50 && !fs.existsSync(path.join(data, '.vizrs.lock')); i++) await sleep(100);

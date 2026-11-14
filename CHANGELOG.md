@@ -2,6 +2,7 @@
 
 ## Niewydane
 
+- **Maska warstwy** – strona z CG System `b5243dc` (`web/CG_SYSTEM`; plan jednego ruchu J5): nowa właściwość **maska (węzeł)** w grupie „Maska” panelu Właściwości – nazwa węzła z tej samej grupy, którego prostokąt przycina element (także w ruchu presetów: treść wjeżdża zza krawędzi maski); kanwa rysuje to tak samo jak antena i renderer natywny. Opis: DOKUMENTACJA CG System §4.3.
 - **Jedna oś czasu** (plan `../VizRS CG System/docs/plany/PLAN-jeden-ruch.md`, etapy J1–J4): presety ruchu jako klipy w wierszu elementu, a pod nim jego klucze – bez przełącznika „Sekwencja”. Klipy: przeciągnięcie (opóźnienie, czas), w pionie na inny element – „po węźle”, klik – zakładka Ruch na tej fazie, dwuklik w wiersz – dodaj fazę, prawy klik – rozbij na klucze / usuń. Klucze i presety tej samej właściwości razem (znacznik „+ preset”); „Rozbij na klucze” scala z istniejącymi kluczami zamiast odmawiać, „Z kluczy” – dla zaznaczonych kluczy. Zakładka Ruch: lista kluczy elementu ze skokiem do osi i fazy w kolejności czasu. DOKUMENTACJA §4.
 ## 26.11.5 – 2026-11-14
 
