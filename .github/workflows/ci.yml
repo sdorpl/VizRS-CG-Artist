@@ -35,6 +35,16 @@ jobs:
           path: cg
       - name: Moduły strony zgodne z CG System
         run: tools/sync-cg.sh --check cg
+      - name: Wersja CG System dla zasad pakietu
+        id: zasady
+        run: echo "ref=$(cat docs/ZASADY_CG_SYSTEM)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: sdorpl/VizRS-CG-System
+          ref: ${{ steps.zasady.outputs.ref }}
+          path: cg-zasady
+      - name: Zasady pakietu zgodne z CG System
+        run: tools/sync-zasady.sh --check cg-zasady
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
