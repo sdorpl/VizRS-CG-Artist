@@ -38,3 +38,7 @@ Wszystkie opcje: `vizrs-cg-artist --help` i [DOKUMENTACJA §3](docs/DOKUMENTACJA
 | Model sceny, rysowanie, serwer i Trio | repo [VizRS CG System](https://github.com/sdorpl/VizRS-CG-System) (`docs/DOKUMENTACJA.md`) |
 
 Programiści i agenci: [CLAUDE.md](CLAUDE.md) / [GEMINI.md](GEMINI.md) (zasady, struktura, testy, commity).
+
+## Licencja
+
+MIT – [LICENSE](LICENSE). Składniki zewnętrzne (fonty, biblioteki, obrazy): [THIRD-PARTY.md](THIRD-PARTY.md). Opis całego pakietu VizRS: [sdorpl/VizRS](https://github.com/sdorpl/VizRS).

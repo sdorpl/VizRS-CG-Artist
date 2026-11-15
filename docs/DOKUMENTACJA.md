@@ -71,6 +71,7 @@ vizrs-cg-artist [connect] [opcje] [PLIK]
 | – | `VIZRS_DEVTOOLS=1` | narzędzia deweloperskie WebView (Widok → Narzędzia deweloperskie, CmdOrCtrl+Shift+I); bez tej zmiennej tylko w kompilacji testowej |
 | – | `VIZRS_GPU` | akceleracja WebKitGTK na Linuksie: `auto` (domyślnie), `on`, `off`, `x11`, `wayland`, `system` – niżej |
 | – | `VIZRS_SCALE` | skala ekranu (np. `1.25`) do „1:1” na kanwie, gdy okno jej nie wykrywa (pulpity inne niż KDE) – niżej |
+| – | `VIZRS_CONFIG` | katalog konfiguracji z `connections.json` i `window.json`; domyślnie Linux `~/.config/vizrs`, Windows `%APPDATA%\VizRS`, macOS `~/Library/Application Support/VizRS` |
 | `--help`, `-h` | – | pomoc |
 | `--version`, `-V` | – | wersja programu |
 
@@ -268,7 +269,7 @@ to kopie z VizRS CG System – `tools/sync-cg.sh [katalog-CG]` kopiuje, `tools/s
 (CI pobiera CG System w wersji z `web/CG_SYSTEM`). Zmiana rysowania zawsze najpierw w CG System.
 
 Bramka przed commitem: `tools/sync-cg.sh --check`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo build --release`.
-Testy jednostkowe: `cargo test` (34/34).
+Testy jednostkowe: `cargo test` (52/52).
 
 CI (`.github/workflows/ci.yml`):
 - `gate`: Ubuntu 22.04 – sprawdzenie modułów CG System, fmt, clippy, `cargo test`,
