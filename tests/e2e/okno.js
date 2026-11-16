@@ -145,7 +145,8 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
       document.querySelector('#vRefs').click();
       document.querySelector('#tree .item[data-id=""]').click(); await sleep(150);
       document.querySelector('#dkRef').click(); await sleep(200);
-      r.target = document.querySelector('[data-dk="0::target"]')?.value;
+      const chips = () => [...document.querySelectorAll('.dktable .chip.dk')].map((c) => c.firstChild.textContent);
+      r.target = chips().join('|');
       r.bar = !document.querySelector('#dockBar').hidden;
       const st = document.querySelector('#stage').getBoundingClientRect(), k = st.width / 1920;
       const at = (x, y, o = {}) => ({ clientX: st.left + x * k, clientY: st.top + y * k, button: 0, bubbles: true, detail: 1, ...o });
@@ -167,18 +168,44 @@ const showOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir,
       r.arrow = tf();
       key('Escape'); await sleep(150);
       r.dyCancel = document.querySelector('[data-dk="0::dy"]')?.value;
+      // cele z listy (jedna reguła a|b), krzywa, ostrzeżenie o sumowaniu przy dwóch regułach ze wspólnym celem
+      const pick = (sel, v) => { const e = document.querySelector(sel); e.value = v; e.dispatchEvent(new Event('change', { bubbles: true })); };
+      r.opts = [...document.querySelectorAll('[data-dkadd="0"] option')].map((o) => o.value);
+      pick('[data-dkadd="0"]', 'layer:back'); await sleep(150);
+      r.chips2 = chips();
+      pick('[data-dk="0::ease"]', 'out'); await sleep(100);
+      r.warn0 = !!document.querySelector('.dkwarn');
+      document.querySelector('#dkAdd').click(); await sleep(150); // nowa reguła: layer:back, Δy −90
+      r.warn = document.querySelector('.dkwarn')?.textContent || '';
+      document.querySelector('[data-dkdel="1"]').click(); await sleep(150);
+      r.warnOff = !document.querySelector('.dkwarn');
+      // reguła krawędzi: belka (820–930) nad tickerem (960–1020) z odstępem 50 – podgląd z obrysów: −20 px
+      pick('[data-dk="0::edge"]', 'top'); await sleep(150);
+      const gap = document.querySelector('[data-dk="0::gap"]'); gap.value = '50'; gap.dispatchEvent(new Event('input', { bubbles: true })); gap.dispatchEvent(new Event('change', { bubbles: true })); await sleep(100);
+      pick('[data-dk="0::back"]', 'end'); await sleep(150);
+      document.querySelector('[data-dkpv="0"]').click(); await sleep(900);
+      r.edgePv = tf(); r.edgeBar = document.querySelector('#dockBar').textContent;
+      key('Escape'); await sleep(100);
       window.__vizrsCmd('save'); await sleep(800);
       const b = (await (await fetch('/api/show')).json()).scenes.find((s) => s.id === 'belka');
       r.saved = b?.dock; r.savedY = b?.y ?? 0;
       (window.__vizrsPost || window.ipc.postMessage)('probe:' + JSON.stringify(r));
     })();`), 'dock');
-    ok(dock.target === 'scene:Ticker' && dock.bar === true, '„＋ Z odniesienia” tworzy regułę z celem scene:Ticker i włącza „Ustaw z kanwy”', dock);
+    ok(dock.target === 'Ticker' && dock.bar === true, '„＋ Z odniesienia” tworzy regułę z celem scene:Ticker i włącza „Ustaw z kanwy”', dock);
     // przeciągnięcie myszą o 100 px kadru – ± 1 px z zaokrąglenia skali kanwy
     const ddy = Number(dock.dy), tr = (v) => `translate(0px, ${v}px)`;
     ok(Math.abs(ddy + 100) <= 1 && dock.during === tr(ddy) && dock.sceneY === '0' && dock.after === '', 'przeciągnięcie w „Ustaw z kanwy” zmienia dy reguły (−100), nie położenie sceny', dock);
     ok(dock.preview === tr(ddy) && dock.refs === 1 && dock.previewOff === '' && dock.barOff === true, 'podgląd pokazuje cel i przesuwa scenę o wynik reguł, Esc kończy', dock);
     ok(dock.arrow === tr(ddy - 10) && dock.dyCancel === dock.dy, 'strzałki w „Ustaw z kanwy” zmieniają przesunięcie, Esc anuluje', dock);
-    ok(dock.saved?.[0]?.target === 'scene:Ticker' && dock.saved?.[0]?.dy === ddy && dock.savedY === 0
+    ok(dock.opts.includes('scene:Ticker') === false && dock.opts.includes('layer:back') && !dock.opts.includes('layer:main') && dock.opts.includes('page:'),
+      'lista celów: sceny i warstwy z innych warstw (bez już wybranych i własnej), strona z numerem', dock.opts);
+    ok(dock.chips2.join('|') === 'Ticker|warstwa back' && !dock.warn0 && /reguły 1 i 2/.test(dock.warn) && /Δy/.test(dock.warn) && dock.warnOff,
+      'cel z listy dopisuje się do reguły (a|b); dwie reguły ze wspólnym celem – ostrzeżenie o sumie, znika po usunięciu', dock);
+    ok(dock.saved?.[0]?.target === 'scene:Ticker|layer:back' && dock.saved?.[0]?.ease === 'out' && dock.saved?.length === 1,
+      'cele i krzywa reguły zapisane w scenie', dock.saved);
+    ok(dock.edgePv === 'translate(0px, -20px)' && dock.saved?.[0]?.edge === 'top' && dock.saved?.[0]?.gap === 50 && dock.saved?.[0]?.back === 'end',
+      'reguła krawędzi: podgląd z obrysów celu i sceny (−20 px), edge / gap / back zapisane', { pv: dock.edgePv, bar: dock.edgeBar, saved: dock.saved });
+    ok(dock.saved?.[0]?.dy === ddy && dock.savedY === 0
       && showOf(ddata)?.scenes?.find((s) => s.id === 'belka')?.dock?.[0]?.dy === ddy, 'reguła powiązania trafia do show.json', dock);
 
     // 1d. zaznaczanie ramką i edycja wielu zaznaczonych (K1): ramka przez 3 z 4 prostokątów, kolor wszystkim jednym krokiem

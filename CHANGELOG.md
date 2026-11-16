@@ -2,6 +2,9 @@
 
 ## Niewydane
 
+- **Powiązania (dock) – reguła krawędzi** (plan PLAN-ruch-belek B1–B4, VizRS CG System 26.11.9): pole **zachowanie** – *stałe Δ* albo *nad / pod / z lewej / z prawej celu* z **odstępem** (`edge`, `gap`; przesunięcie z rzeczywistych obrysów celu i sceny, Δx / Δy jako zapas), pole **powrót** – *przy OUT* albo *po zejściu* celu (`back`). Podgląd 👁 liczy obrysy jak wyjście (`restRect`) i pozwala wybrać **dane celu** – stronę Trio sceny-celu (np. belka z 1 albo 2 wierszami). Ostrzeżenie o sumowaniu pomija pary reguł krawędzi (tam – największe przesunięcie). DOKUMENTACJA §4.
+- **Powiązania (dock) – nowy edytor reguł** (plan PLAN-ruch-belek A2, VizRS CG System): cele wybierane z listy (sceny i warstwy z innych warstw, strona Trio po numerze) i pokazywane jako etykiety, kilka celów w jednej regule; pole **krzywa** (*zwykła* / *szybka*, `ease`); ostrzeżenie, gdy dwie reguły ze wspólnym celem sumują przesunięcie tej samej osi; cel jako tekst pod ✎. Podgląd 👁 liczy przesunięcie i krzywą tą samą funkcją co wyjście (`dockShift` z `renderer.js`). Wymaga VizRS CG System 26.11.9. DOKUMENTACJA §4.
+
 ## 26.11.9 – 2026-11-14
 
 - **Plan importu paczki `.cgpack`** (wspólny z Trio, VizRS CG System – plan PLAN-przenoszenie): przed zapisem okno pokazuje stan każdej sceny, strony i pliku; scena w innej wersji albo o zajętej nazwie czeka na wybór – **Zaktualizuj** (strony zostają), **Kopia** („nazwa (2)”) albo **Pomiń**. Import zachowuje `id` sceny z paczki, więc **⇧ Wyślij** i ponowny import nie tworzą duplikatów. Po imporcie lista scen jest wczytywana od nowa; błąd odczytu paczki trafia do komunikatu (dotąd ginął). DOKUMENTACJA §5.

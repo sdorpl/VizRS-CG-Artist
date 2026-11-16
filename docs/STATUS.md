@@ -2,7 +2,7 @@
 
 > Aktualizuj w tym samym commicie, który zmienia stan.
 >
-> **Ostatnia aktualizacja:** 2026-11-15
+> **Ostatnia aktualizacja:** 2026-11-16
 
 ## Bieżący etap
 **0.3 – okno na Tauri 2 (Linux, Windows, macOS)** (decyzja 2026-11-07): Artist to osobny edytor grafik i animacji pakietu VizRS, bez Trio.
@@ -27,6 +27,7 @@ Od 26.11.x prace idą wg planów strony Artist (lista w [docs/README.md](README.
 | S13 | Położenie scen względem siebie (plan `plany/PLAN-pozycjonowanie-scen.md`, P1–P4) | zrobione – 26.11.4 (P1–P3), 26.11.5 (P4) |
 | S14 | Edycja na kanwie (plan `plany/PLAN-edycja-na-kanwie.md`, K1–K5) | zrobione – wydanie 26.11.5 |
 | S15 | Akceleracja WebKitGTK na Linuksie z NVIDIA (`src/gpu.rs`, `VIZRS_GPU`) | zrobione – wydanie 26.11.5 |
+| S19 | Powiązania (dock) – edytor reguł (cele z listy, krzywa, ostrzeżenie o sumowaniu) i reguła krawędzi (zachowanie, odstęp, powrót, podgląd z danymi strony celu); plan `../VizRS CG System/docs/plany/PLAN-ruch-belek.md` A2, B1–B4 | zrobione – wydanie 26.11.10 |
 | S18 | Paczki `.cgpack`: plan importu (okno `pack-ui.js`, decyzja przy scenie w innej wersji / o zajętej nazwie), tożsamość sceny po `id`, stany wysyłki jak w planie, wspólne wektory reguł plików (`../VizRS CG System/docs/plany/PLAN-przenoszenie.md`) | zrobione – wydanie 26.11.9 |
 | S17 | Niezawodność okna na Linuksie z NVIDIA (Skia na CPU, przeładowanie po awarii strony), przełączenie serwera nawigacją okna, zamykanie pośrednika | zrobione – wydanie 26.11.8 |
 | S16 | Jedna oś czasu (plan `../VizRS CG System/docs/plany/PLAN-jeden-ruch.md`, J1–J4 + maska warstwy J5) i rozmiar okna przy skalowaniu ułamkowym (`src/screen.rs`) | zrobione – wydania 26.11.6–26.11.7 |

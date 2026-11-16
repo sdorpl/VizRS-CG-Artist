@@ -239,6 +239,19 @@
   .mohint { padding: 2px 10px 4px; font-size: 11px; color: var(--warn, #e8b04b); }
   .help { padding: 10px; color: var(--dim); font-size: 12px; line-height: 1.5; border-top: 1px solid var(--line); margin-top: 8px; }
   .ftable { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .dkrule { margin: 0 10px 6px; padding: 4px 0 6px; border-bottom: 1px solid var(--line-soft); font-size: 12px; display: grid; gap: 4px; }
+  .dkhead { display: flex; justify-content: space-between; align-items: center; }
+  .dkact { white-space: nowrap; }
+  .dktable .chips { align-items: center; }
+  .dktable .chips select { width: auto; max-width: 100%; }
+  .dkrow { display: grid; grid-template-columns: 1fr 1fr 1fr 1.6fr; gap: 4px; }
+  .dkrow.dkmode { grid-template-columns: 1.5fr 1fr 1.5fr; }
+  #dockBar select { width: auto; max-width: 220px; font-size: 12px; }
+  .dkrow label { display: flex; flex-direction: column; gap: 1px; color: var(--dim); font-size: 11px; min-width: 0; }
+  .dkrow input, .dkrow select { width: 100%; min-width: 0; }
+  .chip.dk { background: #12302e; border-color: #2fd4c8; color: #bff3ee; }
+  .chip.dk.bad { background: #3a1716; border-color: var(--red); color: #ffb0ad; }
+  .dkwarn { margin: 4px 10px; padding: 4px 8px; border: 1px solid #a8741a; background: #2e2410; color: #ffd38a; border-radius: 4px; font-size: 12px; }
   .ftable td { padding: 3px 6px; border-bottom: 1px solid var(--line-soft); }
   .ftable input { width: 100%; }
   .rules { display: grid; grid-template-columns: 150px 1fr; gap: 4px 8px; padding: 6px 4px 8px; background: #17191d; border-radius: 4px; align-items: center; }
@@ -446,7 +459,7 @@
 import * as PACK from '/cgpack.js';
 import { planDialog } from '/pack-ui.js';
 import * as MO from '/motion.js';
-import { PROPS, TYPES, FONTS, OFFLINE_FONTS, EASES, ScenePlayer, propAt, cornerRadii, layerZ, trackValue, walk, listFields, variantFields, uid, fitStage, parseColor, connectEvents } from '/renderer.js';
+import { PROPS, TYPES, FONTS, OFFLINE_FONTS, EASES, ScenePlayer, propAt, cornerRadii, layerZ, trackValue, walk, listFields, variantFields, uid, fitStage, parseColor, connectEvents, dockShift as dockShiftOn, DOCK_EASES, restRect } from '/renderer.js';
 import { mountTickerEditor } from '/ticker-items.js';
 import { nativeBridge, choose, confirmBox, promptBox } from '/native.js';
 
@@ -622,11 +635,14 @@ function resolveFont(v) {
 }
 // Strony Trio istnieją tylko na serwerze vizrs; praca lokalna (magazyn okna, /api/state → mode: 'local') tworzy same sceny.
 let TRIO = false;
+// strony Trio z ostatniego wczytania show – dane celu w podglądzie powiązań
+let trioPages = [];
 async function load() {
   TRIO = (await api('GET', '/api/state').catch(() => null))?.mode !== 'local';
   $('#bDeploy').hidden = TRIO;
   const show = await api('GET', '/api/show');
   scenes = show.scenes;
+  trioPages = show.pages || [];
   await loadAssets();
   const want = new URLSearchParams(location.search).get('scene');
   const s = scenes.find((s) => s.id === want) || scenes[0];
@@ -1159,8 +1175,7 @@ function renderSceneProps() {
   <div class="sp"><label>Stop pointy</label><div class="chips">${scene.stops.map((s, i) => `<span class="chip">${(+s).toFixed(2)}s<button data-rmstop="${i}" title="usuń">×</button></span>`).join('') || '<span class="dim">brak – grafika gra do końca</span>'}</div></div>
   <div class="sp"><label>Markery</label><div class="chips">${(scene.markers || []).map((m, i) => `<span class="chip mk">${esc(m.name)} ${(+m.t).toFixed(2)}s<button data-mkstop="${i}" title="Utwórz stop point z markera">⏹</button><button data-rmmk="${i}" title="usuń">×</button></span>`).join('') || '<span class="dim">M lub dwuklik na linijce = marker</span>'}</div></div>
   <div class="pgroup">Powiązania (dock) – przesunięcie tej sceny, gdy inna grafika jest na wizji</div>
-  ${(scene.dock || []).length ? `<table class="ftable"><tr class="dim"><td>gdy na antenie</td><td>Δx</td><td>Δy</td><td>czas s</td><td></td></tr>${scene.dock.map((d, i) => `<tr><td><input data-dk="${i}::target" list="dklist" value="${esc(d.target || '')}" placeholder="layer:back · page:3001 · scene:Ticker"></td><td><input type="number" data-dk="${i}::dx" value="${d.dx ?? 0}"></td><td><input type="number" data-dk="${i}::dy" value="${d.dy ?? 0}"></td><td><input type="number" step="0.1" min="0" data-dk="${i}::dur" value="${d.dur ?? 0.6}"></td><td style="white-space:nowrap"><button class="icon ${dockPv?.i === i && !dockPv.set ? 'on' : ''}" data-dkpv="${i}" title="Podgląd: cele tej reguły jako sceny odniesienia „na antenie”, scena przesuwa się o wynik powiązań (jak na wyjściu)">👁</button><button class="icon ${dockPv?.i === i && dockPv.set ? 'on' : ''}" data-dkset="${i}" title="Ustaw z kanwy: przeciągnij scenę (z przyciąganiem do celu) – zmienia Δx / Δy tej reguły, nie położenie sceny. Enter – zatwierdź, Esc – anuluj">✋</button><button class="icon danger" data-dkdel="${i}">×</button></td></tr>`).join('')}</table>` : ''}
-  <datalist id="dklist">${[...new Set(scenes.map((x) => x.layer || 'main'))].map((l) => `<option value="layer:${esc(l)}">`).join('')}${scenes.map((x) => `<option value="scene:${esc(x.name)}">`).join('')}</datalist>
+  ${dockTable()}
   <div style="padding:4px 10px"><button id="dkAdd">＋ Powiązanie</button> <button id="dkRef" ${dockRefTargets() ? '' : 'disabled'} title="${esc(dockRefTargets() ? 'Nowa reguła z celem: ' + dockRefTargets() + ' – od razu w trybie „Ustaw z kanwy”' : 'Wybierz sceny odniesienia z innej warstwy (⧉ na kanwie)')}">＋ Z odniesienia</button> <span class="dim" style="font-size:12px">np. belka unosi się o 90 px, gdy jest ticker (layer:back)</span></div>
   <div class="pgroup">Warianty (pola wyboru, jak Variants/Concepts w Viz)</div>`;
   const vfs = variantFields(scene);
@@ -1639,11 +1654,35 @@ function onPropInput(e) {
     else m.default = inp.value;
     refresh(); return;
   }
+  if (inp.dataset.dkadd !== undefined) {
+    if (e.type !== 'change' || !inp.value) return;
+    const i = +inp.dataset.dkadd, d = scene.dock?.[i]; if (!d) return;
+    const v = inp.value; inp.value = '';
+    const put = (part) => {
+      if (!part || dockParts(d).includes(part)) return;
+      checkpoint(); d.target = [...dockParts(d), part].join('|');
+      if (dockPv?.i === i) dockStart(i, dockPv.set, true);
+      renderProps();
+    };
+    if (v === 'page:') promptBox('Numer strony Trio, której obecność na antenie przesuwa tę scenę:', '', { title: 'Cel: strona' }).then((n) => { n = String(n ?? '').trim(); if (/^\d+$/.test(n)) put('page:' + n); else if (n) toast('Numer strony to liczba', true); });
+    else put(v);
+    return;
+  }
   if (inp.dataset.dk) {
-    cp();
     const [i, key] = inp.dataset.dk.split('::');
     const d = scene.dock?.[+i]; if (!d) return;
+    if (key === 'ease' || key === 'edge' || key === 'back') {
+      if (e.type !== 'change') return;
+      cp();
+      if (!inp.value || (key === 'ease' && inp.value === 'std')) delete d[key]; else d[key] = inp.value;
+      if (key === 'edge' && !d.edge) delete d.gap;
+      if (dockPv) dockPlay(false);
+      if (key !== 'ease') renderProps();
+      return;
+    }
+    cp();
     d[key] = key === 'target' ? inp.value.trim() : (parseFloat(inp.value) || 0);
+    if (key !== 'target' && e.type === 'change') { const w = document.querySelector('.dkwarn'); if (!w !== !dockOverlaps().length) renderProps(); }
     if (dockPv) { if (key === 'target' && dockPv.i === +i) dockStart(dockPv.i, dockPv.set, true); else dockPlay(false); }
     return;
   }
@@ -1717,6 +1756,24 @@ $('#props').addEventListener('click', async (e) => {
   if (e.target.id === 'pkAdd') { const a = await uploadAsset(); if (a) { checkpoint(); scene.packAssets = [...new Set([...(scene.packAssets || []), a.name])]; renderProps(); refresh(); } return; }
   const pkr = e.target.closest('[data-pkrm]');
   if (pkr) { checkpoint(); scene.packAssets = (scene.packAssets || []).filter((x) => x !== pkr.dataset.pkrm); if (!scene.packAssets.length) delete scene.packAssets; renderProps(); return; }
+  const dkr = e.target.closest('[data-dkrm]');
+  if (dkr) {
+    const [i, k] = dkr.dataset.dkrm.split('::').map(Number), d = scene.dock?.[i]; if (!d) return;
+    checkpoint(); const parts = dockParts(d); parts.splice(k, 1); d.target = parts.join('|');
+    if (dockPv?.i === i) { if (parts.length) dockStart(i, dockPv.set, true); else dockEnd(); }
+    renderProps(); return;
+  }
+  const dkw = e.target.closest('[data-dkraw]');
+  if (dkw) {
+    const i = +dkw.dataset.dkraw, d = scene.dock?.[i]; if (!d) return;
+    promptBox('Cel reguły – layer:<warstwa>, page:<numer>, scene:<nazwa>; kilka rozdziel znakiem |', d.target || '', { title: 'Cel powiązania' }).then((v) => {
+      if (v == null) return;
+      checkpoint(); d.target = dockParts({ target: v }).join('|');
+      if (dockPv?.i === i) dockStart(i, dockPv.set, true);
+      renderProps();
+    });
+    return;
+  }
   if (e.target.id === 'dkAdd') { checkpoint(); (scene.dock ||= []).push({ target: 'layer:back', dx: 0, dy: -90, dur: 0.6 }); renderProps(); return; }
   if (e.target.id === 'dkRef') {
     const target = dockRefTargets(); if (!target) return;
@@ -2228,7 +2285,7 @@ function buildRefs() {
     for (const s of list) {
       const sc = structuredClone(s), names = new Map(), nodes = new Map();
       walk(sc.nodes, (n) => { names.set(n.id, n.name || n.type); nodes.set(n.id, n); });
-      const p = new ScenePlayer(refAbove(s) ? refsO : refsU, sc, {}, { editor: false });
+      const p = new ScenePlayer(refAbove(s) ? refsO : refsU, sc, dockPv?.ids?.includes(s.id) ? dockVals(s.id) : {}, { editor: false });
       p.el.dataset.ref = s.id;
       p.seek(refTime(s));
       refPlayers.push({ id: s.id, s, p, names, nodes });
@@ -2848,6 +2905,63 @@ function marquee(e) {
   addEventListener('mousemove', mv); addEventListener('mouseup', up);
 }
 
+// ------------------------------------------------------------ powiązania (dock): tabela reguł
+const DOCK_EASE_LABEL = { std: 'zwykła', out: 'szybka' };
+const DOCK_EASE_TITLE = { std: 'równy rozbieg i hamowanie', out: 'szybki start, miękkie hamowanie' };
+/** Zachowanie reguły: stałe przesunięcie albo odsunięcie od krawędzi celu (`edge`, z rzeczywistego obrysu celu). */
+const DOCK_EDGE_LABEL = { '': 'stałe Δ', top: 'nad celem', bottom: 'pod celem', left: 'z lewej celu', right: 'z prawej celu' };
+/** Etykieta jednego celu reguły: scena, warstwa albo strona; `bad` – nie ma takiej sceny / warstwy w show. */
+function dockPart(part) {
+  const [kind, ...rest] = part.split(':'); const val = rest.join(':');
+  if (kind === 'scene') return { label: val, title: 'scena ' + val, bad: !scenes.some((x) => x.name === val) };
+  if (kind === 'layer') return { label: 'warstwa ' + val, title: 'dowolna grafika na warstwie ' + val, bad: !scenes.some((x) => layerName(x) === val) };
+  if (kind === 'page') return { label: 'strona ' + val, title: 'strona Trio nr ' + val + ' (w podglądzie pomijana – strony zna serwer)', bad: false };
+  return { label: part, title: 'nieznany cel', bad: true };
+}
+const dockParts = (r) => String(r?.target || '').split('|').map((x) => x.trim()).filter(Boolean);
+/** Pary reguł, które mogą zadziałać naraz (wspólny cel) i przesuwają tę samą oś – przesunięcia się sumują. */
+function dockOverlaps() {
+  const list = scene.dock || [], out = [];
+  for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+    const a = list[i], b = list[j], common = dockParts(a).filter((x) => dockParts(b).includes(x));
+    if (!common.length) continue;
+    // oś, którą reguła przesuwa: krawędź – swoja oś, stała – osie z niezerowym Δ
+    const ax = (r, k) => (r.edge ? (k === 'dy') === (r.edge === 'top' || r.edge === 'bottom') : !!(+r[k] || 0));
+    const sums = (k) => ax(a, k) && ax(b, k) && !(a.edge && b.edge);
+    const axes = [sums('dx') ? 'Δx' : '', sums('dy') ? 'Δy' : ''].filter(Boolean);
+    if (axes.length) out.push(`reguły ${i + 1} i ${j + 1}: wspólny cel ${common.map((x) => dockPart(x).label).join(', ')} – ${axes.join(' i ')} sumują się`);
+  }
+  return out;
+}
+function dockTable() {
+  const list = scene.dock || [];
+  if (!list.length) return '';
+  const own = layerName(scene);
+  const layers = [...new Set(scenes.map((x) => layerName(x)))].filter((l) => l !== own).sort((a, b) => layerZ(a) - layerZ(b));
+  const others = scenes.filter((x) => x.id !== scene.id && layerName(x) !== own).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+  const row = (d, i) => {
+    const parts = dockParts(d);
+    const chips = parts.map((p, k) => { const x = dockPart(p); return `<span class="chip dk${x.bad ? ' bad' : ''}" title="${esc(x.title + (x.bad ? ' – nie ma w show' : ''))}">${esc(x.label)}<button data-dkrm="${i}::${k}" title="usuń cel">×</button></span>`; }).join('');
+    const opt = (v, label) => parts.includes(v) ? '' : `<option value="${esc(v)}">${esc(label)}</option>`;
+    const add = `<select data-dkadd="${i}" title="Dodaj cel: reguła działa, gdy na antenie jest którykolwiek z celów (jedno przesunięcie)"><option value="">＋ cel…</option>`
+      + `<optgroup label="Sceny (każda strona sceny)">${others.map((x) => opt('scene:' + x.name, x.name + ' · ' + layerName(x))).join('')}</optgroup>`
+      + `<optgroup label="Warstwy (dowolna grafika)">${layers.map((l) => opt('layer:' + l, 'warstwa ' + l)).join('')}</optgroup>`
+      + `<optgroup label="Strona Trio"><option value="page:">strona o numerze…</option></optgroup></select>`;
+    const ease = d.ease || 'std';
+    return `<div class="dkrule"><div class="dkhead"><span class="dim">${i + 1}. gdy na antenie</span><span class="dkact"><button class="icon" data-dkraw="${i}" title="Edytuj cel jako tekst (layer:…, page:…, scene:…, kilka: a|b)">✎</button><button class="icon ${dockPv?.i === i && !dockPv.set ? 'on' : ''}" data-dkpv="${i}" title="Podgląd: cele tej reguły jako sceny odniesienia „na antenie”, scena przesuwa się o wynik powiązań (jak na wyjściu)">👁</button><button class="icon ${dockPv?.i === i && dockPv.set ? 'on' : ''}" data-dkset="${i}" title="Ustaw z kanwy: przeciągnij scenę (z przyciąganiem do celu) – zmienia Δx / Δy tej reguły, nie położenie sceny. Enter – zatwierdź, Esc – anuluj">✋</button><button class="icon danger" data-dkdel="${i}" title="Usuń regułę">×</button></span></div>
+      <div class="chips">${chips || '<span class="dim">brak celu</span>'}${add}</div>
+      <div class="dkrow dkmode"><label>zachowanie<select data-dk="${i}::edge" title="Stałe Δ – przesunięcie o Δx / Δy. Nad / pod / z lewej / z prawej celu – odsunięcie od krawędzi celu o odstęp, z rzeczywistego obrysu celu i tej sceny (np. belka o 1 albo 2 wierszach); tylko gdy nachodzą na siebie">${Object.entries(DOCK_EDGE_LABEL).map(([k, v]) => `<option value="${k}" ${k === (d.edge || '') ? 'selected' : ''}>${v}</option>`).join('')}</select></label>`
+      + (d.edge ? `<label>odstęp px<input type="number" data-dk="${i}::gap" value="${d.gap ?? 0}" title="Odstęp od krawędzi celu"></label>` : '<span></span>')
+      + `<label>powrót<select data-dk="${i}::back" title="Kiedy scena wraca na miejsce po zejściu celu"><option value="" ${d.back === 'end' ? '' : 'selected'} title="w chwili OUT celu">przy OUT</option><option value="end" ${d.back === 'end' ? 'selected' : ''} title="po animacji wyjścia celu">po zejściu</option></select></label></div>
+      <div class="dkrow"><label title="${d.edge ? 'Zapasowe przesunięcie, gdy nie da się zmierzyć celu (albo starszy serwer)' : ''}">${d.edge ? 'zapas Δx' : 'Δx px'}<input type="number" data-dk="${i}::dx" value="${d.dx ?? 0}"></label><label title="${d.edge ? 'Zapasowe przesunięcie, gdy nie da się zmierzyć celu (albo starszy serwer)' : ''}">${d.edge ? 'zapas Δy' : 'Δy px'}<input type="number" data-dk="${i}::dy" value="${d.dy ?? 0}"></label>`
+      + `<label>czas s<input type="number" step="0.1" min="0" data-dk="${i}::dur" value="${d.dur ?? 0.6}"></label>`
+      + `<label>krzywa<select data-dk="${i}::ease" title="Krzywa ruchu (odjazd i powrót)">${Object.keys(DOCK_EASES).map((k) => `<option value="${k}" ${k === ease ? 'selected' : ''} title="${DOCK_EASE_TITLE[k] || ''}">${DOCK_EASE_LABEL[k] || k}</option>`).join('')}</select></label></div></div>`;
+  };
+  const warn = dockOverlaps();
+  return `<div class="dktable">${list.map(row).join('')}</div>`
+    + (warn.length ? `<div class="dkwarn" title="Każda reguła z celem na antenie dodaje swoje przesunięcie. Żeby kilka celów dawało jedno przesunięcie, wpisz je w jednej regule.">⚠ ${warn.map(esc).join('; ')}. Jedno przesunięcie dla kilku celów – cele w jednej regule.</div>` : '');
+}
+
 // ------------------------------------------------------------ powiązania (dock) z podglądu i z kanwy
 // 👁 Podgląd: cele reguły (scene:<nazwa>, layer:<warstwa>) jako sceny odniesienia „na antenie”, bieżąca scena przesunięta
 // o wynik wszystkich powiązań tak, jak liczy renderer.recomputeDock (suma reguł, które trafiają; własna warstwa nie wyzwala),
@@ -2868,19 +2982,17 @@ function dockScenes(target) {
   }
   return { ids, unknown };
 }
-/** Przesunięcie sceny przy danych grafikach na antenie – ta sama reguła co LayerHost.recomputeDock w renderer.js. */
+/** Przesunięcie sceny przy danych grafikach na antenie – ta sama funkcja co na wyjściu (`dockShift` z renderer.js);
+ *  `over` – wartości reguły w trybie „Ustaw z kanwy”. */
 function dockShift(air, over) {
-  let dx = 0, dy = 0, dur = 0.6;
-  (scene.dock || []).forEach((r, i) => {
-    const hit = String(r.target || '').split('|').some((p) => {
-      const [kind, ...rest] = p.trim().split(':'); const val = rest.join(':');
-      return air.some((a) => a.layer !== layerName(scene) && (kind === 'layer' ? a.layer === val : kind === 'scene' ? a.scene === val : false));
-    });
-    if (!hit) return;
-    const v = over && over.i === i ? over : r;
-    dx += +v.dx || 0; dy += +v.dy || 0; dur = r.dur ?? dur;
-  });
-  return { dx, dy, dur };
+  const rules = (scene.dock || []).map((r, i) => (over && over.i === i ? { ...r, dx: over.dx, dy: over.dy } : r));
+  // reguły krawędzi: obrysy w spoczynku jak na wyjściu (cele – z wybranymi danymi strony, scena – z danymi podglądu)
+  return dockShiftOn(rules, air, layerName(scene), { rect: () => restRect(scene, player?.values || {}, refsU) });
+}
+/** Wartości sceny odniesienia w podglądzie powiązania: wybrana strona Trio z tą sceną albo domyślne. */
+function dockVals(id) {
+  const n = dockPv?.pages?.[id];
+  return (n != null && trioPages.find((p) => String(p.number) === String(n))?.values) || {};
 }
 /** Cel nowej reguły „z odniesienia”: sceny odniesienia z innych warstw, „scene:A|scene:B”. */
 function dockRefTargets() {
@@ -2889,10 +3001,11 @@ function dockRefTargets() {
 }
 function dockPlay(animate) {
   if (!dockPv || !player) return;
-  const air = dockPv.ids.map((id) => scenes.find((x) => x.id === id)).filter(Boolean).map((x) => ({ layer: layerName(x), scene: x.name }));
-  const { dx, dy, dur } = dockShift(air, dockPv.set ? dockPv : null);
+  const air = dockPv.ids.map((id) => scenes.find((x) => x.id === id)).filter(Boolean)
+    .map((x) => ({ layer: layerName(x), scene: x.name, page: dockPv.pages?.[x.id], rect: restRect(x, dockVals(x.id), refsU) }));
+  const { dx, dy, dur, ease } = dockShift(air, dockPv.set ? dockPv : null);
   if (animate && dur > 0) {
-    player.setDock(0, 0, 0); void player.el.offsetWidth; player.setDock(dx, dy, dur);
+    player.setDock(0, 0, 0); void player.el.offsetWidth; player.setDock(dx, dy, dur, ease);
     clearTimeout(dockPlay.tm); dockPlay.tm = setTimeout(queueGuides, dur * 1000 + 60);
   } else player.setDock(dx, dy, 0);
   dockBar(dx, dy); queueGuides();
@@ -2906,7 +3019,7 @@ function dockStart(i, set, keep) {
     return;
   }
   const prev = keep && dockPv?.set ? dockPv : null;
-  dockPv = { i, set, ids, unknown, dx: prev ? prev.dx : +r.dx || 0, dy: prev ? prev.dy : +r.dy || 0 };
+  dockPv = { i, set, ids, unknown, dx: prev ? prev.dx : +r.dx || 0, dy: prev ? prev.dy : +r.dy || 0, pages: keep ? dockPv?.pages || {} : {} };
   if (set && selId) select(null);
   buildRefs(); dockPlay(!set); if (!keep) renderProps();
 }
@@ -2928,14 +3041,26 @@ function dockBar(dx, dy) {
   if (!dockPv || !r) { b.hidden = true; return; }
   const names = dockPv.ids.map((id) => scenes.find((x) => x.id === id)?.name).filter(Boolean).join(', ');
   const skip = dockPv.unknown.length ? ` <span class="dim" title="Nie ma takich scen albo to strony (page:…), które zna tylko serwer">· pominięte: ${esc(dockPv.unknown.join(', '))}</span>` : '';
+  // dane celu (np. belka z 1 albo 2 wierszami): strony Trio scen-celów – ruch reguł krawędzi z ich obrysem
+  const vsel = dockPv.ids.map((id) => {
+    const x = scenes.find((s) => s.id === id), pages = trioPages.filter((p) => p.scene === id || p.scene === x?.name);
+    if (!x || !pages.length) return '';
+    const cur = String(dockPv.pages?.[id] ?? '');
+    return ` <select data-dkpg="${esc(id)}" title="Dane celu „${esc(x.name)}” w podglądzie"><option value="">${esc(x.name)}: domyślne</option>${pages.map((p) => `<option value="${esc(String(p.number))}" ${cur === String(p.number) ? 'selected' : ''}>${esc(x.name)}: ${esc(String(p.number))}${p.name ? ' ' + esc(p.name) : ''}</option>`).join('')}</select>`;
+  }).join('');
   b.innerHTML = dockPv.set
     ? `<span>✋ <b>Ustaw z kanwy</b> – przeciągnij scenę (strzałki: 1 px, Shift: 10 px) · gdy na antenie: ${esc(names)}${skip} · reguła <span class="mono">Δx ${dockPv.dx}, Δy ${dockPv.dy}</span></span>
        <button data-dkb="ok" title="Enter">✓ Zatwierdź</button><button data-dkb="end" title="Esc">✕ Anuluj</button>`
-    : `<span>👁 <b>Podgląd powiązania</b> – na antenie: ${esc(names)}${skip} · scena przesunięta o <span class="mono">${dx}, ${dy} px</span></span>
+    : `<span>👁 <b>Podgląd powiązania</b> – na antenie: ${esc(names)}${skip}${vsel} · scena przesunięta o <span class="mono">${dx}, ${dy} px</span></span>
        <button data-dkb="play" title="Odtwórz ruch jeszcze raz">▶ Powtórz</button><button data-dkb="end" title="Esc">✕</button>`;
   b.hidden = false;
 }
 $('#dockBar').addEventListener('mousedown', (e) => e.stopPropagation());
+$('#dockBar').addEventListener('change', (e) => {
+  const id = e.target.dataset?.dkpg; if (id === undefined || !dockPv) return;
+  dockPv.pages = { ...dockPv.pages, [id]: e.target.value || undefined };
+  buildRefs(); dockPlay(true);
+});
 $('#dockBar').addEventListener('click', (e) => {
   const k = e.target.closest('[data-dkb]')?.dataset.dkb;
   if (k === 'play') dockPlay(true); else if (k === 'ok') dockEnd(true); else if (k === 'end') dockEnd();
