@@ -13,7 +13,7 @@ Trio (wydawanie na antenę) i wyjście dla OBS należą do VizRS CG System – A
 
 ## Pakiet VizRS
 
-VizRS CG Artist to jedna z czterech aplikacji pakietu VizRS, które mają być ze sobą **zawsze zgodne**: [VizRS CG System](../VizRS%20CG%20System) (silnik grafiki, Trio, `/output`), [VizRS CG Playout](../VirtRS%20CG%20Playout) (grafika i sloty na żywo na kanałach ErsatzTV), [VizRS Live](../VizRS%20Live) (panel kanału nad ErsatzTV legacy) i **VizRS CG Artist** (to repo; edytor grafik i animacji). Styki i zasady zgodności: [DOKUMENTACJA §1](docs/DOKUMENTACJA.md#pakiet-vizrs--zgodność-aplikacji).
+VizRS CG Artist to jedna z trzech aplikacji pakietu VizRS, które mają być ze sobą **zawsze zgodne**: [VizRS CG System](../VizRS%20CG%20System) (silnik grafiki, Trio, `/output`), [VizRS CG Playout](../VirtRS%20CG%20Playout) (grafika i sloty na żywo na kanałach ErsatzTV oraz panel kanału nad ErsatzTV legacy – dawny VizRS Live) i **VizRS CG Artist** (to repo; edytor grafik i animacji). Styki i zasady zgodności: [DOKUMENTACJA §1](docs/DOKUMENTACJA.md#pakiet-vizrs--zgodność-aplikacji).
 
 ## Uruchomienie
 
