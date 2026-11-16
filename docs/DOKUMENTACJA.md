@@ -23,7 +23,7 @@ VizRS CG Artist to jedna z trzech aplikacji pakietu VizRS, które mają być **z
 | Repozytorium (katalogi obok, `../`) | Rola | Styk z tą aplikacją |
 |---|---|---|
 | [VizRS CG System](../../VizRS%20CG%20System) | silnik grafiki (Rust): Trio (playout stron), wyjście `/output` (też anteny kanałów `bus=ch-N`), API TCP 6100 / HTTP / SSE, serwer `vizrs`; zamrożony zapasowy Artist w przeglądarce | wysyłanie scen na serwer `vizrs` (pośrednik `/api`, `/assets`, `/events`, eksport i deploy scen oraz zasobów, format `show.json`; dostawca styku: CG System) |
-| [VizRS CG Playout](../../VirtRS%20CG%20Playout) (katalog `VirtRS CG Playout`) | grafika VizRS i sloty na żywo (live ingest RTMP/SRT) na kanałach ErsatzTV (sidecar `cg`, bez zmian w ErsatzTV) oraz panel kanału nad ErsatzTV legacy (`panel/`, dawny VizRS Live) | brak bezpośredniego styku – sceny z Artist trafiają na antenę przez VizRS CG System |
+| [VizRS CG Playout](../../VizRS%20CG%20Playout) | grafika VizRS i sloty na żywo (live ingest RTMP/SRT) na kanałach ErsatzTV (sidecar `cg`, bez zmian w ErsatzTV) oraz panel kanału nad ErsatzTV legacy (`panel/`, dawny VizRS Live) | brak bezpośredniego styku – sceny z Artist trafiają na antenę przez VizRS CG System |
 | **VizRS CG Artist** (to repo) | samodzielny edytor grafik i animacji (Tauri 2), projektuje sceny; sceny wysyła na serwer `vizrs` (VizRS CG System); działa też bez serwera | – |
 
 Zasady zgodności:
