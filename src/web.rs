@@ -60,6 +60,13 @@ pub fn get(path: &str) -> Option<(&'static [u8], &'static str)> {
             })
             .map(|(_, d)| (*d, mime(name)));
     }
+    // moduły edytora: web/editor/*.js (bez dalszych podkatalogów)
+    if let Some(name) = rel.strip_prefix("editor/") {
+        if name.contains('/') || !name.ends_with(".js") {
+            return None;
+        }
+        return file(rel).map(|d| (d, mime(name)));
+    }
     // tylko pliki z katalogu głównego web/ (moduły, arkusz) – bez CG_SYSTEM i licencji
     if rel.contains('/') || !rel.contains('.') {
         return None;
@@ -96,6 +103,14 @@ mod tests {
         }
         assert!(get("/fonts/fonts.css").is_some());
         assert!(get("/fonts/oswald-latin-400-normal.woff2").is_some());
+        // moduły edytora: wszystkie, które importuje strona
+        let (main, t) = get("/editor/main.js").unwrap();
+        assert!(t.starts_with("text/javascript"));
+        let main = std::str::from_utf8(main).unwrap();
+        for m in main.split("from './").skip(1) {
+            let f = &m[..m.find('\'').unwrap()];
+            assert!(get(&format!("/editor/{f}")).is_some(), "{f}");
+        }
     }
 
     #[test]
@@ -105,6 +120,9 @@ mod tests {
             "/fonts/../artist.html",
             "/fonts/oswald/LICENSE.txt",
             "/CG_SYSTEM",
+            "/editor/../CG_SYSTEM",
+            "/editor/x/main.js",
+            "/editor/main.json",
             "/fonts/oswald/oswald-latin-400-normal.woff2",
             "/trio",
         ] {

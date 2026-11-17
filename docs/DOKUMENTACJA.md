@@ -269,7 +269,7 @@ Paczki instalacyjne generowane przez bundler:
 - **Windows:** instalator NSIS (`.exe`) oraz pakiet `.msi` (WebView2).
 - **macOS:** obraz dysku `.dmg` (wymaga macOS 11.0+, WKWebView).
 
-Strona Artist leży w `web/`. `artist.html`, `native.js` i `native.css` rozwija to repo; reszta (moduły rysowania, `ui.css`, `vizrs-ui.css` – wspólny rdzeń wyglądu rodziny VizRS, wzór: panel VizRS Live –, fonty i `fonts.css`)
+Strona Artist leży w `web/`. `artist.html` (z modułami skryptu w `web/editor/`), `native.js` i `native.css` rozwija to repo; reszta (moduły rysowania, `ui.css`, `vizrs-ui.css` – wspólny rdzeń wyglądu rodziny VizRS, wzór: panel VizRS Live –, fonty i `fonts.css`)
 to kopie z VizRS CG System – `tools/sync-cg.sh [katalog-CG]` kopiuje, `tools/sync-cg.sh --check` sprawdza identyczność
 (CI pobiera CG System w wersji z `web/CG_SYSTEM`). Zmiana rysowania zawsze najpierw w CG System.
 

@@ -39,6 +39,8 @@ const findNode = (nodes, id) => { for (const n of nodes || []) { if (n.id === id
     p.on('pageerror', (e) => errs.push(e.message));
     p.on('dialog', (d) => d.accept(d.type() === 'prompt' ? (globalThis.promptAnswer ?? d.defaultValue()) : undefined));
     await p.route('**/native.css', (r) => r.fulfill({ contentType: 'text/css', body: fs.readFileSync(path.join(WEB, 'native.css'), 'utf8') }));
+    // moduły edytora (`web/editor/`) – serwer `vizrs` ich nie zna, w oknie podaje je binarka
+    await p.route('**/editor/*.js', (r) => r.fulfill({ contentType: 'text/javascript', body: fs.readFileSync(path.join(WEB, 'editor', path.basename(new URL(r.request().url()).pathname)), 'utf8') }));
     await p.goto(B + '/artist');
     await p.waitForFunction(() => document.querySelector('#conn')?.textContent === 'połączono', null, { timeout: 10000 });
     await sleep(500);
