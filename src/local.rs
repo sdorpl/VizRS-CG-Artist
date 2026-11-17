@@ -247,16 +247,49 @@ fn route(st: &State, req: &Request) -> Response {
     if s.first() != Some(&"api") {
         return Response::err(405, "niedozwolona metoda");
     }
-    let Ok(mut store) = store_m.lock() else {
+    let Ok(store) = store_m.lock() else {
         return Response::err(500, "magazyn niedostępny");
     };
-    let body = || -> Result<Value, String> {
-        if req.body.is_empty() {
+    let a = Api {
+        st,
+        req,
+        store_m,
+        m,
+        rest: &s[1..],
+    };
+    match s.get(1).copied() {
+        Some("show" | "state") => show_api(&a, store),
+        Some(k) if KINDS.contains(&k) => show_api(&a, store),
+        Some("deploy") => deploy_api(&a, store),
+        Some("lock" | "unlock" | "locks" | "animpresets" | "assets") => misc_api(&a, store),
+        _ => Response::err(404, "nie znaleziono"),
+    }
+}
+
+/// Jedno żądanie `/api/*` magazynu lokalnego.
+struct Api<'a> {
+    st: &'a State,
+    req: &'a Request,
+    store_m: &'a Mutex<Store>,
+    m: &'a str,
+    rest: &'a [&'a str],
+}
+
+impl Api<'_> {
+    /// Treść żądania jako JSON (pusta = `null`).
+    fn body(&self) -> Result<Value, String> {
+        if self.req.body.is_empty() {
             return Ok(Value::Null);
         }
-        serde_json::from_slice(&req.body).map_err(|e| format!("zły JSON: {e}"))
-    };
-    match (m, &s[1..]) {
+        serde_json::from_slice(&self.req.body).map_err(|e| format!("zły JSON: {e}"))
+    }
+}
+
+/// Show, stan i elementy show (sceny…).
+fn show_api(a: &Api, mut store: std::sync::MutexGuard<'_, Store>) -> Response {
+    let (st, req) = (a.st, a.req);
+    let body = || a.body();
+    match (a.m, a.rest) {
         ("GET", ["show"]) => Response::json(store.show()),
         ("PUT", ["show"]) => res(
             body().and_then(|b| store.put_show(b, req.q("force") == Some("1"))),
@@ -268,6 +301,38 @@ fn route(st: &State, req: &Request) -> Response {
         ("GET", ["state"]) => Response::json(&json!({
             "mode": "local", "rev": store.show()["rev"], "layers": [], "preview": [],
         })),
+        ("POST" | "PUT", [kind]) if KINDS.contains(kind) => {
+            res(body().and_then(|b| store.upsert(kind, b)), |it| {
+                st.broadcast(&json!({ "t": "show", "kind": kind, "id": it["id"] }));
+                Response::json(&it)
+            })
+        }
+        ("PUT", [kind, id]) if KINDS.contains(kind) => res(
+            body().and_then(|mut b| {
+                if !b.is_object() {
+                    return Err("zły typ obiektu".to_string());
+                }
+                b["id"] = json!(id);
+                store.upsert(kind, b)
+            }),
+            |it| {
+                st.broadcast(&json!({ "t": "show", "kind": kind, "id": it["id"] }));
+                Response::json(&it)
+            },
+        ),
+        ("DELETE", [kind, id]) if KINDS.contains(kind) => res(store.delete(kind, id), |_| {
+            st.broadcast(&json!({ "t": "show" }));
+            Response::ok()
+        }),
+        _ => Response::err(404, "nie znaleziono"),
+    }
+}
+
+/// Wysyłka scen na zapisany serwer (sieć bez blokady magazynu).
+fn deploy_api(a: &Api, store: std::sync::MutexGuard<'_, Store>) -> Response {
+    let store_m = a.store_m;
+    let body = || a.body();
+    match (a.m, a.rest) {
         ("GET", ["deploy", "servers"]) => Response::json(&crate::deploy::servers()),
         ("POST", ["deploy", "check"]) => {
             let b = match body() {
@@ -296,6 +361,15 @@ fn route(st: &State, req: &Request) -> Response {
             drop(store);
             deploy(store_m, &b)
         }
+        _ => Response::err(404, "nie znaleziono"),
+    }
+}
+
+/// Blokady (zawsze przyznane – jedno okno na katalog), presety animacji, zasoby.
+fn misc_api(a: &Api, store: std::sync::MutexGuard<'_, Store>) -> Response {
+    let req = a.req;
+    let body = || a.body();
+    match (a.m, a.rest) {
         // jedno okno na katalog danych (instancja) – blokady scen zawsze przyznane
         ("POST" | "PUT", ["lock", _, _]) => Response::json(&json!({ "ok": true })),
         ("POST" | "DELETE", ["unlock", _, _]) => {
@@ -315,29 +389,6 @@ fn route(st: &State, req: &Request) -> Response {
             store.delete_asset(name);
             Response::ok()
         }
-        ("POST" | "PUT", [kind]) if KINDS.contains(kind) => {
-            res(body().and_then(|b| store.upsert(kind, b)), |it| {
-                st.broadcast(&json!({ "t": "show", "kind": kind, "id": it["id"] }));
-                Response::json(&it)
-            })
-        }
-        ("PUT", [kind, id]) if KINDS.contains(kind) => res(
-            body().and_then(|mut b| {
-                if !b.is_object() {
-                    return Err("zły typ obiektu".to_string());
-                }
-                b["id"] = json!(id);
-                store.upsert(kind, b)
-            }),
-            |it| {
-                st.broadcast(&json!({ "t": "show", "kind": kind, "id": it["id"] }));
-                Response::json(&it)
-            },
-        ),
-        ("DELETE", [kind, id]) if KINDS.contains(kind) => res(store.delete(kind, id), |_| {
-            st.broadcast(&json!({ "t": "show" }));
-            Response::ok()
-        }),
         _ => Response::err(404, "nie znaleziono"),
     }
 }
@@ -588,6 +639,46 @@ mod tests {
         let (head, body) = out.split_once("\r\n\r\n").unwrap();
         let code = head.split_whitespace().nth(1).unwrap().parse().unwrap();
         (code, head.to_string(), body.to_string())
+    }
+
+    /// Podział `route` według prefiksu: każdy prefiks API trafia do swojej funkcji.
+    #[test]
+    fn every_api_prefix_is_routed() {
+        let d = std::env::temp_dir().join(format!("vizrs-cg-artist-prefix-{}", std::process::id()));
+        std::fs::remove_dir_all(&d).ok();
+        let l = start(&d).unwrap();
+        let addr = l.base.trim_start_matches("http://").to_string();
+        let ck = format!("Cookie: vizrs_local={}\r\n", l.secret);
+        let req = |m: &str, path: &str| {
+            call(
+                &addr,
+                &format!("{m} {path} HTTP/1.1\r\nHost: {addr}\r\n{ck}Origin: http://{addr}\r\nContent-Length: 0\r\n\r\n"),
+            )
+        };
+        for (m, path) in [
+            ("GET", "/api/show"),
+            ("GET", "/api/state"),
+            ("GET", "/api/deploy/servers"),
+            ("POST", "/api/lock/scenes/x"),
+            ("POST", "/api/unlock/scenes/x"),
+            ("GET", "/api/locks"),
+            ("GET", "/api/animpresets"),
+            ("GET", "/api/assets"),
+            ("DELETE", "/api/assets/nie-ma.png"),
+        ] {
+            let (c, _, b) = req(m, path);
+            assert_ne!(c, 404, "{m} {path}: {b}");
+        }
+        for (m, path) in [
+            ("GET", "/api"),
+            ("GET", "/api/show/x"),
+            ("GET", "/api/scenes"),
+            ("GET", "/api/deploy"),
+        ] {
+            assert_eq!(req(m, path).0, 404, "{m} {path}");
+        }
+        drop(l);
+        std::fs::remove_dir_all(&d).ok();
     }
 
     #[test]
