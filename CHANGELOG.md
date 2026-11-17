@@ -2,6 +2,8 @@
 
 ## Niewydane
 
+- **Poprawka:** zmiana rozmiaru okna, zanim wczytała się pierwsza scena, zgłaszała błąd strony (`renderTimeline` bez sceny); oś czasu rysuje się teraz dopiero ze sceną.
+
 ## 26.11.10 – 2026-11-16
 
 - **Powiązania (dock) – reguła krawędzi** (plan PLAN-ruch-belek B1–B4, VizRS CG System 26.11.9): pole **zachowanie** – *stałe Δ* albo *nad / pod / z lewej / z prawej celu* z **odstępem** (`edge`, `gap`; przesunięcie z rzeczywistych obrysów celu i sceny, Δx / Δy jako zapas), pole **powrót** – *przy OUT* albo *po zejściu* celu (`back`). Podgląd 👁 liczy obrysy jak wyjście (`restRect`) i pozwala wybrać **dane celu** – stronę Trio sceny-celu (np. belka z 1 albo 2 wierszami). Ostrzeżenie o sumowaniu pomija pary reguł krawędzi (tam – największe przesunięcie). DOKUMENTACJA §4.

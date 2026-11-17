@@ -1226,6 +1226,7 @@ function presetProps(n) {
   try { return new Set(Object.keys(MO.motionToKeys(n.motion, { rest: restOf(n, 0), outStart: outStartOf(), shift: MO.sequenceShifts(scene.nodes).get(n.id) || 0 }).anim)); } catch { return new Set(); }
 }
 function renderTimeline() {
+  if (!scene) return; // zmiana rozmiaru okna, zanim wczyta się pierwsza scena
   const dur = scene.duration || 1;
   const W = Math.max(dur * pps + 80, $('#tl').clientWidth - LBL);
   const sh = MO.sequenceShifts(scene.nodes), oS = outStartOf();
