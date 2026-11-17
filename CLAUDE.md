@@ -126,7 +126,10 @@ Przy zmianie `web/artist.html` także edytor w Chromium: `node tests/e2e/editor.
 
 | Ścieżka | Rola |
 |---|---|
-| `src/main.rs` | opcje CLI i `VIZRS_*`, aplikacja Tauri, menu i akcje, okna, komenda `ipc`, „Zapisz jako” dla pobrań, przekazywanie plików, okno połączenia, jedna instancja (wtyczka), `window.json`, `--probe` |
+| `src/main.rs` | opcje CLI i `VIZRS_*`, stan aplikacji i tryb pracy (lokalnie / serwer), start aplikacji Tauri, jedna instancja (wtyczka), `--probe` |
+| `src/menu.rs` | menu i akcje, komendy strony (`PAGE_CMDS`) ze skrótami w zapisie systemu |
+| `src/window.rs` | okna: Artist (skrypt mostu `IPC_SHIM`, powiększenie, wygląd systemu, pisownia, odzyskiwanie po awarii strony), okno połączenia, przełączanie serwera, zamykanie, „Zapisz jako” dla pobrań, `window.json` |
+| `src/ipc.rs` | komenda `ipc` (komunikaty z białej listy `bridge`), komunikaty okna połączenia i sprawdzenie serwera, przekazywanie plików do strony |
 | `src/bridge.rs` | most strona → okno: biała lista komunikatów `app:`, limity, ścieżka kopii roboczej, base64 |
 | `src/connect.rs` | okno „Połącz z serwerem”: wbudowana strona, `connections.json`, normalizacja adresu, sprawdzenie serwera |
 | `src/local.rs` | magazyn lokalny: serwer na `127.0.0.1`, trasy API, sekret, `Host`/`Origin`, `/events`, blokada `.vizrs.lock` |

@@ -359,8 +359,8 @@ Praca lokalna → serwer `vizrs` (studio, VPS), z którego Trio wydaje grafikę:
 
 ## 14. Wygląd natywny
 
-Okno ma wyglądać i zachowywać się jak program systemu, nie jak strona w przeglądarce. Co robi okno (`src/main.rs`: `native_look`,
-`build_menu`, `ask`) i strona (`web/native.js`, `web/native.css` – pliki tego repo):
+Okno ma wyglądać i zachowywać się jak program systemu, nie jak strona w przeglądarce. Co robi okno (`src/window.rs`: `native_look`, `src/menu.rs`:
+`build_menu`, `src/main.rs`: `ask`) i strona (`web/native.js`, `web/native.css` – pliki tego repo):
 
 | Obszar | Linux (WebKitGTK) | Windows (WebView2) | macOS (WKWebView) |
 |---|---|---|---|
