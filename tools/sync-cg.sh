@@ -3,6 +3,7 @@
 #   tools/sync-cg.sh [KATALOG-CG-SYSTEM]          – skopiuj moduły, fonty i fonts.css do web/
 #   tools/sync-cg.sh --check [KATALOG-CG-SYSTEM]  – sprawdź, że web/ jest identyczne ze źródłem (CI, bramka)
 # Domyślnie ../VizRS CG System. Wersja źródła: web/CG_SYSTEM (pełny commit CG System – CI pobiera go do --check). Zmiana rysowania zawsze najpierw w CG System, potem tu ten skrypt.
+# Także moduły okna wspólne dla okien pakietu (src/gpu.rs, src/scale.rs, src/screen.rs ← source/shell/src/).
 # artist.html, editor/, native.js i native.css NIE są tu kopiowane – od wydzielenia (2026-11-07) należą do tego repo.
 set -e
 CHECK=
@@ -13,6 +14,9 @@ SRC="$CG/source/web"
 FD="$CG/source/src/fonts_data.rs"
 [ -f "$SRC/renderer.js" ] && [ -f "$FD" ] || { echo "Brak źródła CG System: $CG" >&2; exit 2; }
 DST="$TOP/web"
+# moduły okna (Tauri) wspólne dla okien pakietu – źródło: okno VizRS CG System
+WINDOW_SRC="$CG/source/shell/src"
+WINDOW="gpu.rs scale.rs screen.rs"
 SHARED="renderer.js motion.js qr.js richtext.js ticker-model.js ticker-items.js color-picker.js cgpack.js pack-ui.js ui.css vizrs-ui.css"
 # wektory reguł plików paczki – czyta je test `deploy.rs` (te same przypadki co tests/cgpack.mjs w CG System)
 VEC_SRC="$CG/source/tests/vectors/cgpack-placer.json"
@@ -44,18 +48,20 @@ if [ -n "$CHECK" ]; then
     cmp -s "$SRC/$f" "$DST/$f" || { echo "różni się: web/$f" >&2; bad=1; }
   done
   cmp -s "$VEC_SRC" "$VEC_DST" || { echo "różni się: tests/cgpack-placer.json" >&2; bad=1; }
+  for f in $WINDOW; do cmp -s "$WINDOW_SRC/$f" "$TOP/src/$f" || { echo "różni się: src/$f" >&2; bad=1; }; done
   fonts_css | cmp -s - "$DST/fonts/fonts.css" || { echo "różni się: web/fonts/fonts.css" >&2; bad=1; }
   # nic poza listą (stare fonty po zmianie w CG System)
   (cd "$DST" && find fonts -type f ! -name fonts.css | sort) > "$DST/.lista.tmp"
   font_files | sort | cmp -s - "$DST/.lista.tmp" || { echo "web/fonts/ ma inny zestaw plików niż fonts_data.rs" >&2; bad=1; }
   rm -f "$DST/.lista.tmp"
-  [ $bad = 0 ] && echo "web/ zgodne z CG System ($(git -C "$CG" describe --tags --always 2>/dev/null || echo '?'))"
+  [ $bad = 0 ] && echo "web/ i moduły okna zgodne z CG System ($(git -C "$CG" describe --tags --always 2>/dev/null || echo '?'))"
   exit $bad
 fi
 
 mkdir -p "$DST"
 for f in $SHARED; do cp "$SRC/$f" "$DST/$f"; done
 mkdir -p "$(dirname "$VEC_DST")"; cp "$VEC_SRC" "$VEC_DST"
+for f in $WINDOW; do cp "$WINDOW_SRC/$f" "$TOP/src/$f"; done
 rm -rf "$DST/fonts"
 for f in $(font_files); do mkdir -p "$DST/$(dirname "$f")"; cp "$SRC/$f" "$DST/$f"; done
 fonts_css > "$DST/fonts/fonts.css"
