@@ -120,6 +120,7 @@ cargo build --release
 
 Przy zmianie zachowania okna (most, magazyn, serwer, okno połączenia, instancja, `web/artist.html`) także test w działaniu:
 `node tests/e2e/okno.js` (kroki z serwerem wymagają zbudowanego `vizrs`; opis: DOKUMENTACJA §11).
+Przy zmianie `web/artist.html` także edytor w Chromium: `node tests/e2e/editor.js [vizrs]` (Playwright, `PLAYWRIGHT_DIR=…`; strona z `web/` na serwerze `vizrs --web web`: drzewo, właściwości, oś czasu, pola, kanwa, cofanie, zapis, sceny, grupy, warianty, powiązania).
 
 ## Struktura
 
@@ -139,6 +140,7 @@ Przy zmianie zachowania okna (most, magazyn, serwer, okno połączenia, instancj
 | `assets/vizrs-256.png`, `icons/` | ikona okna; ikony paczek (bundler Tauri) |
 | `tauri.conf.json`, `capabilities/`, `ui/connect.html`, `linux/desktop.hbs` | konfiguracja Tauri i paczek, uprawnienia komendy `ipc`, okno połączenia, wpis menu Linux |
 | `tests/e2e/okno.js`, `tests/e2e/smoke.js` | test w działaniu przez `--probe` (kroki z `vizrs`, gdy jest); test dymny na każdym systemie |
+| `tests/e2e/editor.js` | edytor scen w Chromium (Playwright) na serwerze `vizrs --web web` |
 | `.github/workflows/` | `ci.yml` – bramka, paczki i test dymny na Linux/Windows/macOS, test w działaniu pod Xvfb; `release.yml` – wydanie z trzech systemów (znacznik `v*`); `drafts.yml` – usuwanie szkiców |
 | `packaging/pl.vizrs.CgArtist.xml` | typy MIME `.cgpack` / `.vizrs.json` (do paczek Linux) |
 | `web/` | strona Artist: `artist.html`, `native.js`, `native.css` (tego repo; wygląd natywny – DOKUMENTACJA §14) + kopie modułów i fontów z CG System; `CG_SYSTEM` – wersja źródła |
