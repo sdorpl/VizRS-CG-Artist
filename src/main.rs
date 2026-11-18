@@ -9,6 +9,7 @@
 
 mod bridge;
 mod client;
+mod conn_url;
 mod connect;
 mod deploy;
 mod gpu;

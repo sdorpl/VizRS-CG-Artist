@@ -3,7 +3,7 @@
 #   tools/sync-cg.sh [KATALOG-CG-SYSTEM]          – skopiuj moduły, fonty i fonts.css do web/
 #   tools/sync-cg.sh --check [KATALOG-CG-SYSTEM]  – sprawdź, że web/ jest identyczne ze źródłem (CI, bramka)
 # Domyślnie ../VizRS CG System. Wersja źródła: web/CG_SYSTEM (pełny commit CG System – CI pobiera go do --check). Zmiana rysowania zawsze najpierw w CG System, potem tu ten skrypt.
-# Także moduły okna wspólne dla okien pakietu (src/gpu.rs, src/scale.rs, src/screen.rs ← source/shell/src/).
+# Także moduły okna wspólne dla okien pakietu (src/gpu.rs, src/scale.rs, src/screen.rs, src/conn_url.rs ← source/shell/src/).
 # artist.html, editor/, native.js i native.css NIE są tu kopiowane – od wydzielenia (2026-11-07) należą do tego repo.
 set -e
 CHECK=
@@ -16,7 +16,7 @@ FD="$CG/source/src/fonts_data.rs"
 DST="$TOP/web"
 # moduły okna (Tauri) wspólne dla okien pakietu – źródło: okno VizRS CG System
 WINDOW_SRC="$CG/source/shell/src"
-WINDOW="gpu.rs scale.rs screen.rs"
+WINDOW="gpu.rs scale.rs screen.rs conn_url.rs"
 SHARED="renderer.js motion.js qr.js richtext.js ticker-model.js ticker-items.js color-picker.js cgpack.js pack-ui.js ui.css vizrs-ui.css"
 # wektory reguł plików paczki – czyta je test `deploy.rs` (te same przypadki co tests/cgpack.mjs w CG System)
 VEC_SRC="$CG/source/tests/vectors/cgpack-placer.json"
