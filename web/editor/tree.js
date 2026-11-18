@@ -1,5 +1,6 @@
 // Artist – drzewo sceny: rysowanie, dodawanie elementów, kolejność, grupy.
 
+import { html, appendHtml } from '/dom.js';
 import { TYPES, walk, listFields, uid } from '/renderer.js';
 import { confirmBox, promptBox } from '/native.js';
 import { $, $$, boxIn, checkpoint, fitGroup, isLocked, locate, num, player, scene, scl, selAll, selId, selKey, setLastArea, setSelId, setSelKey, setSelKeys, setSelMore, shiftNode, t, toast, topSel, undo } from './core.js';
@@ -172,7 +173,7 @@ export function init() {
     const v = await promptBox('Nazwa kontenera', n.name, { title: 'Zmień nazwę', ok: 'Zmień' }); if (v === null) return;
     checkpoint(); n.name = v; renderTree(); renderProps();
   });
-  $('#addSel').innerHTML += `<optgroup label="Presety tickerów">${Object.entries(TICKER_PRESETS).map(([k, v]) => `<option value="preset:${k}">⇠ ${v.name}</option>`).join('')}</optgroup>`;
+  appendHtml($('#addSel'), html`<optgroup label="Presety tickerów">${Object.entries(TICKER_PRESETS).map(([k, v]) => html`<option value="preset:${k}">⇠ ${v.name}</option>`)}</optgroup>`);
   $('#addSel').addEventListener('change', (e) => { if (e.target.value) addNode(e.target.value); e.target.value = ''; });
   $('#tUp').onclick = () => treeOp('up');
   $('#tDown').onclick = () => treeOp('down');

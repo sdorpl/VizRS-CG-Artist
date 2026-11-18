@@ -1,5 +1,6 @@
 // Artist – oś czasu: klipy presetów i klucze (rysowanie).
 
+import { html, setHtml } from '/dom.js';
 import * as MO from '/motion.js';
 import { PROPS, TYPES, EASES, trackValue, walk } from '/renderer.js';
 import { confirmBox } from '/native.js';
@@ -37,65 +38,65 @@ export function renderTimeline() {
   const nodes = [];
   walk(scene.nodes, (n) => { if (hasMotion(n) || keyProps(n).length || n.id === selId) nodes.push(n); });
   nodes.sort((a, b) => (a.id === selId) === (b.id === selId) ? 0 : a.id === selId ? -1 : 1);
-  let h = `<div class="tl-in" style="width:${LBL + W}px">`;
-  h += `<div class="tl-row ruler"><div class="tl-lbl">${nodes.length ? '<span class="dim">ruch i klucze</span>' : '<span class="dim">brak animacji – ◆ albo zaznacz element</span>'}</div><div class="tl-area" data-area="ruler" style="width:${W}px">`;
+  let h = html`<div class="tl-in" style="width:${LBL + W}px">`;
+  h = html`${h}${html`<div class="tl-row ruler"><div class="tl-lbl">${nodes.length ? html`<span class="dim">ruch i klucze</span>` : html`<span class="dim">brak animacji – ◆ albo zaznacz element</span>`}</div><div class="tl-area" data-area="ruler" style="width:${W}px">`}`;
   const step = pps > 500 ? 0.05 : pps > 160 ? 0.1 : 0.25, lab = pps > 500 ? 0.25 : 0.5;
   for (let i = 0; i * step <= dur + 1e-9 + 2; i++) {
     const s0 = i * step, major = Math.abs(s0 / lab - Math.round(s0 / lab)) < 1e-6;
-    h += `<div class="tick ${major ? 'maj' : ''}" style="left:${s0 * pps}px">${major ? s0.toFixed(2).replace(/0$/, '') : ''}</div>`;
+    h = html`${h}${html`<div class="tick ${major ? 'maj' : ''}" style="left:${s0 * pps}px">${major ? s0.toFixed(2).replace(/0$/, '') : ''}</div>`}`;
   }
-  (scene.markers || []).forEach((m, i) => { h += `<div class="mkm" data-mk="${i}" style="left:${m.t * pps}px" title="Marker „${esc(m.name || '')}” ${(+m.t).toFixed(2)}s – klik: skocz, dwuklik: zmień nazwę / usuń">◆<span>${esc(m.name || '')}</span></div>`; });
-  scene.stops.forEach((s0, i) => { h += `<div class="stopm" data-stop="${i}" style="left:${s0 * pps}px" title="Stop ${(+s0).toFixed(2)}s – przeciągnij; dwuklik usuwa">▼</div>`; });
-  h += `<div class="endm" style="left:${dur * pps}px" title="koniec sceny"></div></div></div>`;
-  const bar = (id, sec, cls, a, b, label, title, handle = true) => `<div class="mb ${cls}" data-mb="${id}|${sec}" style="left:${a * pps}px;width:${Math.max(4, (b - a) * pps)}px" title="${esc(title)}">${esc(label)}${handle ? `<i class="mbh" data-mbh="${id}|${sec}"></i>` : ''}</div>`;
+  (scene.markers || []).forEach((m, i) => { h = html`${h}${html`<div class="mkm" data-mk="${i}" style="left:${m.t * pps}px" title="Marker „${esc(m.name || '')}” ${(+m.t).toFixed(2)}s – klik: skocz, dwuklik: zmień nazwę / usuń">◆<span>${esc(m.name || '')}</span></div>`}`; });
+  scene.stops.forEach((s0, i) => { h = html`${h}${html`<div class="stopm" data-stop="${i}" style="left:${s0 * pps}px" title="Stop ${(+s0).toFixed(2)}s – przeciągnij; dwuklik usuwa">▼</div>`}`; });
+  h = html`${h}${html`<div class="endm" style="left:${dur * pps}px" title="koniec sceny"></div></div></div>`}`;
+  const bar = (id, sec, cls, a, b, label, title, handle = true) => html`<div class="mb ${cls}" data-mb="${id}|${sec}" style="left:${a * pps}px;width:${Math.max(4, (b - a) * pps)}px" title="${esc(title)}">${esc(label)}${handle ? html`<i class="mbh" data-mbh="${id}|${sec}"></i>` : ''}</div>`;
   for (const n of nodes) {
     const m = n.motion || {}, s0 = sh.get(n.id) || 0, tx = n.props?.text, kp = keyProps(n), open = !tlFold.has(n.id);
     const after = m.after && locate(m.after)?.node;
-    h += `<div class="tl-row seq node ${n.id === selId ? 'sel' : ''}" data-node="${n.id}"><div class="tl-lbl" data-sel="${n.id}" title="${esc(n.name)}${after ? ` – wchodzi po „${esc(after.name)}”` : ''} · dwuklik w pasku: dodaj preset">${kp.length ? `<span class="car" data-fold="${n.id}">${open ? '▾' : '▸'}</span>` : '<span class="car"></span>'}${TYPES[n.type]?.icon || ''} ${esc(n.name)}${after ? ` <span class="dim">↳ ${esc(after.name)}</span>` : ''}${kp.length && !open ? ` <span class="dim">◆${kp.length}</span>` : ''}</div><div class="tl-area" data-nrow="${n.id}" style="width:${W}px">`;
+    h = html`${h}${html`<div class="tl-row seq node ${n.id === selId ? 'sel' : ''}" data-node="${n.id}"><div class="tl-lbl" data-sel="${n.id}" title="${esc(n.name)}${after ? ` – wchodzi po „${after.name}”` : ''} · dwuklik w pasku: dodaj preset">${kp.length ? html`<span class="car" data-fold="${n.id}">${open ? '▾' : '▸'}</span>` : html`<span class="car"></span>`}${TYPES[n.type]?.icon || ''} ${esc(n.name)}${after ? html` <span class="dim">↳ ${esc(after.name)}</span>` : ''}${kp.length && !open ? html` <span class="dim">◆${kp.length}</span>` : ''}</div><div class="tl-area" data-nrow="${n.id}" style="width:${W}px">`}`;
     if (m.loop?.type && m.loop.type !== 'none') {
       const a = MO.inEnd(m, s0, tx), b = Number.isFinite(oS) ? oS : dur;
-      if (b > a) h += bar(n.id, 'loop', 'loop', a, b, 'pętla: ' + (MO.LOOP_LABELS[m.loop.type] || m.loop.type), 'pętla uwagi – gra, gdy grafika stoi (klik: zakładka Ruch)', false);
+      if (b > a) h = html`${h}${bar(n.id, 'loop', 'loop', a, b, 'pętla: ' + (MO.LOOP_LABELS[m.loop.type] || m.loop.type), 'pętla uwagi – gra, gdy grafika stoi (klik: zakładka Ruch)', false)}`;
     }
     if (m.in?.type) {
       const a = s0 + MO.specDelay(m.in), d = m.in.type === 'none' ? 0 : MO.specDur(m.in);
-      h += bar(n.id, 'in', 'in' + (after ? ' after' : ''), a, a + d, MO.ANIM_LABELS[m.in.type] || m.in.type, `wejście: ${MO.ANIM_LABELS[m.in.type] || m.in.type} · start ${a.toFixed(2)} s · czas ${d.toFixed(2)} s – przeciągnij: opóźnienie, krawędź: czas, w pionie na inny element: „po węźle”; klik: zakładka Ruch; prawy klik: menu`);
+      h = html`${h}${bar(n.id, 'in', 'in' + (after ? ' after' : ''), a, a + d, MO.ANIM_LABELS[m.in.type] || m.in.type, `wejście: ${MO.ANIM_LABELS[m.in.type] || m.in.type} · start ${a.toFixed(2)} s · czas ${d.toFixed(2)} s – przeciągnij: opóźnienie, krawędź: czas, w pionie na inny element: „po węźle”; klik: zakładka Ruch; prawy klik: menu`)}`;
     }
     if (m.textIn?.type && m.textIn.type !== 'none') {
       const a = s0 + MO.specDelay(m.textIn), d = MO.specDur(m.textIn) + MO.textSpread(m.textIn, tx);
-      h += bar(n.id, 'textIn', 'tin', a, a + d, '', `tekst IN: ${MO.textLabel(m.textIn.type)} · ${a.toFixed(2)}–${(a + d).toFixed(2)} s`);
+      h = html`${h}${bar(n.id, 'textIn', 'tin', a, a + d, '', `tekst IN: ${MO.textLabel(m.textIn.type)} · ${a.toFixed(2)}–${(a + d).toFixed(2)} s`)}`;
     }
     if (Number.isFinite(oS)) {
       if (m.out?.type) {
         const a = oS + MO.specDelay(m.out), d = m.out.type === 'none' ? 0 : MO.specDur(m.out);
-        h += bar(n.id, 'out', 'out', a, a + d, MO.ANIM_LABELS[m.out.type] || m.out.type, `wyjście: ${MO.ANIM_LABELS[m.out.type] || m.out.type} · start ${a.toFixed(2)} s (od ostatniego stopu) · czas ${d.toFixed(2)} s`);
+        h = html`${h}${bar(n.id, 'out', 'out', a, a + d, MO.ANIM_LABELS[m.out.type] || m.out.type, `wyjście: ${MO.ANIM_LABELS[m.out.type] || m.out.type} · start ${a.toFixed(2)} s (od ostatniego stopu) · czas ${d.toFixed(2)} s`)}`;
       }
       if (m.textOut?.type && m.textOut.type !== 'none') {
         const a = oS + MO.specDelay(m.textOut), d = MO.specDur(m.textOut) + MO.textSpread(m.textOut, tx);
-        h += bar(n.id, 'textOut', 'tout', a, a + d, '', `tekst OUT: ${MO.textLabel(m.textOut.type)} · ${a.toFixed(2)}–${(a + d).toFixed(2)} s`);
+        h = html`${h}${bar(n.id, 'textOut', 'tout', a, a + d, '', `tekst OUT: ${MO.textLabel(m.textOut.type)} · ${a.toFixed(2)}–${(a + d).toFixed(2)} s`)}`;
       }
     }
-    h += `</div></div>`;
+    h = html`${h}${html`</div></div>`}`;
     if (!open) continue;
     const pp = kp.length ? presetProps(n) : new Set();
     for (const pr of kp) {
       const tr = n.anim[pr];
-      h += `<div class="tl-row kr ${n.id === selId ? 'sel' : ''}"><div class="tl-lbl" data-sel="${n.id}" title="${esc(n.name)}.${pr}${pp.has(pr) ? ' – preset ruchu też zmienia tę właściwość (składają się)' : ''}">${esc(PROPS[pr]?.label || pr)}${pp.has(pr) ? '<span class="pz">+ preset</span>' : ''}</div><div class="tl-area" data-row="${n.id}|${pr}" style="width:${W}px">`;
+      h = html`${h}${html`<div class="tl-row kr ${n.id === selId ? 'sel' : ''}"><div class="tl-lbl" data-sel="${n.id}" title="${esc(n.name)}.${pr}${pp.has(pr) ? ' – preset ruchu też zmienia tę właściwość (składają się)' : ''}">${esc(PROPS[pr]?.label || pr)}${pp.has(pr) ? html`<span class="pz">+ preset</span>` : ''}</div><div class="tl-area" data-row="${n.id}|${pr}" style="width:${W}px">`}`;
       for (let i = 0; i < tr.length - 1; i++) {
         const a = tr[i], b = tr[i + 1];
-        h += `<div class="seg ${a.v === b.v || a.e === 'hold' ? 'hold' : ''}" style="left:${a.t * pps}px;width:${(b.t - a.t) * pps}px"></div>`;
+        h = html`${h}${html`<div class="seg ${a.v === b.v || a.e === 'hold' ? 'hold' : ''}" style="left:${a.t * pps}px;width:${(b.t - a.t) * pps}px"></div>`}`;
       }
       tr.forEach((k, i) => {
         const sel = selKeys.some((x) => x.key === k) || (selKey && selKey.node === n && selKey.prop === pr && selKey.key === k);
-        h += `<div class="kf ${sel ? 'sel' : ''}" data-k="${n.id}|${pr}|${i}" style="left:${k.t * pps}px" title="${k.t.toFixed(2)}s = ${esc(k.v)} (${k.e || 'inout'})"></div>`;
+        h = html`${h}${html`<div class="kf ${sel ? 'sel' : ''}" data-k="${n.id}|${pr}|${i}" style="left:${k.t * pps}px" title="${k.t.toFixed(2)}s = ${esc(k.v)} (${k.e || 'inout'})"></div>`}`;
       });
-      h += `</div></div>`;
+      h = html`${h}${html`</div></div>`}`;
     }
   }
-  scene.stops.forEach((s0) => { h += `<div class="stopline" style="left:${LBL + s0 * pps}px"></div>`; });
-  h += `<div class="endline" style="left:${LBL + dur * pps}px"></div>`;
-  h += `<div id="playhead" style="left:${LBL + t * pps}px"></div></div>`;
+  scene.stops.forEach((s0) => { h = html`${h}${html`<div class="stopline" style="left:${LBL + s0 * pps}px"></div>`}`; });
+  h = html`${h}${html`<div class="endline" style="left:${LBL + dur * pps}px"></div>`}`;
+  h = html`${h}${html`<div id="playhead" style="left:${LBL + t * pps}px"></div></div>`}`;
   const sl = $('#tl').scrollLeft;
-  $('#tl').innerHTML = h;
+  setHtml($('#tl'), h);
   $('#tl').scrollLeft = sl;
   $('#dur').value = scene.duration;
   renderKeyEd();
@@ -218,24 +219,22 @@ const PH_LABEL = { in: 'wejście', out: 'wyjście', textIn: 'efekt tekstu IN', t
 export function tlMenu(e, nid, sec) {
   const n = locate(nid)?.node; if (!n) return;
   if (selId !== nid) select(nid);
-  const b = (act, label, off = false, tip = '') => `<button data-cx="tl:${act}|${nid}" ${off ? 'disabled' : ''} title="${esc(tip)}"><span>${label}</span></button>`;
+  const b = (act, label, off = false, tip = '') => html`<button data-cx="tl:${act}|${nid}" ${off ? 'disabled' : ''} title="${esc(tip)}"><span>${label}</span></button>`;
   let h = '';
   if (sec) {
     const keyable = (sec === 'in' || sec === 'out') && (() => { try { return MO.motionToKeys({ [sec]: n.motion[sec] }, { rest: restOf(n, 0), outStart: Number.isFinite(outStartOf()) ? outStartOf() : 1, shift: 0 }).done.length > 0; } catch { return false; } })();
-    h += `<div class="h4">${esc(PH_LABEL[sec] || sec)}</div>`
-      + b('keys:' + sec, 'Rozbij na klucze', !keyable, keyable ? 'Preset → klucze; z istniejącymi kluczami tych właściwości – scalenie' : sec === 'in' || sec === 'out' ? 'Ten typ ruchu nie ma odpowiednika w kluczach (przesłona, obrót, odwrócenie…)' : 'Pętle i efekty tekstu zostają presetami')
-      + b('tab:' + sec, 'Pokaż w zakładce Ruch') + b('del:' + sec, 'Usuń ' + (PH_LABEL[sec] || sec));
+    h = html`${h}${html`<div class="h4">${esc(PH_LABEL[sec] || sec)}</div>`}${b('keys:' + sec, 'Rozbij na klucze', !keyable, keyable ? 'Preset → klucze; z istniejącymi kluczami tych właściwości – scalenie' : sec === 'in' || sec === 'out' ? 'Ten typ ruchu nie ma odpowiednika w kluczach (przesłona, obrót, odwrócenie…)' : 'Pętle i efekty tekstu zostają presetami')}${b('tab:' + sec, 'Pokaż w zakładce Ruch')}${b('del:' + sec, 'Usuń ' + (PH_LABEL[sec] || sec))}`;
   } else {
     const m = n.motion || {}, txt = n.type === 'text' || n.type === 'clock';
-    h += '<div class="h4">Dodaj ruch</div>';
+    h = html`${h}${html`<div class="h4">Dodaj ruch</div>`}`;
     for (const k of ['in', 'out', 'textIn', 'textOut', 'loop']) {
       if ((k === 'textIn' || k === 'textOut') && !txt) continue;
       const has = k === 'loop' || k === 'textIn' || k === 'textOut' ? m[k]?.type && m[k].type !== 'none' : !!m[k]?.type;
-      h += b('add:' + k, '＋ ' + PH_LABEL[k], has);
+      h = html`${h}${b('add:' + k, '＋ ' + PH_LABEL[k], has)}`;
     }
-    h += '<hr>' + b('fromkeys:', 'Zrób preset z kluczy', !MO.MOTION_PROPS.some((pr) => n.anim?.[pr]?.length >= 2), 'Zaznaczone klucze (klik / Shift / ramka) albo wszystkie');
+    h = html`${h}${html`<hr>`}${b('fromkeys:', 'Zrób preset z kluczy', !MO.MOTION_PROPS.some((pr) => n.anim?.[pr]?.length >= 2), 'Zaznaczone klucze (klik / Shift / ramka) albo wszystkie')}`;
   }
-  const mn = $('#ctxMenu'); mn.innerHTML = h; mn.hidden = false;
+  const mn = $('#ctxMenu'); setHtml(mn, h); mn.hidden = false;
   const r = mn.getBoundingClientRect();
   mn.style.left = Math.min(e.clientX, innerWidth - r.width - 4) + 'px'; mn.style.top = Math.min(e.clientY, innerHeight - r.height - 4) + 'px';
 }
@@ -260,13 +259,13 @@ export async function tlAction(a) {
 export function afterCycle(nid, target) { let cur = target; for (let i = 0; cur && i < 200; i++) { if (cur === nid) return true; cur = locate(cur)?.node?.motion?.after; } return false; }
 export function renderKeyEd() {
   const el = $('#keyed');
-  if (!selKey || !selKey.node.anim?.[selKey.prop]?.includes(selKey.key)) { setSelKey(null); el.innerHTML = '<span class="dim" style="font-size:11px">KLUCZ</span><span class="dim" style="font-size:12px">kliknij klucz (◆) na ścieżce, aby zmienić jego czas, wartość i krzywą · dwuklik na ścieżce = nowy klucz</span>'; return; }
+  if (!selKey || !selKey.node.anim?.[selKey.prop]?.includes(selKey.key)) { setSelKey(null); setHtml(el, html`<span class="dim" style="font-size:11px">KLUCZ</span><span class="dim" style="font-size:12px">kliknij klucz (◆) na ścieżce, aby zmienić jego czas, wartość i krzywą · dwuklik na ścieżce = nowy klucz</span>`); return; }
   const k = selKey.key, d = PROPS[selKey.prop];
-  el.innerHTML = `<span class="dim" style="font-size:11px">KLUCZ</span><b style="font-size:12px">${esc(selKey.node.name)}.${esc(d?.label || selKey.prop)}</b>
+  setHtml(el, html`<span class="dim" style="font-size:11px">KLUCZ</span><b style="font-size:12px">${esc(selKey.node.name)}.${esc(d?.label || selKey.prop)}</b>
     <label>t</label><input id="kt" type="number" step="0.01" value="${k.t}">
-    <label>wart.</label><input id="kv" ${d?.t === 'num' ? 'type="number" step="any"' : ''} value="${esc(k.v)}">
-    <select id="ke" title="krzywa do następnego klucza">${EASES.map((e) => `<option ${(k.e || 'inout') === e ? 'selected' : ''}>${e}</option>`).join('')}</select>
-    <button class="icon danger" id="kdel" title="Usuń klucz"><i class="ico del"></i></button>`;
+    <label>wart.</label><input id="kv" ${d?.t === 'num' ? html`type="number" step="any"` : ''} value="${esc(k.v)}">
+    <select id="ke" title="krzywa do następnego klucza">${EASES.map((e) => html`<option ${(k.e || 'inout') === e ? 'selected' : ''}>${e}</option>`)}</select>
+    <button class="icon danger" id="kdel" title="Usuń klucz"><i class="ico del"></i></button>`);
 }
 export function updatePlayhead() {
   const ph = $('#playhead'); if (ph) ph.style.left = LBL + t * pps + 'px';

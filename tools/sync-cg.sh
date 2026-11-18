@@ -17,7 +17,7 @@ DST="$TOP/web"
 # moduły okna (Tauri) wspólne dla okien pakietu – źródło: okno VizRS CG System
 WINDOW_SRC="$CG/source/shell/src"
 WINDOW="gpu.rs scale.rs screen.rs conn_url.rs"
-SHARED="renderer.js motion.js qr.js richtext.js ticker-model.js ticker-items.js color-picker.js cgpack.js pack-ui.js ui.css vizrs-ui.css"
+SHARED="renderer.js motion.js qr.js richtext.js ticker-model.js ticker-items.js color-picker.js cgpack.js pack-ui.js dom.js ui.css vizrs-ui.css"
 # wektory reguł plików paczki – czyta je test `deploy.rs` (te same przypadki co tests/cgpack.mjs w CG System)
 VEC_SRC="$CG/source/tests/vectors/cgpack-placer.json"
 VEC_DST="$TOP/tests/cgpack-placer.json"

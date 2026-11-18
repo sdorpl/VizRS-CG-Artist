@@ -1,5 +1,6 @@
 // Artist – sceny odniesienia i położenie względem innej sceny.
 
+import { html, setHtml } from '/dom.js';
 import { ScenePlayer, layerZ, walk } from '/renderer.js';
 import { $, checkpoint, esc, isLocked, locate, num, parentXf, player, scale, scene, scenes, scl, selAll, setSceneOffset, shiftNode, stage, t, toLocal, toast, topSel, undo } from './core.js';
 import { renderProps, syncProps } from './props.js';
@@ -72,7 +73,7 @@ export function overlapSvg(k) {
         for (const a of mine) for (const o of theirs) {
           const x1 = Math.max(a.r.x1, o.r.x1), y1 = Math.max(a.r.y1, o.r.y1), x2 = Math.min(a.r.x2, o.r.x2), y2 = Math.min(a.r.y2, o.r.y2);
           if (x2 - x1 < 1 || y2 - y1 < 1) continue;
-          h += `<rect class="over" x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}"/>`;
+          h = html`${h}${html`<rect class="over" x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}"/>`}`;
           list.push(`${a.n.name || a.n.type} ↔ ${ref.s.name} › ${o.n.name || o.n.type}`);
         }
       }
@@ -110,15 +111,15 @@ export function measureSvg(k) {
     }
   }
   const tag = (x, y, v) => { const tx = `${Math.round(v)} px`, w = (tx.length * 6.6 + 8) * k, hh = 15 * k;
-    return `<rect class="measbg" x="${x - w / 2}" y="${y - hh / 2}" width="${w}" height="${hh}" rx="${3 * k}"/><text class="measl" x="${x}" y="${y + 4 * k}" text-anchor="middle" font-size="${11 * k}">${tx}</text>`; };
-  let h = `<rect class="measb" x="${S.x1}" y="${S.y1}" width="${S.x2 - S.x1}" height="${S.y2 - S.y1}"/>`;
+    return html`<rect class="measbg" x="${x - w / 2}" y="${y - hh / 2}" width="${w}" height="${hh}" rx="${3 * k}"/><text class="measl" x="${x}" y="${y + 4 * k}" text-anchor="middle" font-size="${11 * k}">${tx}</text>`; };
+  let h = html`<rect class="measb" x="${S.x1}" y="${S.y1}" width="${S.x2 - S.x1}" height="${S.y2 - S.y1}"/>`;
   const e = 5 * k;
   const up = best.up, dn = best.down, lf = best.left, rt = best.right;
-  h += `<path class="meas" d="M${mx} ${S.y1}V${up.at}M${mx - e} ${up.at}H${mx + e}M${mx} ${S.y2}V${dn.at}M${mx - e} ${dn.at}H${mx + e}M${S.x1} ${my}H${lf.at}M${lf.at} ${my - e}V${my + e}M${S.x2} ${my}H${rt.at}M${rt.at} ${my - e}V${my + e}"/>`;
-  if (up.d > 0.5) h += tag(mx, (S.y1 + up.at) / 2, up.d);
-  if (dn.d > 0.5) h += tag(mx, (S.y2 + dn.at) / 2, dn.d);
-  if (lf.d > 0.5) h += tag((S.x1 + lf.at) / 2, my, lf.d);
-  if (rt.d > 0.5) h += tag((S.x2 + rt.at) / 2, my, rt.d);
+  h = html`${h}${html`<path class="meas" d="M${mx} ${S.y1}V${up.at}M${mx - e} ${up.at}H${mx + e}M${mx} ${S.y2}V${dn.at}M${mx - e} ${dn.at}H${mx + e}M${S.x1} ${my}H${lf.at}M${lf.at} ${my - e}V${my + e}M${S.x2} ${my}H${rt.at}M${rt.at} ${my - e}V${my + e}"/>`}`;
+  if (up.d > 0.5) h = html`${h}${tag(mx, (S.y1 + up.at) / 2, up.d)}`;
+  if (dn.d > 0.5) h = html`${h}${tag(mx, (S.y2 + dn.at) / 2, dn.d)}`;
+  if (lf.d > 0.5) h = html`${h}${tag((S.x1 + lf.at) / 2, my, lf.d)}`;
+  if (rt.d > 0.5) h = html`${h}${tag((S.x2 + rt.at) / 2, my, rt.d)}`;
   return h;
 }
 let guidesQ = 0;
@@ -137,10 +138,10 @@ export function renderRefsPop() {
   const sel = new Set(refIds());
   const pos = (s) => layerName(s) === layerName(scene) ? 'ta sama warstwa' : refAbove(s) ? 'nad' : 'pod';
   const size = (s) => (s.width || 1920) !== scene.width || (s.height || 1080) !== scene.height;
-  $('#pRefs').innerHTML = `<label><input type="checkbox" data-rf="on" ${rf.on ? 'checked' : ''}> <b>Pokaż sceny odniesienia</b> <span class="dim">(Shift+R)</span></label>
+  setHtml($('#pRefs'), html`<label><input type="checkbox" data-rf="on" ${rf.on ? 'checked' : ''}> <b>Pokaż sceny odniesienia</b> <span class="dim">(Shift+R)</span></label>
     <h4>Odniesienia dla „${esc(scene.name)}”</h4>
-    <div class="rflist">${others.length ? others.map((s) => `<label title="${esc(s.name)} · warstwa ${esc(layerName(s))}"><input type="checkbox" data-rfid="${esc(s.id)}" ${sel.has(s.id) ? 'checked' : ''}><span class="nm">${esc(s.name)}</span><span class="pill">${esc(layerName(s))}</span><span class="pos">${pos(s)}</span>${size(s) ? '<span class="warn" title="Inna rozdzielczość – rysowana w px kadru bez skalowania">⚠</span>' : ''}</label>`).join('') : '<div class="dim">Show nie ma innych scen.</div>'}</div>
-    ${others.some((s) => sel.has(s.id) && layerName(s) === layerName(scene)) ? '<div class="warn">Sceny tej samej warstwy zastępują się na antenie – nie będą widoczne razem.</div>' : ''}
+    <div class="rflist">${others.length ? others.map((s) => html`<label title="${esc(s.name)} · warstwa ${esc(layerName(s))}"><input type="checkbox" data-rfid="${esc(s.id)}" ${sel.has(s.id) ? 'checked' : ''}><span class="nm">${esc(s.name)}</span><span class="pill">${esc(layerName(s))}</span><span class="pos">${pos(s)}</span>${size(s) ? html`<span class="warn" title="Inna rozdzielczość – rysowana w px kadru bez skalowania">⚠</span>` : ''}</label>`) : html`<div class="dim">Show nie ma innych scen.</div>`}</div>
+    ${others.some((s) => sel.has(s.id) && layerName(s) === layerName(scene)) ? html`<div class="warn">Sceny tej samej warstwy zastępują się na antenie – nie będą widoczne razem.</div>` : ''}
     <h4>Wygląd</h4>
     <div class="rfrow"><span>krycie</span><input type="range" min="10" max="100" step="5" data-rf="opacity" value="${Math.round(rf.opacity * 100)}" title="${Math.round(rf.opacity * 100)}%"></div>
     <div class="rfrow"><span>kolejność</span><select data-rf="mode"><option value="layers" ${rf.mode === 'layers' ? 'selected' : ''}>wg warstw – jak na wyjściu</option><option value="under" ${rf.mode === 'under' ? 'selected' : ''}>wszystkie pod sceną</option><option value="over" ${rf.mode === 'over' ? 'selected' : ''}>wszystkie nad sceną</option></select></div>
@@ -148,7 +149,7 @@ export function renderRefsPop() {
     <label><input type="checkbox" data-rf="snap" ${rf.snap ? 'checked' : ''}> Przyciągaj do elementów odniesień</label>
     <label title="Czerwony obszar na kanwie i komunikat, gdy element tej sceny zasłania element sceny odniesienia z innej warstwy"><input type="checkbox" data-rf="warn" ${rf.warn ? 'checked' : ''}> Ostrzegaj o nachodzeniu elementów</label>
     <div class="dim" style="font-size:11px">Alt (przytrzymaj) – odległości zaznaczenia do najbliższych krawędzi.</div>
-    <div class="dim" style="margin-top:6px;font-size:11px">Tylko podgląd w Artist – nie zmienia sceny ani wyjścia. Dosuwanie i wyrównanie: ustawienia sceny (klik w puste tło) → „Położenie względem innej sceny”.</div>`;
+    <div class="dim" style="margin-top:6px;font-size:11px">Tylko podgląd w Artist – nie zmienia sceny ani wyjścia. Dosuwanie i wyrównanie: ustawienia sceny (klik w puste tło) → „Położenie względem innej sceny”.</div>`);
 }
 function onRefsPop(e) {
   const el = e.target;
@@ -186,18 +187,18 @@ const REL_OPS = {
 };
 export function relForm(forNode) {
   const ts = relTarget(), others = scenes.filter((x) => x.id !== scene.id);
-  if (!others.length) return `<div class="relbox"><div class="rnote">Show nie ma innych scen – dodaj np. ticker albo logo, żeby ustawiać tę ${forNode ? 'grafikę' : 'scenę'} względem nich.</div></div>`;
+  if (!others.length) return html`<div class="relbox"><div class="rnote">Show nie ma innych scen – dodaj np. ticker albo logo, żeby ustawiać tę ${forNode ? 'grafikę' : 'scenę'} względem nich.</div></div>`;
   const nodes = []; if (ts) walk(ts.nodes, (n, par) => { nodes.push([n.id, (par ? '· ' : '') + (n.name || n.type)]); });
   if (rel.node && !nodes.some(([id]) => id === rel.node)) rel.node = '';
-  const b = (op) => `<button data-relop="${op}" data-relfor="${forNode ? 'node' : 'scene'}" title="${esc(REL_OPS[op][1])}">${REL_OPS[op][0]}</button>`;
-  return `<div class="relbox">
-    <div class="rrow"><label>cel</label><div class="row"><select data-rel="target" title="Scena docelowa">${others.map((x) => `<option value="${esc(x.id)}" ${x.id === rel.target ? 'selected' : ''}>${esc(x.name)} · ${esc(layerName(x))}</option>`).join('')}</select>
-      <select data-rel="node" title="Element sceny docelowej (domyślnie obrys całej sceny)"><option value="">cała scena</option>${nodes.map(([id, nm]) => `<option value="${esc(id)}" ${id === rel.node ? 'selected' : ''}>${esc(nm)}</option>`).join('')}</select></div></div>
+  const b = (op) => html`<button data-relop="${op}" data-relfor="${forNode ? 'node' : 'scene'}" title="${esc(REL_OPS[op][1])}">${REL_OPS[op][0]}</button>`;
+  return html`<div class="relbox">
+    <div class="rrow"><label>cel</label><div class="row"><select data-rel="target" title="Scena docelowa">${others.map((x) => html`<option value="${esc(x.id)}" ${x.id === rel.target ? 'selected' : ''}>${esc(x.name)} · ${esc(layerName(x))}</option>`)}</select>
+      <select data-rel="node" title="Element sceny docelowej (domyślnie obrys całej sceny)"><option value="">cała scena</option>${nodes.map(([id, nm]) => html`<option value="${esc(id)}" ${id === rel.node ? 'selected' : ''}>${esc(nm)}</option>`)}</select></div></div>
     <div class="rrow"><label>odstęp px</label><input type="number" data-rel="gap" value="${+rel.gap || 0}" title="Odstęp przy dosuwaniu (ujemny = zachodzi na cel)"></div>
-    <div class="rrow"><label>dosuń</label><div class="rbtns">${['above', 'below', 'left', 'right'].map(b).join('')}</div></div>
-    <div class="rrow"><label>wyrównaj krawędzie</label><div class="rbtns three">${['al', 'ac', 'ar', 'at', 'am', 'ab'].map(b).join('')}</div></div>
-    ${forNode ? `<div class="rrow"><label></label><div class="rbtns" style="grid-template-columns:1fr"><button data-relop="width" data-relfor="node" title="Szerokość zaznaczonego elementu = szerokość celu, lewe krawędzie wyrównane">↔ szerokość jak cel</button></div></div>`
-      : `<label class="chk" style="padding-top:4px" title="Zamiast przesuwać scenę na stałe – reguła powiązania (dock): przesunięcie tylko wtedy, gdy cel jest na antenie"><input type="checkbox" data-rel="dock" ${rel.dock ? 'checked' : ''}> jako powiązanie (dock): tylko gdy cel jest na antenie</label>`}
+    <div class="rrow"><label>dosuń</label><div class="rbtns">${['above', 'below', 'left', 'right'].map(b)}</div></div>
+    <div class="rrow"><label>wyrównaj krawędzie</label><div class="rbtns three">${['al', 'ac', 'ar', 'at', 'am', 'ab'].map(b)}</div></div>
+    ${forNode ? html`<div class="rrow"><label></label><div class="rbtns" style="grid-template-columns:1fr"><button data-relop="width" data-relfor="node" title="Szerokość zaznaczonego elementu = szerokość celu, lewe krawędzie wyrównane">↔ szerokość jak cel</button></div></div>`
+      : html`<label class="chk" style="padding-top:4px" title="Zamiast przesuwać scenę na stałe – reguła powiązania (dock): przesunięcie tylko wtedy, gdy cel jest na antenie"><input type="checkbox" data-rel="dock" ${rel.dock ? 'checked' : ''}> jako powiązanie (dock): tylko gdy cel jest na antenie</label>`}
     <div class="rnote">Obrysy liczone jak na kanwie (cel w ${rf.time === 'head' ? 'bieżącym czasie' : 'pierwszym stop poincie'}). ${forNode ? 'Animowany element przesuwa się razem z kluczami.' : 'Przesuwa całą scenę (położenie sceny) – animacje bez zmian.'} Jedno Ctrl+Z cofa.</div>
   </div>`;
 }

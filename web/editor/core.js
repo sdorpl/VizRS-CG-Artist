@@ -1,6 +1,7 @@
 // Artist – wspólne: skróty DOM, API, komunikaty, stan edytora, geometria grup, ładowanie scen.
 
 import * as PACK from '/cgpack.js';
+import { appendHtml, esc, html, setHtml } from '/dom.js';
 import { TYPES, FONTS, OFFLINE_FONTS, ScenePlayer, propAt } from '/renderer.js';
 import { choose, confirmBox } from '/native.js';
 import { renderAll } from './props.js';
@@ -14,7 +15,7 @@ import { native } from './main.js';
 // deklaracje funkcji (nie stałe): moduły z cyklu importów mogą ich użyć, zanim core.js się wykona
 export function $(s, r = document) { return r.querySelector(s); }
 export function $$(s, r = document) { return [...r.querySelectorAll(s)]; }
-export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+export { esc, html };
 export async function api(method, url, body) {
   const r = await fetch(url, { method, headers: body !== undefined ? { 'Content-Type': 'application/json' } : {}, body: body !== undefined ? JSON.stringify(body) : undefined });
   const j = await r.json().catch(() => ({}));
@@ -169,7 +170,7 @@ export function fitGroup(g) {
 export async function loadAssets() { assets = await api('GET', '/api/assets').catch(() => []); updateFontList(); }
 export const assetFonts = () => assets.filter((a) => PACK.FONT_RE.test(a.name)).map((a) => a.name);
 function updateFontList() {
-  $('#fontlist').innerHTML = [...FONTS, ...assetFonts()].map((f) => `<option>${esc(f)}</option>`).join('');
+  setHtml($('#fontlist'), [...FONTS, ...assetFonts()].map((f) => html`<option>${f}</option>`));
 }
 /**
  * Font wpisany ręcznie → nazwa, którą zna renderer: czcionka z zasobów jest rodziną o nazwie pliku, więc „MojaCzcionka”,
@@ -203,7 +204,7 @@ export async function load() {
   if (s) openScene(s); else newScene('Nowa scena');
 }
 export function renderSceneSel() {
-  $('#sceneSel').innerHTML = scenes.map((s) => `<option value="${s.id}" ${scene && s.id === scene.id ? 'selected' : ''}>${esc(s.name)}  ·  ${esc(s.layer || 'main')}</option>`).join('');
+  setHtml($('#sceneSel'), scenes.map((s) => html`<option value="${s.id}" ${scene && s.id === scene.id ? 'selected' : ''}>${s.name}  ·  ${s.layer || 'main'}</option>`));
 }
 let who = '';
 let lockedScene = null, lockedByOther = null;
@@ -272,8 +273,8 @@ export async function newScene(name, base) {
 
 /** Zdarzenia i stan początkowy; woła main.js, moduły w kolejności dawnego skryptu. */
 export function init() {
-  $('#fontlist').innerHTML = FONTS.map((f) => `<option>${f}</option>`).join('');
-  $('#addSel').innerHTML += Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v.icon} ${v.label}</option>`).join('');
+  setHtml($('#fontlist'), FONTS.map((f) => html`<option>${f}</option>`));
+  appendHtml($('#addSel'), Object.entries(TYPES).map(([k, v]) => html`<option value="${k}">${v.icon} ${v.label}</option>`));
   try { who = localStorage.getItem('vizrs.who') || ''; } catch { /* brak localStorage */ }
   if (!who) { who = 'Operator ' + Math.floor(10 + Math.random() * 90); try { localStorage.setItem('vizrs.who', who); } catch { /* ignoruj */ } }
   setInterval(() => { if (lockedScene && !lockedByOther) api('POST', `/api/lock/scenes/${encodeURIComponent(lockedScene)}?who=${encodeURIComponent(who)}`).catch(() => {}); }, 15000);

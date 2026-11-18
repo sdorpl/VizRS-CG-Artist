@@ -2,6 +2,7 @@
 // Strona zgłasza stan (tytuł, zmiany, cofanie, kopia robocza), powłoka wysyła komendy z menu i pliki.
 // W oknie natywnym pytania idą do systemowych okien dialogowych (`dialog`), a zachowania przeglądarki
 // (menu kontekstowe, skróty przeglądarki, nawigacja przyciskami myszy, przeciąganie obrazów) są wyłączone.
+import { html, setHtml } from './dom.js';
 const shell = window.__vizrsShell;
 // __vizrsPost: okno Tauri (tam `window.ipc` należy do Tauri i nie da się go podmienić); inaczej `window.ipc` (GTK, wry)
 const post = (o) => { try { const m = 'app:' + JSON.stringify(o); if (window.__vizrsPost) window.__vizrsPost(m); else window.ipc.postMessage(m); } catch { /* okno zamykane */ } };
@@ -52,8 +53,8 @@ export function promptBox(text, value = '', { title = '', ok = 'OK', cancel = 'A
     textOpen = true;
     const d = document.createElement('div');
     d.className = 'nd-back';
-    d.innerHTML = `<form class="nd" role="dialog" aria-modal="true"><div class="nd-t"></div><div class="nd-m"></div>
-      <input class="nd-in" spellcheck="false" autocomplete="off"><div class="nd-b"></div></form>`;
+    setHtml(d, html`<form class="nd" role="dialog" aria-modal="true"><div class="nd-t"></div><div class="nd-m"></div>
+      <input class="nd-in" spellcheck="false" autocomplete="off"><div class="nd-b"></div></form>`);
     const f = d.querySelector('form');
     d.querySelector('.nd-t').textContent = title;
     d.querySelector('.nd-t').hidden = !title;

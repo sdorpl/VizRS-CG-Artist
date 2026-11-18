@@ -1,5 +1,6 @@
 // Artist – górny pasek (sceny, eksport, import), paczka .cgpack, raport.
 
+import { html, setHtml, orEmpty } from '/dom.js';
 import * as PACK from '/cgpack.js';
 import { planDialog } from '/pack-ui.js';
 import { confirmBox, promptBox } from '/native.js';
@@ -71,10 +72,10 @@ async function importPack(pk, fileName = '') {
 export function showReport(title, lines) {
   const d = document.createElement('div');
   d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;display:flex;align-items:center;justify-content:center';
-  d.innerHTML = `<div style="width:min(720px,94vw);max-height:86vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px">
+  setHtml(d, html`<div style="width:min(720px,94vw);max-height:86vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px">
     <b style="font-size:15px">${esc(title)}</b>
-    <ul id="rep" style="margin:10px 0;padding-left:18px;line-height:1.5">${lines.map((l) => `<li>${esc(l)}</li>`).join('') || '<li class="dim">Bez uwag – wszystko przeniesiono.</li>'}</ul>
-    <button id="repOk" class="acc">OK</button></div>`;
+    <ul id="rep" style="margin:10px 0;padding-left:18px;line-height:1.5">${orEmpty(lines.map((l) => html`<li>${esc(l)}</li>`), html`<li class="dim">Bez uwag – wszystko przeniesiono.</li>`)}</ul>
+    <button id="repOk" class="acc">OK</button></div>`);
   document.body.appendChild(d);
   d.querySelector('#repOk').onclick = () => d.remove();
   d.addEventListener('mousedown', (e) => { if (e.target === d) d.remove(); });
@@ -130,20 +131,20 @@ export function init() {
     const list = show.scenes.map((s) => (scene && s.id === scene.id ? scene : s)); // bieżąca scena w wersji z edytora
     const d = document.createElement('div');
     d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;display:flex;align-items:center;justify-content:center';
-    d.innerHTML = `<div style="width:min(720px,94vw);max-height:86vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px">
+    setHtml(d, html`<div style="width:min(720px,94vw);max-height:86vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px">
     <b style="font-size:15px">Paczka belek (.cgpack)</b>
     <div class="dim" style="margin:4px 0 10px;font-size:12px">Sceny razem z grafikami i czcionkami, których używają (oraz dołączonymi w „Zasoby paczki”). Czcionki z paczki serwer wysyła na /output – komputer z OBS nie musi ich mieć.</div>
-    <div class="row" style="gap:6px;margin-bottom:6px"><button data-pk="all">zaznacz wszystkie</button><button data-pk="none">żadna</button><span class="grow"></span>${TRIO || show.pages?.length ? '<label><input type="checkbox" id="pkPages" checked> dołącz strony z Trio</label>' : ''}</div>
-    <div id="pkList" style="max-height:38vh;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:4px 8px">${list.map((s) => `<label style="display:flex;gap:8px;align-items:center;padding:2px 0"><input type="checkbox" value="${esc(s.id)}" ${scene && s.id === scene.id ? 'checked' : ''}><span class="grow">${esc(s.name)}</span><span class="dim" style="font-size:11px">${PACK.sceneAssets(s, known).length} plik(ów)</span></label>`).join('')}</div>
+    <div class="row" style="gap:6px;margin-bottom:6px"><button data-pk="all">zaznacz wszystkie</button><button data-pk="none">żadna</button><span class="grow"></span>${TRIO || show.pages?.length ? html`<label><input type="checkbox" id="pkPages" checked> dołącz strony z Trio</label>` : ''}</div>
+    <div id="pkList" style="max-height:38vh;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:4px 8px">${list.map((s) => html`<label style="display:flex;gap:8px;align-items:center;padding:2px 0"><input type="checkbox" value="${esc(s.id)}" ${scene && s.id === scene.id ? 'checked' : ''}><span class="grow">${esc(s.name)}</span><span class="dim" style="font-size:11px">${PACK.sceneAssets(s, known).length} plik(ów)</span></label>`)}</div>
     <div id="pkSum" class="dim" style="margin:8px 0;font-size:12px"></div>
-    ${dirty ? '<div style="color:var(--warn,#e8b04b);font-size:12px;margin-bottom:6px">Bieżąca scena ma niezapisane zmiany – trafią do paczki w wersji z edytora.</div>' : ''}
-    <div class="row" style="gap:6px"><button id="pkGo" class="acc">⇩ Pobierz .cgpack</button><button id="pkNo">Anuluj</button></div></div>`;
+    ${dirty ? html`<div style="color:var(--warn,#e8b04b);font-size:12px;margin-bottom:6px">Bieżąca scena ma niezapisane zmiany – trafią do paczki w wersji z edytora.</div>` : ''}
+    <div class="row" style="gap:6px"><button id="pkGo" class="acc">⇩ Pobierz .cgpack</button><button id="pkNo">Anuluj</button></div></div>`);
     document.body.appendChild(d);
     const chosen = () => $$('#pkList input:checked', d).map((i) => list.find((s) => s.id === i.value)).filter(Boolean);
     const sum = () => {
       const sc = chosen(), files = new Set(); sc.forEach((s) => PACK.sceneAssets(s, known).forEach((n) => files.add(n)));
       const fonts = [...files].filter((n) => PACK.FONT_RE.test(n));
-      $('#pkSum', d).innerHTML = `${sc.length} scen · ${files.size - fonts.length} grafik · ${fonts.length} czcionek${fonts.length ? ': ' + fonts.map(esc).join(', ') : ''}`;
+      $('#pkSum', d).textContent = `${sc.length} scen · ${files.size - fonts.length} grafik · ${fonts.length} czcionek${fonts.length ? ': ' + fonts.join(', ') : ''}`;
     };
     sum();
     d.addEventListener('change', sum);

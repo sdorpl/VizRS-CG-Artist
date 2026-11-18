@@ -1,5 +1,6 @@
 // Artist – uchwyty, wyrównywanie, menu kontekstowe kanwy i schowek, edycja tekstu na kanwie, zaznaczanie ramką.
 
+import { html, setHtml } from '/dom.js';
 import { TYPES, propAt } from '/renderer.js';
 import { $, $$, anchorOff, checkpoint, esc, isLocked, locate, num, originOf, parentXf, plElem, player, save, scale, scene, scl, selAll, selId, selNode, setLastArea, setSelId, setSelMore, shiftNode, stage, t, toLocal, toast, topSel } from './core.js';
 import { renderProps, renderTree, syncProps } from './props.js';
@@ -249,22 +250,17 @@ function ctxMenu(e) {
   const m = $('#ctxMenu'), hit = hitNode(e.clientX, e.clientY);
   if (hit && !selAll().includes(hit.dataset.id)) select(hit.dataset.id);
   const k = topSel().length, n = selNode(), under = nodesAt(e.clientX, e.clientY);
-  const b = (act, label, key = '', off = false) => `<button data-cx="${act}" ${off ? 'disabled' : ''}><span>${label}</span>${key ? `<kbd>${key}</kbd>` : ''}</button>`;
-  const nm = (id) => esc(locate(id)?.node.name || locate(id)?.node.type || id);
+  const b = (act, label, key = '', off = false) => html`<button data-cx="${act}" ${off ? 'disabled' : ''}><span>${label}</span>${key ? html`<kbd>${key}</kbd>` : ''}</button>`;
+  const nm = (id) => locate(id)?.node.name || locate(id)?.node.type || id;
   let h = '';
   if (hit && k) {
     const P = n && locate(n.id)?.parent;
-    h += b('dup', 'Duplikuj', 'Ctrl+D') + b('copy', 'Kopiuj', 'Ctrl+C') + b('cut', 'Wytnij', 'Ctrl+X') + b('paste', 'Wklej', 'Ctrl+V', !hasClip()) + b('del', 'Usuń', 'Del') + '<hr>'
-      + b('group', 'Grupuj', 'Ctrl+G', k < 2) + b('ungroup', 'Rozgrupuj', 'Ctrl+Shift+G', !(k === 1 && n?.type === 'group')) + '<hr>'
-      + '<div class="h4">Kolejność</div>' + b('front', 'Na wierzch') + b('zup', 'Wyżej') + b('zdown', 'Niżej') + b('back', 'Na spód') + '<hr>'
-      + '<div class="h4">Wyrównaj (pasek: względem)</div>' + b('al:l', 'Lewe krawędzie') + b('al:cx', 'Środki w poziomie') + b('al:r', 'Prawe krawędzie') + b('al:t', 'Górne krawędzie') + b('al:cy', 'Środki w pionie') + b('al:b', 'Dolne krawędzie') + '<hr>'
-      + b('lock', 'Zablokuj / odblokuj') + b('hide', 'Ukryj / pokaż') + b('parent', P ? `Zaznacz grupę „${nm(P.id)}”` : 'Zaznacz grupę nadrzędną', 'dwuklik', !P) + b('tree', 'Pokaż w drzewie');
-    if (under.length > 1) h += '<hr><div class="h4">Zaznacz pod kursorem</div>' + under.map((id) => b('pick:' + id, (id === selId ? '● ' : '') + nm(id))).join('');
+    h = html`${h}${b('dup', 'Duplikuj', 'Ctrl+D')}${b('copy', 'Kopiuj', 'Ctrl+C')}${b('cut', 'Wytnij', 'Ctrl+X')}${b('paste', 'Wklej', 'Ctrl+V', !hasClip())}${b('del', 'Usuń', 'Del')}${html`<hr>`}${b('group', 'Grupuj', 'Ctrl+G', k < 2)}${b('ungroup', 'Rozgrupuj', 'Ctrl+Shift+G', !(k === 1 && n?.type === 'group'))}${html`<hr>`}${html`<div class="h4">Kolejność</div>`}${b('front', 'Na wierzch')}${b('zup', 'Wyżej')}${b('zdown', 'Niżej')}${b('back', 'Na spód')}${html`<hr>`}${html`<div class="h4">Wyrównaj (pasek: względem)</div>`}${b('al:l', 'Lewe krawędzie')}${b('al:cx', 'Środki w poziomie')}${b('al:r', 'Prawe krawędzie')}${b('al:t', 'Górne krawędzie')}${b('al:cy', 'Środki w pionie')}${b('al:b', 'Dolne krawędzie')}${html`<hr>`}${b('lock', 'Zablokuj / odblokuj')}${b('hide', 'Ukryj / pokaż')}${b('parent', P ? `Zaznacz grupę „${nm(P.id)}”` : 'Zaznacz grupę nadrzędną', 'dwuklik', !P)}${b('tree', 'Pokaż w drzewie')}`;
+    if (under.length > 1) h = html`${h}${html`<hr><div class="h4">Zaznacz pod kursorem</div>`}${under.map((id) => b('pick:' + id, (id === selId ? '● ' : '') + nm(id)))}`;
   } else {
-    h += b('paste', 'Wklej', 'Ctrl+V', !hasClip()) + b('all', 'Zaznacz wszystko', 'Ctrl+A', !scene.nodes.length) + '<hr>'
-      + b('guides', cv.show ? 'Ukryj prowadnice' : 'Pokaż prowadnice') + b('refs', rf.on ? 'Ukryj sceny odniesienia' : 'Pokaż sceny odniesienia', 'Shift+R') + b('fit', 'Dopasuj widok', 'Shift+1') + '<hr>' + b('scene', 'Ustawienia sceny');
+    h = html`${h}${b('paste', 'Wklej', 'Ctrl+V', !hasClip())}${b('all', 'Zaznacz wszystko', 'Ctrl+A', !scene.nodes.length)}${html`<hr>`}${b('guides', cv.show ? 'Ukryj prowadnice' : 'Pokaż prowadnice')}${b('refs', rf.on ? 'Ukryj sceny odniesienia' : 'Pokaż sceny odniesienia', 'Shift+R')}${b('fit', 'Dopasuj widok', 'Shift+1')}${html`<hr>`}${b('scene', 'Ustawienia sceny')}`;
   }
-  m.innerHTML = h; m.hidden = false;
+  setHtml(m, h); m.hidden = false;
   const W = innerWidth, H = innerHeight, r = m.getBoundingClientRect();
   m.style.left = Math.min(e.clientX, W - r.width - 4) + 'px'; m.style.top = Math.min(e.clientY, H - r.height - 4) + 'px';
 }

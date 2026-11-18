@@ -1,5 +1,6 @@
 // Artist – punkt wejścia: inicjalizacja modułów w kolejności, okno natywne, wysyłka na serwer, połączenie.
 
+import { html, setHtml } from '/dom.js';
 import { init as coreInit } from './core.js';
 import { init as editInit } from './edit.js';
 import { init as treeInit } from './tree.js';
@@ -48,23 +49,23 @@ async function deployDialog() {
   const d = document.createElement('div');
   d.id = 'deployDlg';
   d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;display:flex;align-items:center;justify-content:center';
-  const box = (inner) => `<div style="width:min(760px,94vw);max-height:86vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px">
+  const box = (inner) => html`<div style="width:min(760px,94vw);max-height:86vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px">
     <b style="font-size:15px">Wyślij na serwer</b>${inner}</div>`;
   if (!servers.length) {
-    d.innerHTML = box(`<div style="margin:10px 0 14px;line-height:1.5">Brak zapisanych serwerów. Dodaj serwer w <b>Plik → Połącz z serwerem</b>
+    setHtml(d, box(html`<div style="margin:10px 0 14px;line-height:1.5">Brak zapisanych serwerów. Dodaj serwer w <b>Plik → Połącz z serwerem</b>
       (adres, token operatora, „zapamiętaj token”), potem wróć przyciskiem <b>Praca lokalna</b> w tym samym oknie.</div>
-      <button id="dpNo" class="acc">OK</button>`);
+      <button id="dpNo" class="acc">OK</button>`));
     document.body.appendChild(d);
     d.querySelector('#dpNo').onclick = () => d.remove();
     return;
   }
-  d.innerHTML = box(`<div class="dim" style="margin:4px 0 10px;font-size:12px">Sceny trafiają na serwer razem z grafikami i czcionkami, których brakuje na serwerze
+  setHtml(d, box(html`<div class="dim" style="margin:4px 0 10px;font-size:12px">Sceny trafiają na serwer razem z grafikami i czcionkami, których brakuje na serwerze
       (pliku o tej samej nazwie nie nadpisuje). Strony w Trio korzystające ze sceny pokażą nową wersję.</div>
-    <div class="row" style="gap:6px;margin-bottom:8px"><label>Serwer</label><select id="dpSrv" class="grow">${servers.map((s) => `<option value="${esc(s.url)}" ${s.url === remembered ? 'selected' : ''}>${esc(s.url)}${s.hasToken ? '' : ' (bez zapamiętanego tokenu)'}</option>`).join('')}</select></div>
+    <div class="row" style="gap:6px;margin-bottom:8px"><label>Serwer</label><select id="dpSrv" class="grow">${servers.map((s) => html`<option value="${esc(s.url)}" ${s.url === remembered ? 'selected' : ''}>${esc(s.url)}${s.hasToken ? '' : ' (bez zapamiętanego tokenu)'}</option>`)}</select></div>
     <div class="row" style="gap:6px;margin-bottom:6px"><button data-dp="all">zaznacz wszystkie</button><button data-dp="none">żadna</button></div>
-    <div id="dpList" style="max-height:44vh;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:4px 8px">${scenes.map((s) => `<label style="display:flex;gap:8px;align-items:center;padding:3px 0" data-row="${esc(s.id)}"><input type="checkbox" value="${esc(s.id)}" ${scene && s.id === scene.id ? 'checked' : ''}><span class="grow">${esc(s.name)}</span><span class="dim dpSt" style="font-size:11px"></span></label>`).join('')}</div>
+    <div id="dpList" style="max-height:44vh;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:4px 8px">${scenes.map((s) => html`<label style="display:flex;gap:8px;align-items:center;padding:3px 0" data-row="${esc(s.id)}"><input type="checkbox" value="${esc(s.id)}" ${scene && s.id === scene.id ? 'checked' : ''}><span class="grow">${esc(s.name)}</span><span class="dim dpSt" style="font-size:11px"></span></label>`)}</div>
     <div id="dpMsg" class="dim" style="margin:8px 0;font-size:12px"></div>
-    <div class="row" style="gap:6px"><button id="dpGo" class="acc" disabled>⇧ Wyślij</button><button id="dpNo">Anuluj</button></div>`);
+    <div class="row" style="gap:6px"><button id="dpGo" class="acc" disabled>⇧ Wyślij</button><button id="dpNo">Anuluj</button></div>`));
   document.body.appendChild(d);
   const picked = () => [...d.querySelectorAll('#dpList input[type=checkbox]:not(.dpOver):checked')].map((c) => c.value);
   let checked = null, seq = 0;
@@ -81,9 +82,9 @@ async function deployDialog() {
       for (const sc of r.scenes) {
         const row = d.querySelector(`[data-row="${CSS.escape(sc.id)}"]`); if (!row) continue;
         const [txt, cls] = DEPLOY_STATUS[sc.status] || [sc.status, ''];
-        const air = sc.onAir?.length ? ` · <b style="color:#e55">NA ANTENIE (${sc.onAir.map(esc).join(', ')})</b>` : '';
-        const over = DEPLOY_OVER.has(sc.status) ? ` <label title="Zastąp wersję na serwerze"><input type="checkbox" class="dpOver" data-over="${esc(sc.id)}"> nadpisz</label>` : '';
-        row.querySelector('.dpSt').innerHTML = `<span style="${cls ? 'color:var(--warn,#e8b04b)' : ''}">${esc(txt)}</span>${air}${over}`;
+        const air = sc.onAir?.length ? html` · <b style="color:#e55">NA ANTENIE (${sc.onAir.join(', ')})</b>` : '';
+        const over = DEPLOY_OVER.has(sc.status) ? html` <label title="Zastąp wersję na serwerze"><input type="checkbox" class="dpOver" data-over="${esc(sc.id)}"> nadpisz</label>` : '';
+        setHtml(row.querySelector('.dpSt'), html`<span style="${cls ? 'color:var(--warn,#e8b04b)' : ''}">${esc(txt)}</span>${air}${over}`);
       }
       const need = r.scenes.flatMap((sc) => PACK.sceneAssets(scenes.find((s) => s.id === sc.id) || {}, known)).filter((n, i, a) => a.indexOf(n) === i);
       const missing = need.filter((n) => !r.assets.includes(n));

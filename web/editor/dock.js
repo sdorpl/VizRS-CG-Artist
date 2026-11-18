@@ -1,5 +1,6 @@
 // Artist – powiązania (dock): tabela reguł, podgląd, reguły z kanwy.
 
+import { html, setHtml } from '/dom.js';
 import { TYPES, propAt, layerZ, parseColor, dockShift as dockShiftOn, DOCK_EASES, restRect } from '/renderer.js';
 import { $, box, checkpoint, esc, isLocked, locate, multiSel, num, parentXf, plElem, player, scale, scene, scenes, scl, selAll, selId, selMore, selNode, setLastArea, setSceneOffset, stage, t, toLocal, toast, topSel, trioPages } from './core.js';
 import { renderProps, syncProps } from './props.js';
@@ -47,25 +48,17 @@ export function dockTable() {
   const others = scenes.filter((x) => x.id !== scene.id && layerName(x) !== own).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   const row = (d, i) => {
     const parts = dockParts(d);
-    const chips = parts.map((p, k) => { const x = dockPart(p); return `<span class="chip dk${x.bad ? ' bad' : ''}" title="${esc(x.title + (x.bad ? ' – nie ma w show' : ''))}">${esc(x.label)}<button data-dkrm="${i}::${k}" title="usuń cel">×</button></span>`; }).join('');
-    const opt = (v, label) => parts.includes(v) ? '' : `<option value="${esc(v)}">${esc(label)}</option>`;
-    const add = `<select data-dkadd="${i}" title="Dodaj cel: reguła działa, gdy na antenie jest którykolwiek z celów (jedno przesunięcie)"><option value="">＋ cel…</option>`
-      + `<optgroup label="Sceny (każda strona sceny)">${others.map((x) => opt('scene:' + x.name, x.name + ' · ' + layerName(x))).join('')}</optgroup>`
-      + `<optgroup label="Warstwy (dowolna grafika)">${layers.map((l) => opt('layer:' + l, 'warstwa ' + l)).join('')}</optgroup>`
-      + `<optgroup label="Strona Trio"><option value="page:">strona o numerze…</option></optgroup></select>`;
+    const chips = parts.map((p, k) => { const x = dockPart(p); return html`<span class="chip dk${x.bad ? ' bad' : ''}" title="${esc(x.title + (x.bad ? ' – nie ma w show' : ''))}">${esc(x.label)}<button data-dkrm="${i}::${k}" title="usuń cel">×</button></span>`; });
+    const opt = (v, label) => parts.includes(v) ? '' : html`<option value="${esc(v)}">${esc(label)}</option>`;
+    const add = html`${html`<select data-dkadd="${i}" title="Dodaj cel: reguła działa, gdy na antenie jest którykolwiek z celów (jedno przesunięcie)"><option value="">＋ cel…</option>`}${html`<optgroup label="Sceny (każda strona sceny)">${others.map((x) => opt('scene:' + x.name, x.name + ' · ' + layerName(x)))}</optgroup>`}${html`<optgroup label="Warstwy (dowolna grafika)">${layers.map((l) => opt('layer:' + l, 'warstwa ' + l))}</optgroup>`}${html`<optgroup label="Strona Trio"><option value="page:">strona o numerze…</option></optgroup></select>`}`;
     const ease = d.ease || 'std';
-    return `<div class="dkrule"><div class="dkhead"><span class="dim">${i + 1}. gdy na antenie</span><span class="dkact"><button class="icon" data-dkraw="${i}" title="Edytuj cel jako tekst (layer:…, page:…, scene:…, kilka: a|b)">✎</button><button class="icon ${dockPv?.i === i && !dockPv.set ? 'on' : ''}" data-dkpv="${i}" title="Podgląd: cele tej reguły jako sceny odniesienia „na antenie”, scena przesuwa się o wynik powiązań (jak na wyjściu)">👁</button><button class="icon ${dockPv?.i === i && dockPv.set ? 'on' : ''}" data-dkset="${i}" title="Ustaw z kanwy: przeciągnij scenę (z przyciąganiem do celu) – zmienia Δx / Δy tej reguły, nie położenie sceny. Enter – zatwierdź, Esc – anuluj">✋</button><button class="icon danger" data-dkdel="${i}" title="Usuń regułę">×</button></span></div>
-      <div class="chips">${chips || '<span class="dim">brak celu</span>'}${add}</div>
-      <div class="dkrow dkmode"><label>zachowanie<select data-dk="${i}::edge" title="Stałe Δ – przesunięcie o Δx / Δy. Nad / pod / z lewej / z prawej celu – odsunięcie od krawędzi celu o odstęp, z rzeczywistego obrysu celu i tej sceny (np. belka o 1 albo 2 wierszach); tylko gdy nachodzą na siebie">${Object.entries(DOCK_EDGE_LABEL).map(([k, v]) => `<option value="${k}" ${k === (d.edge || '') ? 'selected' : ''}>${v}</option>`).join('')}</select></label>`
-      + (d.edge ? `<label>odstęp px<input type="number" data-dk="${i}::gap" value="${d.gap ?? 0}" title="Odstęp od krawędzi celu"></label>` : '<span></span>')
-      + `<label>powrót<select data-dk="${i}::back" title="Kiedy scena wraca na miejsce po zejściu celu"><option value="" ${d.back === 'end' ? '' : 'selected'} title="w chwili OUT celu">przy OUT</option><option value="end" ${d.back === 'end' ? 'selected' : ''} title="po animacji wyjścia celu">po zejściu</option></select></label></div>
-      <div class="dkrow"><label title="${d.edge ? 'Zapasowe przesunięcie, gdy nie da się zmierzyć celu (albo starszy serwer)' : ''}">${d.edge ? 'zapas Δx' : 'Δx px'}<input type="number" data-dk="${i}::dx" value="${d.dx ?? 0}"></label><label title="${d.edge ? 'Zapasowe przesunięcie, gdy nie da się zmierzyć celu (albo starszy serwer)' : ''}">${d.edge ? 'zapas Δy' : 'Δy px'}<input type="number" data-dk="${i}::dy" value="${d.dy ?? 0}"></label>`
-      + `<label>czas s<input type="number" step="0.1" min="0" data-dk="${i}::dur" value="${d.dur ?? 0.6}"></label>`
-      + `<label>krzywa<select data-dk="${i}::ease" title="Krzywa ruchu (odjazd i powrót)">${Object.keys(DOCK_EASES).map((k) => `<option value="${k}" ${k === ease ? 'selected' : ''} title="${DOCK_EASE_TITLE[k] || ''}">${DOCK_EASE_LABEL[k] || k}</option>`).join('')}</select></label></div></div>`;
+    return html`${html`<div class="dkrule"><div class="dkhead"><span class="dim">${i + 1}. gdy na antenie</span><span class="dkact"><button class="icon" data-dkraw="${i}" title="Edytuj cel jako tekst (layer:…, page:…, scene:…, kilka: a|b)">✎</button><button class="icon ${dockPv?.i === i && !dockPv.set ? 'on' : ''}" data-dkpv="${i}" title="Podgląd: cele tej reguły jako sceny odniesienia „na antenie”, scena przesuwa się o wynik powiązań (jak na wyjściu)">👁</button><button class="icon ${dockPv?.i === i && dockPv.set ? 'on' : ''}" data-dkset="${i}" title="Ustaw z kanwy: przeciągnij scenę (z przyciąganiem do celu) – zmienia Δx / Δy tej reguły, nie położenie sceny. Enter – zatwierdź, Esc – anuluj">✋</button><button class="icon danger" data-dkdel="${i}" title="Usuń regułę">×</button></span></div>
+      <div class="chips">${chips || html`<span class="dim">brak celu</span>`}${add}</div>
+      <div class="dkrow dkmode"><label>zachowanie<select data-dk="${i}::edge" title="Stałe Δ – przesunięcie o Δx / Δy. Nad / pod / z lewej / z prawej celu – odsunięcie od krawędzi celu o odstęp, z rzeczywistego obrysu celu i tej sceny (np. belka o 1 albo 2 wierszach); tylko gdy nachodzą na siebie">${Object.entries(DOCK_EDGE_LABEL).map(([k, v]) => html`<option value="${k}" ${k === (d.edge || '') ? 'selected' : ''}>${v}</option>`)}</select></label>`}${d.edge ? html`<label>odstęp px<input type="number" data-dk="${i}::gap" value="${d.gap ?? 0}" title="Odstęp od krawędzi celu"></label>` : html`<span></span>`}${html`<label>powrót<select data-dk="${i}::back" title="Kiedy scena wraca na miejsce po zejściu celu"><option value="" ${d.back === 'end' ? '' : 'selected'} title="w chwili OUT celu">przy OUT</option><option value="end" ${d.back === 'end' ? 'selected' : ''} title="po animacji wyjścia celu">po zejściu</option></select></label></div>
+      <div class="dkrow"><label title="${d.edge ? 'Zapasowe przesunięcie, gdy nie da się zmierzyć celu (albo starszy serwer)' : ''}">${d.edge ? 'zapas Δx' : 'Δx px'}<input type="number" data-dk="${i}::dx" value="${d.dx ?? 0}"></label><label title="${d.edge ? 'Zapasowe przesunięcie, gdy nie da się zmierzyć celu (albo starszy serwer)' : ''}">${d.edge ? 'zapas Δy' : 'Δy px'}<input type="number" data-dk="${i}::dy" value="${d.dy ?? 0}"></label>`}${html`<label>czas s<input type="number" step="0.1" min="0" data-dk="${i}::dur" value="${d.dur ?? 0.6}"></label>`}${html`<label>krzywa<select data-dk="${i}::ease" title="Krzywa ruchu (odjazd i powrót)">${Object.keys(DOCK_EASES).map((k) => html`<option value="${k}" ${k === ease ? 'selected' : ''} title="${DOCK_EASE_TITLE[k] || ''}">${DOCK_EASE_LABEL[k] || k}</option>`)}</select></label></div></div>`}`;
   };
   const warn = dockOverlaps();
-  return `<div class="dktable">${list.map(row).join('')}</div>`
-    + (warn.length ? `<div class="dkwarn" title="Każda reguła z celem na antenie dodaje swoje przesunięcie. Żeby kilka celów dawało jedno przesunięcie, wpisz je w jednej regule.">⚠ ${warn.map(esc).join('; ')}. Jedno przesunięcie dla kilku celów – cele w jednej regule.</div>` : '');
+  return html`${html`<div class="dktable">${list.map(row)}</div>`}${warn.length ? html`<div class="dkwarn" title="Każda reguła z celem na antenie dodaje swoje przesunięcie. Żeby kilka celów dawało jedno przesunięcie, wpisz je w jednej regule.">⚠ ${warn.join('; ')}. Jedno przesunięcie dla kilku celów – cele w jednej regule.</div>` : ''}`;
 }
 // ------------------------------------------------------------ powiązania (dock) z podglądu i z kanwy
 // 👁 Podgląd: cele reguły (scene:<nazwa>, layer:<warstwa>) jako sceny odniesienia „na antenie”, bieżąca scena przesunięta
@@ -147,19 +140,19 @@ function dockBar(dx, dy) {
   const b = $('#dockBar'), r = scene.dock?.[dockPv?.i];
   if (!dockPv || !r) { b.hidden = true; return; }
   const names = dockPv.ids.map((id) => scenes.find((x) => x.id === id)?.name).filter(Boolean).join(', ');
-  const skip = dockPv.unknown.length ? ` <span class="dim" title="Nie ma takich scen albo to strony (page:…), które zna tylko serwer">· pominięte: ${esc(dockPv.unknown.join(', '))}</span>` : '';
+  const skip = dockPv.unknown.length ? html` <span class="dim" title="Nie ma takich scen albo to strony (page:…), które zna tylko serwer">· pominięte: ${esc(dockPv.unknown.join(', '))}</span>` : '';
   // dane celu (np. belka z 1 albo 2 wierszami): strony Trio scen-celów – ruch reguł krawędzi z ich obrysem
   const vsel = dockPv.ids.map((id) => {
     const x = scenes.find((s) => s.id === id), pages = trioPages.filter((p) => p.scene === id || p.scene === x?.name);
     if (!x || !pages.length) return '';
     const cur = String(dockPv.pages?.[id] ?? '');
-    return ` <select data-dkpg="${esc(id)}" title="Dane celu „${esc(x.name)}” w podglądzie"><option value="">${esc(x.name)}: domyślne</option>${pages.map((p) => `<option value="${esc(String(p.number))}" ${cur === String(p.number) ? 'selected' : ''}>${esc(x.name)}: ${esc(String(p.number))}${p.name ? ' ' + esc(p.name) : ''}</option>`).join('')}</select>`;
-  }).join('');
-  b.innerHTML = dockPv.set
-    ? `<span>✋ <b>Ustaw z kanwy</b> – przeciągnij scenę (strzałki: 1 px, Shift: 10 px) · gdy na antenie: ${esc(names)}${skip} · reguła <span class="mono">Δx ${dockPv.dx}, Δy ${dockPv.dy}</span></span>
+    return html` <select data-dkpg="${esc(id)}" title="Dane celu „${esc(x.name)}” w podglądzie"><option value="">${esc(x.name)}: domyślne</option>${pages.map((p) => html`<option value="${esc(String(p.number))}" ${cur === String(p.number) ? 'selected' : ''}>${esc(x.name)}: ${esc(String(p.number))}${p.name ? ' ' + esc(p.name) : ''}</option>`)}</select>`;
+  });
+  setHtml(b, dockPv.set
+    ? html`<span>✋ <b>Ustaw z kanwy</b> – przeciągnij scenę (strzałki: 1 px, Shift: 10 px) · gdy na antenie: ${esc(names)}${skip} · reguła <span class="mono">Δx ${dockPv.dx}, Δy ${dockPv.dy}</span></span>
        <button data-dkb="ok" title="Enter">✓ Zatwierdź</button><button data-dkb="end" title="Esc">✕ Anuluj</button>`
-    : `<span>👁 <b>Podgląd powiązania</b> – na antenie: ${esc(names)}${skip}${vsel} · scena przesunięta o <span class="mono">${dx}, ${dy} px</span></span>
-       <button data-dkb="play" title="Odtwórz ruch jeszcze raz">▶ Powtórz</button><button data-dkb="end" title="Esc">✕</button>`;
+    : html`<span>👁 <b>Podgląd powiązania</b> – na antenie: ${esc(names)}${skip}${vsel} · scena przesunięta o <span class="mono">${dx}, ${dy} px</span></span>
+       <button data-dkb="play" title="Odtwórz ruch jeszcze raz">▶ Powtórz</button><button data-dkb="end" title="Esc">✕</button>`);
   b.hidden = false;
 }
 /** Czy element kanwy jest teraz widoczny (także przez przodków: display, visibility, krycie 0). */
@@ -276,7 +269,7 @@ export function updateSel() {
   const o = $('#sel');
   if (txEd) { o.style.display = 'none'; $('#selLbl').style.display = 'none'; $('#alignBar').hidden = true; return; } // edycja tekstu – bez ramki i uchwytów
   const el = selId && stage.querySelector(`[data-id="${CSS.escape(selId)}"]`);
-  if (!el || el.style.display === 'none') { $('#alignBar').hidden = true; o.style.display = 'none'; $('#selLbl').style.display = 'none'; if ($('#selx').dataset.h) { $('#selx').innerHTML = ''; $('#selx').dataset.h = ''; } return; }
+  if (!el || el.style.display === 'none') { $('#alignBar').hidden = true; o.style.display = 'none'; $('#selLbl').style.display = 'none'; if ($('#selx').dataset.h) { setHtml($('#selx'), ''); $('#selx').dataset.h = ''; } return; }
   const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
   const n = selNode();
   // obrót (własny i przodków) obraca też ramkę: uchwyt rozmiaru jest w rogu elementu, nie w rogu obrysu osiowego
@@ -304,9 +297,9 @@ export function updateSel() {
   for (const id of mb ? selAll() : selMore) {
     const e2 = stage.querySelector(`[data-id="${CSS.escape(id)}"]`); if (!e2 || e2.style.display === 'none') continue;
     const r2b = e2.getBoundingClientRect();
-    hx += `<div class="selx${mb && id === selId ? ' key' : ''}" style="left:${r2b.left - b.left}px;top:${r2b.top - b.top}px;width:${r2b.width}px;height:${r2b.height}px"></div>`;
+    hx = html`${hx}${html`<div class="selx${mb && id === selId ? ' key' : ''}" style="left:${r2b.left - b.left}px;top:${r2b.top - b.top}px;width:${r2b.width}px;height:${r2b.height}px"></div>`}`;
   }
-  const sx = $('#selx'); if (sx.dataset.h !== hx) { sx.innerHTML = hx; sx.dataset.h = hx; }
+  const sx = $('#selx'); if (sx.dataset.h !== hx) { setHtml(sx, hx); sx.dataset.h = hx; }
   syncAlignBar();
 }
 let descT = 0;

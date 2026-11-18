@@ -1,5 +1,6 @@
 // Artist – podgląd i płótno: powiększenie, prowadnice, tło, przyciąganie.
 
+import { html, setHtml } from '/dom.js';
 import { fitStage } from '/renderer.js';
 import { $, $$, assets, box, esc, scale, scene, selId, setScale, stage, toast } from './core.js';
 import { renderTimeline } from './timeline.js';
@@ -100,30 +101,30 @@ export function drawGuides() {
       let d = '';
       for (let x = cv.gridStep; x < W; x += cv.gridStep) d += `M${x} 0V${H}`;
       for (let y = cv.gridStep; y < H; y += cv.gridStep) d += `M0 ${y}H${W}`;
-      h += `<path class="g" d="${d}" stroke="rgba(255,255,255,.14)"/>`;
+      h = html`${h}${html`<path class="g" d="${d}" stroke="rgba(255,255,255,.14)"/>`}`;
     }
-    if (cv.thirds) h += `<path class="g" d="M${W / 3} 0V${H}M${2 * W / 3} 0V${H}M0 ${H / 3}H${W}M0 ${2 * H / 3}H${W}" stroke="rgba(255,255,255,.35)" stroke-dasharray="2 4"/>`;
+    if (cv.thirds) h = html`${h}${html`<path class="g" d="M${W / 3} 0V${H}M${2 * W / 3} 0V${H}M0 ${H / 3}H${W}M0 ${2 * H / 3}H${W}" stroke="rgba(255,255,255,.35)" stroke-dasharray="2 4"/>`}`;
     if (cv.center) {
       const c = 30 * k;
-      h += `<path class="g" d="M${W / 2} 0V${H}M0 ${H / 2}H${W}" stroke="rgba(255,255,255,.18)"/><path class="g" d="M${W / 2 - c} ${H / 2}H${W / 2 + c}M${W / 2} ${H / 2 - c}V${H / 2 + c}" stroke="#fff"/>`;
+      h = html`${h}${html`<path class="g" d="M${W / 2} 0V${H}M0 ${H / 2}H${W}" stroke="rgba(255,255,255,.18)"/><path class="g" d="M${W / 2 - c} ${H / 2}H${W / 2 + c}M${W / 2} ${H / 2 - c}V${H / 2 + c}" stroke="#fff"/>`}`;
     }
     let li = 0; // etykiety na przemian: lewy górny / prawy dolny róg ramki, żeby bliskie ramki się nie zasłaniały
     for (const g of GUIDES) {
       if (!cv.g[g.k]) continue;
       const [x, y, w, hh] = g.r(W, H), alt = li++ % 2;
-      h += `<rect class="g" x="${x}" y="${y}" width="${w}" height="${hh}" stroke="${g.c}" ${g.dash ? 'stroke-dasharray="6 4"' : ''} opacity=".9"/>`;
-      h += alt
-        ? `<text x="${x + w - 4 * k}" y="${y + hh - 4 * k}" text-anchor="end" font-size="${10 * k}" fill="${g.c}" opacity=".85">${esc(g.label)}</text>`
-        : `<text x="${x + 4 * k}" y="${y + 12 * k}" font-size="${10 * k}" fill="${g.c}" opacity=".85">${esc(g.label)}</text>`;
+      h = html`${h}${html`<rect class="g" x="${x}" y="${y}" width="${w}" height="${hh}" stroke="${g.c}" ${g.dash ? html`stroke-dasharray="6 4"` : ''} opacity=".9"/>`}`;
+      h = html`${h}${alt
+        ? html`<text x="${x + w - 4 * k}" y="${y + hh - 4 * k}" text-anchor="end" font-size="${10 * k}" fill="${g.c}" opacity=".85">${esc(g.label)}</text>`
+        : html`<text x="${x + 4 * k}" y="${y + 12 * k}" font-size="${10 * k}" fill="${g.c}" opacity=".85">${esc(g.label)}</text>`}`;
     }
   }
-  h += overlapSvg(k) + measureSvg(k);
+  h = html`${h}${overlapSvg(k)}${measureSvg(k)}`;
   for (const s of snapShow) {
     const c = s.lbl ? 'snap ref' : 'snap';
-    h += s.ax === 'x' ? `<line class="${c}" x1="${s.v}" y1="0" x2="${s.v}" y2="${H}"/>` : `<line class="${c}" x1="0" y1="${s.v}" x2="${W}" y2="${s.v}"/>`;
-    if (s.lbl) h += s.ax === 'x' ? `<text class="snapl" x="${s.v + 4 * k}" y="${14 * k}" font-size="${11 * k}">${esc(s.lbl)}</text>` : `<text class="snapl" x="${4 * k}" y="${s.v - 4 * k}" font-size="${11 * k}">${esc(s.lbl)}</text>`;
+    h = html`${h}${s.ax === 'x' ? html`<line class="${c}" x1="${s.v}" y1="0" x2="${s.v}" y2="${H}"/>` : html`<line class="${c}" x1="0" y1="${s.v}" x2="${W}" y2="${s.v}"/>`}`;
+    if (s.lbl) h = html`${h}${s.ax === 'x' ? html`<text class="snapl" x="${s.v + 4 * k}" y="${14 * k}" font-size="${11 * k}">${esc(s.lbl)}</text>` : html`<text class="snapl" x="${4 * k}" y="${s.v - 4 * k}" font-size="${11 * k}">${esc(s.lbl)}</text>`}`;
   }
-  svg.innerHTML = h;
+  setHtml(svg, h);
 }
 function applyBg() {
   const el = $('#bg'), b = BGS.find((x) => x[0] === cv.bg);
@@ -136,20 +137,20 @@ function syncCvUI() {
   $('#bSafe').classList.toggle('on', cv.show); $('#vGuides').classList.toggle('on', cv.show); $('#vSnap').classList.toggle('on', cv.snap);
 }
 function renderGuidesPop() {
-  const ck = (key, on, label, extra = '') => `<label><input type="checkbox" data-cv="${key}" ${on ? 'checked' : ''}> ${label}${extra}</label>`;
-  $('#pGuides').innerHTML = `${ck('show', cv.show, '<b>Pokaż prowadnice</b> (▢ Safe)')}
-    <h4>Obszary bezpieczne i kadry</h4>${GUIDES.map((g) => ck('g.' + g.k, cv.g[g.k], `<span style="color:${g.c}">▭</span> ${esc(g.label)}`)).join('')}
+  const ck = (key, on, label, extra = '') => html`<label><input type="checkbox" data-cv="${key}" ${on ? 'checked' : ''}> ${label}${extra}</label>`;
+  setHtml($('#pGuides'), html`${ck('show', cv.show, html`<b>Pokaż prowadnice</b> (▢ Safe)`)}
+    <h4>Obszary bezpieczne i kadry</h4>${GUIDES.map((g) => ck('g.' + g.k, cv.g[g.k], html`<span style="color:${g.c}">▭</span> ${esc(g.label)}`))}
     <h4>Pomocnicze</h4>${ck('center', cv.center, 'Środek kadru')}${ck('thirds', cv.thirds, 'Trójpodział')}
-    ${ck('grid', cv.grid, 'Siatka', ` <select data-cv="gridStep" style="margin-left:auto">${[10, 20, 25, 50, 100, 200].map((v) => `<option ${v === cv.gridStep ? 'selected' : ''}>${v}</option>`).join('')}</select> px`)}
-    <h4>Przesuwanie</h4>${ck('snap', cv.snap, 'Przyciąganie (Ctrl w trakcie = bez)')}`;
+    ${ck('grid', cv.grid, 'Siatka', html` <select data-cv="gridStep" style="margin-left:auto">${[10, 20, 25, 50, 100, 200].map((v) => html`<option ${v === cv.gridStep ? 'selected' : ''}>${v}</option>`)}</select> px`)}
+    <h4>Przesuwanie</h4>${ck('snap', cv.snap, 'Przyciąganie (Ctrl w trakcie = bez)')}`);
 }
 function renderBgPop() {
   const imgs = assets.filter((a) => /\.(png|jpe?g|webp|gif|svg|avif)$/i.test(a.name)).map((a) => a.name);
-  $('#pBg').innerHTML = `<h4>Tło kanwy</h4><div class="sw">${BGS.map(([k, label, c]) => `<button data-bg="${k}" class="${cv.bg === k ? 'on' : ''} ${k.startsWith('checker') ? k : ''}" title="${label}" style="${c ? `background:${c};color:${k === 'white' ? '#000' : '#fff'}` : k === 'color' ? `background:${cv.bgColor}` : ''}">${esc(label)}</button>`).join('')}</div>
+  setHtml($('#pBg'), html`<h4>Tło kanwy</h4><div class="sw">${BGS.map(([k, label, c]) => html`<button data-bg="${k}" class="${cv.bg === k ? 'on' : ''} ${k.startsWith('checker') ? k : ''}" title="${label}" style="${c ? `background:${c};color:${k === 'white' ? '#000' : '#fff'}` : k === 'color' ? `background:${cv.bgColor}` : ''}">${esc(label)}</button>`)}</div>
     <label style="margin-top:6px">Własny kolor <input type="color" id="bgColor" value="${cv.bgColor}" style="margin-left:auto"></label>
     <h4>Obraz referencyjny (z zasobów)</h4>
-    <div class="row"><select id="bgImg" class="grow"><option value="">— brak —</option>${imgs.map((n) => `<option ${cv.bg === 'image' && n === cv.bgImg ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select><button id="bgUp" title="Wgraj obraz (np. kadr programu) do zasobów">Wgraj…</button></div>
-    <div class="dim" style="margin-top:6px;font-size:11px">Tylko podgląd w Artist – nie zmienia sceny ani wyjścia.</div>`;
+    <div class="row"><select id="bgImg" class="grow"><option value="">— brak —</option>${imgs.map((n) => html`<option ${cv.bg === 'image' && n === cv.bgImg ? 'selected' : ''}>${esc(n)}</option>`)}</select><button id="bgUp" title="Wgraj obraz (np. kadr programu) do zasobów">Wgraj…</button></div>
+    <div class="dim" style="margin-top:6px;font-size:11px">Tylko podgląd w Artist – nie zmienia sceny ani wyjścia.</div>`);
 }
 export function togglePop(id) {
   const p = $(id), open = p.hidden;

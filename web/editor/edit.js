@@ -1,5 +1,6 @@
 // Artist – edycja właściwości, kluczy, pól kontrolnych i reguł w panelu.
 
+import { html, setHtml } from '/dom.js';
 import * as PACK from '/cgpack.js';
 import * as MO from '/motion.js';
 import { PROPS, propAt, walk, listFields, variantFields, parseColor } from '/renderer.js';
@@ -60,10 +61,9 @@ export function refresh() { player.apply(t); showSqueeze(); queueGuides(); }
 export function showSqueeze() {
   const el = $('#sqInfo'); if (!el) return;
   const n = selNode(), it = n && player.items.find((i) => i.node === n || i.node.id === n.id);
-  if (!it?.sq) { el.innerHTML = ''; return; }
+  if (!it?.sq) { setHtml(el, ''); return; }
   const one = it.sq.length === 1;
-  el.innerHTML = it.sq.map((s, i) => `<span class="${s < 0.7 || it.over ? 'bad' : s < 0.999 ? 'warn' : ''}">${one ? 'ściśnięcie' : 'w' + (i + 1)}: ${Math.round(s * 100)}%</span>`).join('')
-    + (it.over ? '<span class="bad" title="Tekst wymaga ściśnięcia poniżej granicy (min. ściśnięcie) – wystaje poza ramkę">⚠︎ nie mieści się</span>' : '');
+  setHtml(el, html`${it.sq.map((s, i) => html`<span class="${s < 0.7 || it.over ? 'bad' : s < 0.999 ? 'warn' : ''}">${one ? 'ściśnięcie' : 'w' + (i + 1)}: ${Math.round(s * 100)}%</span>`)}${it.over ? html`<span class="bad" title="Tekst wymaga ściśnięcia poniżej granicy (min. ściśnięcie) – wystaje poza ramkę">⚠︎ nie mieści się</span>` : ''}`);
 }
 function parseVal(p, inp) {
   const d = PROPS[p];
