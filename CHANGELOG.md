@@ -2,6 +2,8 @@
 
 ## Niewydane
 
+## 26.11.11 – 2026-11-19
+
 - **Bezpieczeństwo strony:** edytor buduje HTML tylko szablonem `html` z modułu `web/dom.js` (kopia z VizRS CG System), który escapuje każdą wstawianą wartość – nazwy, wartości i opcje ze sceny nie mogą dodać znaczników ani atrybutów. Bez zmian w wyglądzie i działaniu.
 - **Poprawka:** zmiana rozmiaru okna, zanim wczytała się pierwsza scena, zgłaszała błąd strony (`renderTimeline` bez sceny); oś czasu rysuje się teraz dopiero ze sceną.
 
