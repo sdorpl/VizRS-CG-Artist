@@ -58,7 +58,7 @@ impl Saved {
                         let url = normalize_url(s["url"].as_str()?).ok()?;
                         let token = s["token"]
                             .as_str()
-                            .filter(|t| valid_token(t))
+                            .filter(|t| valid_token(t) || crate::client::is_session(t))
                             .map(str::to_string);
                         Some((url, token))
                     })
@@ -168,8 +168,11 @@ fn host_of(url: &str) -> Option<String> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Request {
     pub url: String,
+    /// token albo – po zalogowaniu kontem – `session:<id>` (`client::SESSION`)
     pub token: Option<String>,
-    /// zapamiętaj token w `connections.json`
+    /// login i hasło konta panelu (tylko do `POST /login`, nie zapisywane)
+    pub login: Option<(String, String)>,
+    /// zapamiętaj token (sesję) w `connections.json`
     pub keep_token: bool,
     /// łącz przy uruchomieniu
     pub auto: bool,
@@ -190,6 +193,14 @@ pub fn parse_msg(body: &str) -> Result<Msg, String> {
         Some("connect") => {
             let url = normalize_url(v["url"].as_str().unwrap_or(""))?;
             let token = v["token"].as_str().map(str::trim).filter(|t| !t.is_empty());
+            let user = v["user"].as_str().map(str::trim).filter(|u| !u.is_empty());
+            let login = match (user, v["password"].as_str()) {
+                (Some(u), Some(p)) if !p.is_empty() && u.len() <= 64 && p.len() <= 1024 => {
+                    Some((u.to_string(), p.to_string()))
+                }
+                (Some(_), _) => return Err("podaj hasło konta".into()),
+                _ => None,
+            };
             if let Some(t) = token {
                 if !valid_token(t) {
                     return Err(
@@ -200,6 +211,7 @@ pub fn parse_msg(body: &str) -> Result<Msg, String> {
             Ok(Msg::Connect(Request {
                 url,
                 token: token.map(str::to_string),
+                login,
                 keep_token: v["keepToken"].as_bool().unwrap_or(false),
                 auto: v["auto"].as_bool().unwrap_or(false),
             }))
@@ -221,13 +233,14 @@ pub fn page_data(
     let servers: Vec<Value> = saved
         .servers
         .iter()
-        .map(|(u, t)| json!({ "url": u, "hasToken": t.is_some() }))
+        .map(|(u, t)| json!({ "url": u, "hasToken": t.as_deref().is_some_and(|t| !crate::client::is_session(t)), "hasSession": t.as_deref().is_some_and(crate::client::is_session) }))
         .collect();
     let remote = !current.is_empty() && local != Some(current);
     let data = json!({
         "current": current,
         "remote": remote,
-        "token": if remote { current_token } else { None },
+        // sesja konta nie trafia do pola tokenu
+        "token": if remote { current_token.filter(|t| !crate::client::is_session(t)) } else { None },
         "local": local,
         "auto": saved.auto,
         "servers": servers,
@@ -250,11 +263,32 @@ mod tests {
             Msg::Connect(Request {
                 url: "https://cg.pl".into(),
                 token: Some("abc".into()),
+                login: None,
                 keep_token: true,
                 auto: false
             })
         );
         assert!(parse_msg(r#"{"action":"connect","url":"cg.pl","token":"a&b"}"#).is_err());
+        // konto panelu: login i hasło (bez hasła – błąd); sesja w liście zapisanych zostaje, w polu tokenu nie
+        match parse_msg(r#"{"action":"connect","url":"cg.pl","user":"jan","password":"x"}"#)
+            .unwrap()
+        {
+            Msg::Connect(r) => assert_eq!(r.login, Some(("jan".into(), "x".into()))),
+            _ => panic!(),
+        }
+        assert!(parse_msg(r#"{"action":"connect","url":"cg.pl","user":"jan"}"#).is_err());
+        let s = Saved::parse(
+            r#"{"servers":[{"url":"https://cg.pl","token":"session:ab12"},{"url":"https://x.pl","token":"session:a b"}]}"#,
+        );
+        assert_eq!(
+            s.token_for("https://cg.pl").as_deref(),
+            Some("session:ab12")
+        );
+        assert_eq!(s.token_for("https://x.pl"), None);
+        assert!(
+            page_data(&s, "https://cg.pl", Some("session:ab12"), None).contains(r#""token":null"#)
+        );
+        assert!(page_data(&s, "", None, None).contains(r#""hasSession":true"#));
         assert_eq!(parse_msg(r#"{"action":"local"}"#).unwrap(), Msg::Local);
         assert!(parse_msg("probe:{}").is_err());
     }

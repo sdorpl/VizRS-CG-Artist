@@ -43,10 +43,13 @@ html.os-windows #go { order:1; } html.os-windows #cancel { order:2; }
 <div class="now" id="now"></div>
 <label for="url">Adres serwera</label>
 <input type="text" id="url" placeholder="https://cg.example.pl" autocomplete="off" spellcheck="false">
+<label for="user">Konto panelu VizRS CG Playout (gdy serwer je przyjmuje)</label>
+<div class="row"><input type="text" id="user" placeholder="login" autocomplete="username" spellcheck="false"><input type="password" id="pass" placeholder="hasło" autocomplete="current-password"></div>
+<div class="hint">Program zapamięta sesję konta (nie hasło). Albo token:</div>
 <label for="token">Token operatora</label>
 <div class="row"><input type="password" id="token" autocomplete="off" spellcheck="false"><button id="show" type="button" title="Pokaż token">Pokaż</button></div>
 <div class="hint">Token z <code>--token</code> / <code>VIZRS_TOKEN</code> serwera (nie token wyjścia OBS).</div>
-<label class="check"><input type="checkbox" id="keep"> zapamiętaj token na tym komputerze</label>
+<label class="check"><input type="checkbox" id="keep"> zapamiętaj token albo sesję konta na tym komputerze</label>
 <label class="check"><input type="checkbox" id="auto"> łącz z tym serwerem przy uruchomieniu</label>
 <label>Zapisane serwery</label>
 <div id="list"></div>
@@ -74,14 +77,14 @@ if (C.remote) { $('url').value = C.current; $('token').value = C.token || ''; $(
 const S = window.__vizrsConnStart;
 if (S && S.url) { $('url').value = S.url; $('err').textContent = S.error || ''; }
 function fill(s) {
-  $('url').value = s.url; $('token').value = ''; $('keep').checked = s.hasToken;
+  $('url').value = s.url; $('token').value = ''; $('user').value = ''; $('pass').value = ''; $('keep').checked = s.hasToken || s.hasSession;
   $('token').placeholder = s.hasToken ? 'zapamiętany – zostaw puste' : '';
   $('auto').checked = C.auto === s.url; $('err').textContent = '';
 }
 for (const s of C.servers) {
   const d = document.createElement('div'); d.className = 'srv';
   const u = document.createElement('span'); u.className = 'u'; u.textContent = s.url;
-  const t = document.createElement('span'); t.className = 't'; t.textContent = s.hasToken ? 'token zapisany' : '';
+  const t = document.createElement('span'); t.className = 't'; t.textContent = s.hasSession ? 'zalogowano kontem' : s.hasToken ? 'token zapisany' : '';
   const x = document.createElement('button'); x.className = 'x'; x.textContent = '×'; x.title = 'Usuń z listy';
   x.onclick = (e) => { e.stopPropagation(); send({ action: 'forget', url: s.url }); d.remove(); };
   d.onclick = () => fill(s); d.ondblclick = () => { fill(s); go(); };
@@ -89,7 +92,8 @@ for (const s of C.servers) {
 }
 function go() {
   $('err').textContent = ''; $('go').disabled = true; $('go').textContent = 'Łączenie…';
-  send({ action: 'connect', url: $('url').value, token: $('token').value, keepToken: $('keep').checked, auto: $('auto').checked });
+  send({ action: 'connect', url: $('url').value, token: $('token').value, user: $('user').value, password: $('pass').value, keepToken: $('keep').checked, auto: $('auto').checked });
+  $('pass').value = '';
 }
 window.__vizrsConnError = (msg) => { $('err').textContent = msg; $('go').disabled = false; $('go').textContent = 'Połącz'; };
 $('go').onclick = go;

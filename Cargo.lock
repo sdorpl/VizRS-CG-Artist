@@ -4179,8 +4179,14 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-single-instance",
  "ureq",
+ "vizrs-model",
  "webkit2gtk",
 ]
+
+[[package]]
+name = "vizrs-model"
+version = "26.11.12"
+source = "git+https://github.com/sdorpl/VizRS-CG-System?tag=v26.11.12#8ddef6d8ed59579af500f790751798c8e87e0998"
 
 [[package]]
 name = "vswhom"

@@ -5,7 +5,6 @@ Zamykając pozycję, usuń wiersz i dopisz wersję w `CHANGELOG.md`. Nowe braki 
 ## G1 – niezawodność i bezpieczeństwo
 | # | Luka | Uwagi |
 |---|---|---|
-| 7 | Magazyn lokalny sprawdza scenę tylko podstawowo (typy, długości, rozmiar) – nie jak `validate.rs` serwera | S5: crate `vizrs-model` (A1 w CG System); serwer i tak waliduje przy wysyłce/imporcie |
 
 ## G2 – wierność
 | # | Luka | Uwagi |

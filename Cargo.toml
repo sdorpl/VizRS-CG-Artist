@@ -19,6 +19,9 @@ serde_json = "1"
 ureq = { version = "3", default-features = false, features = ["rustls"] }
 # sekret magazynu lokalnego z generatora systemu (Linux, Windows, macOS)
 getrandom = "0.3"
+# format show VizRS (JSON, walidacja jak w serwerze `vizrs`) – crate z VizRS CG System, bez zależności
+# (plan wydzielenia Artist, A1 i decyzja 3: zależność git z tagiem CG System)
+vizrs-model = { git = "https://github.com/sdorpl/VizRS-CG-System", tag = "v26.11.12" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # pisownia polska w WebKitGTK – ta sama wersja, której używa wry

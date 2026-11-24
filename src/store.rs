@@ -67,7 +67,22 @@ fn text_ok(v: &Value, what: &str, max: usize) -> Result<(), String> {
     }
 }
 
-/// Podstawowa kontrola sceny. Pełna walidacja (jak w serwerze) – po wydzieleniu `vizrs-model` (LUKI).
+/// Pełna walidacja jak w serwerze `vizrs` (`vizrs_model::validate`) – przy zapisie sceny i imporcie show.
+fn model_check(
+    v: &Value,
+    f: fn(&vizrs_model::json::Json) -> Result<(), String>,
+) -> Result<(), String> {
+    let j = vizrs_model::json::Json::parse(&v.to_string()).map_err(|e| format!("JSON: {e}"))?;
+    f(&j)
+}
+
+/// Scena przed zapisem: podstawowa kontrola i walidacja serwera (ta sama, którą przejdzie przy wysyłce).
+pub fn check_scene_full(s: &Value) -> Result<(), String> {
+    check_scene(s)?;
+    model_check(s, vizrs_model::validate::scene)
+}
+
+/// Podstawowa kontrola sceny (odczyt magazynu – dane, które już są na dysku, nie są odrzucane surowiej niż dawniej).
 pub fn check_scene(s: &Value) -> Result<(), String> {
     if !s.is_object() {
         return Err("scena musi być obiektem".into());
@@ -213,6 +228,7 @@ impl Store {
     /// Podmienia cały show (import). Rozbieżny `rev` = konflikt, chyba że `force`.
     pub fn put_show(&mut self, show: Value, force: bool) -> Result<(), String> {
         check_show(&show)?;
+        model_check(&show, vizrs_model::validate::show)?;
         let sent = show["rev"].as_f64();
         let cur = rev(&self.show);
         if let Some(r) = sent.filter(|r| !force && *r != cur) {
@@ -231,7 +247,7 @@ impl Store {
         if kind != "scenes" {
             return Err(NOT_IN_ARTIST.into());
         }
-        check_scene(&item)?;
+        check_scene_full(&item)?;
         if item["id"].as_str().is_none_or(str::is_empty) {
             item["id"] = json!(self.new_id("s"));
         }
@@ -464,6 +480,25 @@ mod tests {
         assert_eq!(s.show()["pages"], json!([{ "id": "p2", "scene": "s2" }]));
         assert_eq!(s.show()["playlists"][0]["items"], json!([{ "page": "p2" }]));
         std::fs::remove_dir_all(d).ok();
+    }
+
+    /// Walidacja serwera (`vizrs-model`) już w magazynie lokalnym: zła warstwa i zła strona nie przechodzą.
+    #[test]
+    fn server_validation_on_save() {
+        let d = tmp("model");
+        let mut s = Store::open(&d).unwrap();
+        let e = s
+            .upsert(
+                "scenes",
+                json!({ "name": "Belka", "layer": "zła warstwa!" }),
+            )
+            .unwrap_err();
+        assert!(e.contains("scena.layer"), "{e}");
+        assert!(s
+            .upsert("scenes", json!({ "name": "Belka", "layer": "main" }))
+            .is_ok());
+        let bad = json!({ "scenes": [], "pages": [{ "number": 1.5, "scene": "x" }] });
+        assert!(s.put_show(bad, true).is_err());
     }
 
     #[test]

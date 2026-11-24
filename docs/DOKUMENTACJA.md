@@ -200,7 +200,7 @@ Wtyczka `tauri-plugin-single-instance` pilnuje pojedynczej instancji programu na
 
 ## 8. Połączenie z serwerem
 
-Okno „Połącz z serwerem” (Plik → Połącz z serwerem…, CmdOrCtrl+Shift+K, `connect`) jest wbudowaną stroną aplikacji `ui/connect.html` (frontendDist Tauri) z uprawnieniem `capabilities/connect.json` pozwalającym na komunikację przez komendę `ipc`. Lista do 20 serwerów w `connections.json` (prawa tylko dla właściciela); token zapisywany tylko na życzenie; opcja „łącz przy uruchomieniu”. Przed przełączeniem okno sprawdza `GET /api/state` z tokenem – `http://` i `https://` przez klienta `ureq` (TLS rustls; zły certyfikat = błąd) – i zgłasza brak serwera, zły token albo token wyjścia (403).
+Okno „Połącz z serwerem” (Plik → Połącz z serwerem…, CmdOrCtrl+Shift+K, `connect`) jest wbudowaną stroną aplikacji `ui/connect.html` (frontendDist Tauri) z uprawnieniem `capabilities/connect.json` pozwalającym na komunikację przez komendę `ipc`. Lista do 20 serwerów w `connections.json` (prawa tylko dla właściciela); token zapisywany tylko na życzenie; opcja „łącz przy uruchomieniu”. Przed przełączeniem okno sprawdza `GET /api/state` z tokenem – `http://` i `https://` przez klienta `ureq` (TLS rustls; zły certyfikat = błąd) – i zgłasza brak serwera, zły token albo token wyjścia (403). **Konto panelu VizRS CG Playout** (serwer z `--panel-login` i włączonym logowaniem w pakiecie): zamiast tokenu login i hasło – program woła `POST /login`, zatrzymuje identyfikator sesji z ciasteczka `vizrs_session` (hasło nie zostaje w programie) i od tej chwili dokleja `Cookie: vizrs_session=…` zamiast `Authorization: Bearer` (pośrednik strony, zdarzenia `/events`, wysyłka scen). Sesja zapisuje się w `connections.json` w miejscu tokenu jako `session:<id>` przy „zapamiętaj token albo sesję konta” (znak `:` nie występuje w tokenach); lista zapisanych pokazuje „zalogowano kontem”, a pole tokenu sesji nie pokazuje. Bez tokenu i bez konta okno sprawdza `GET /login/info` i prosi o login i hasło, gdy serwer je przyjmuje; wygasła sesja – „zaloguj się ponownie”.
 
 Po przełączeniu na serwer zdalny (lub dołączeniu do serwera `vizrs` na katalogu danych) wbudowany serwer strony w procesie okna działa jako **pośrednik** (`src/local.rs`: `start_remote`, `proxy`). Zapytania `/api`, `/assets`, `/events` są przekazywane do serwera zdalnego z tokenem trzymanym w procesie okna. **Token nie trafia do strony w WebView**, a adres strony w oknie pozostaje niezmienny (`http://127.0.0.1:<port>`). Przy przełączeniu na inny serwer albo na pracę lokalną poprzedni pośrednik zamyka gniazdo (`http::Stop`) – nie nasłuchuje dalej i nie trzyma tokenu starego serwera.
 
@@ -330,8 +330,9 @@ który podaje stronę z binarki (`web/`) i API na katalogu danych (`src/store.rs
   nie wystartuje na katalogu otwartym w Artist; po awarii martwą blokadę rozpoznaje po `/health`.
 - **Zapis:** `show.json` atomowo; przed zapisem kopia `kopie/show-<czas>.json` najwyżej co 5 min, ostatnie 20.
   Uszkodzony `show.json` = komunikat przy starcie, plik nie jest nadpisywany.
-- **Walidacja:** podstawowa (typy, długości identyfikatorów i nazw, rozmiar sceny); pełna walidacja jak w serwerze – po
-  wydzieleniu `vizrs-model` w CG System (LUKI).
+- **Walidacja:** zapis sceny i import show – pełna walidacja serwera z crate'u `vizrs-model` (VizRS CG System, zależność git
+  z tagiem; te same komunikaty co przy wysyłce); odczyt `show.json` przy starcie – kontrola podstawowa (typy, długości, rozmiar
+  sceny), żeby surowsza walidacja nie zablokowała otwarcia zapisanych danych.
 
 ## 13. Wysyłka na serwer
 

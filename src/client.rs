@@ -72,6 +72,76 @@ impl Reply {
     }
 }
 
+/// Przedrostek poświadczenia „sesja konta panelu” (zamiast tokenu): `session:<id>`. Znaku `:` nie ma w tokenach
+/// (`valid_token`), więc oba rodzaje nie mylą się; sesja idzie do serwera jako ciasteczko `vizrs_session`.
+pub const SESSION: &str = "session:";
+
+/// Czy poświadczenie to sesja konta (`session:` + identyfikator z liter i cyfr).
+pub fn is_session(t: &str) -> bool {
+    t.strip_prefix(SESSION).is_some_and(|id| {
+        !id.is_empty() && id.len() <= 256 && id.bytes().all(|b| b.is_ascii_alphanumeric())
+    })
+}
+
+/// Poświadczenie w żądaniu: sesja konta – ciasteczko, token – `Authorization: Bearer`.
+fn auth(b: http::request::Builder, token: Option<&str>) -> http::request::Builder {
+    match token {
+        Some(t) if is_session(t) => {
+            b.header("Cookie", format!("vizrs_session={}", &t[SESSION.len()..]))
+        }
+        Some(t) => b.header("Authorization", format!("Bearer {t}")),
+        None => b,
+    }
+}
+
+/// Logowanie kontem panelu VizRS CG Playout na serwerze `vizrs` (`POST /login`, opcja `--panel-login`):
+/// poświadczenie `session:<id>` z ciasteczka `vizrs_session` – hasło nie zostaje w programie.
+pub fn login(url: &str, user: &str, password: &str) -> Result<String, String> {
+    let full = full_url(url, "/login")?;
+    let body = serde_json::json!({ "user": user, "password": password }).to_string();
+    let req = http::Request::builder()
+        .method("POST")
+        .uri(&full)
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .body(body.into_bytes())
+        .map_err(|e| format!("{full}: {e}"))?;
+    let mut res = agent(Some(Duration::from_secs(15)))
+        .run(req)
+        .map_err(|e| describe(url, e))?;
+    let status = res.status().as_u16();
+    let cookie = res
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .find_map(|v| {
+            v.split(';')
+                .next()?
+                .trim()
+                .strip_prefix("vizrs_session=")
+                .map(str::to_string)
+        });
+    let text = res
+        .body_mut()
+        .with_config()
+        .limit(64 * 1024)
+        .read_to_string()
+        .unwrap_or_default();
+    let msg = || {
+        serde_json::from_str::<serde_json::Value>(&text)
+            .ok()
+            .and_then(|v| v["error"].as_str().map(String::from))
+    };
+    match (status, cookie) {
+        (200, Some(id)) if is_session(&format!("{SESSION}{id}")) => Ok(format!("{SESSION}{id}")),
+        (200, _) => Err("serwer nie dał sesji konta".into()),
+        (401, _) => Err(msg().unwrap_or_else(|| "zły login albo hasło".into())),
+        (404, _) => Err("Ten serwer nie ma logowania kontem panelu – połącz tokenem.".into()),
+        (code, _) => Err(msg().unwrap_or_else(|| format!("logowanie: odpowiedź HTTP {code}"))),
+    }
+}
+
 fn agent(timeout: Option<Duration>) -> ureq::Agent {
     ureq::Agent::config_builder()
         .http_status_as_error(false)
@@ -106,9 +176,7 @@ pub fn request(
         .method(method)
         .uri(&full)
         .header("Accept", "application/json");
-    if let Some(tok) = token {
-        b = b.header("Authorization", format!("Bearer {tok}"));
-    }
+    b = auth(b, token);
     let data: Vec<u8> = match body {
         Some((ctype, d)) => {
             b = b.header("Content-Type", ctype);
@@ -157,9 +225,7 @@ pub fn events(
         .method("GET")
         .uri(&full)
         .header("Accept", "text/event-stream");
-    if let Some(tok) = token {
-        b = b.header("Authorization", format!("Bearer {tok}"));
-    }
+    b = auth(b, token);
     let req = b.body(()).map_err(|e| format!("{full}: {e}"))?;
     let res = agent(None).run(req).map_err(|e| describe(url, e))?;
     if res.status() != 200 {
@@ -322,5 +388,15 @@ mod tests {
         .unwrap();
         assert_eq!(got, ["{\"t\":\"show\"}", "2"]);
         srv.join().unwrap();
+    }
+
+    #[test]
+    fn session_credential() {
+        assert!(is_session("session:ab12"));
+        assert!(!is_session("session:") && !is_session("session:a;b") && !is_session("abc"));
+        assert!(
+            !crate::conn_url::valid_token("session:ab12"),
+            "sesja nie myli się z tokenem"
+        );
     }
 }

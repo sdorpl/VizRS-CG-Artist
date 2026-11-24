@@ -213,11 +213,22 @@ pub(crate) fn on_conn(app: &AppHandle, body: &str) {
         },
         connect::Msg::Connect(mut req) => {
             // puste pole tokenu = token zapamiętany dla tego serwera (albo dla tego samego hosta pod innym adresem)
-            if req.token.is_none() {
+            if req.token.is_none() && req.login.is_none() {
                 req.token = connect::Saved::load().token_for_or_host(&req.url);
             }
             let app = app.clone();
             std::thread::spawn(move || {
+                // konto panelu: sesja z `POST /login` zamiast tokenu (hasło zostaje tylko w tym żądaniu)
+                if let Some((user, password)) = req.login.take() {
+                    match client::login(&req.url, &user, &password) {
+                        Ok(session) => req.token = Some(session),
+                        Err(e) => {
+                            let app2 = app.clone();
+                            let _ = app.run_on_main_thread(move || on_checked(&app2, req, Some(e)));
+                            return;
+                        }
+                    }
+                }
                 let err = check_server(&req.url, req.token.as_deref()).err();
                 let app2 = app.clone();
                 let _ = app.run_on_main_thread(move || on_checked(&app2, req, err));
@@ -235,6 +246,7 @@ pub(crate) fn on_checked(app: &AppHandle, req: connect::Request, err: Option<Str
         token,
         keep_token,
         auto,
+        ..
     } = req;
     let mut saved = connect::Saved::load();
     saved.remember(&url, token.as_deref(), keep_token, auto);
@@ -266,11 +278,30 @@ pub(crate) fn check_server(url: &str, token: Option<&str>) -> Result<(), String>
     match r.status {
         200 if r.json().is_ok_and(|v| v.is_object()) => Ok(()),
         200 => Err(format!("{url} odpowiada, ale to nie jest serwer VizRS")),
-        401 => Err(if token.is_some() {
-            "Serwer odrzucił token.".into()
-        } else {
-            "Serwer wymaga tokenu.".into()
-        }),
+        401 if token.is_some_and(client::is_session) => {
+            Err("Sesja konta wygasła – zaloguj się ponownie loginem i hasłem.".into())
+        }
+        401 if token.is_some() => Err("Serwer odrzucił token.".into()),
+        401 => {
+            // bez tokenu: czy serwer przyjmuje konta panelu VizRS CG Playout (`GET /login/info`)
+            let panel = client::request(
+                url,
+                "GET",
+                "/login/info",
+                None,
+                None,
+                64 * 1024,
+                Duration::from_secs(5),
+            )
+            .ok()
+            .and_then(|r| r.json().ok())
+            .is_some_and(|v| v["panel"].as_bool() == Some(true));
+            Err(if panel {
+                "Podaj login i hasło konta panelu (albo token).".into()
+            } else {
+                "Serwer wymaga tokenu.".into()
+            })
+        }
         403 => Err("Ten token nie pozwala edytować (to token wyjścia OBS?).".into()),
         code => Err(format!("{url}: odpowiedź HTTP {code}")),
     }
