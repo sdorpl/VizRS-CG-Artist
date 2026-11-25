@@ -1,13 +1,15 @@
 name: CI
 # Bramka przy każdym wypchnięciu i PR: moduły strony = CG System, fmt, clippy, testy (Linux).
 # Budowa, paczki bundlera Tauri i test dymny na Linux, Windows, macOS (artefakty). Test w działaniu
-# (okna pod Xvfb, prawdziwy vizrs z CG System): job e2e. Wydanie: release.yml (znacznik v* albo ręcznie).
+# (okna pod Xvfb, prawdziwy vizrs z CG System) i edytor w Chromium: job e2e.
+# Wydanie: release.yml (znacznik v* albo ręcznie) wywołuje ten workflow (workflow_call) i wydaje paczki z joba build
+# dopiero po zielonym przebiegu – znaczniki nie uruchamiają CI osobno.
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -15,6 +17,7 @@ permissions:
 env:
   # biblioteki okna Tauri na Linuksie (WebKitGTK 4.1 jest od Ubuntu 22.04)
   LINUX_DEPS: libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev libssl-dev patchelf file
+  PLAYWRIGHT_VERSION: 1.65.1
 
 jobs:
   gate:
@@ -48,6 +51,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
       - name: Wersja Cargo.toml = tauri.conf.json
         run: |
           c=$(sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -1)
@@ -75,6 +79,7 @@ jobs:
         run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - name: Biblioteki okna (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -161,3 +166,13 @@ jobs:
           node-version: 22
       - name: Test w działaniu
         run: dbus-run-session -- xvfb-run -a -s "-screen 0 1920x1080x24" node tests/e2e/okno.js cg/source/target/release/vizrs target/release/vizrs-cg-artist
+      # edytor scen w Chromium na serwerze `vizrs --web web` (pilnuje podziału artist.html na moduły, A1)
+      - name: Playwright (Chromium)
+        run: |
+          PLAYWRIGHT_DIR=$RUNNER_TEMP/pw; echo "PLAYWRIGHT_DIR=$PLAYWRIGHT_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$PLAYWRIGHT_DIR" && cd "$PLAYWRIGHT_DIR"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund playwright@$PLAYWRIGHT_VERSION
+          npx playwright install --with-deps chromium
+      - name: Edytor scen w Chromium
+        run: node tests/e2e/editor.js cg/source/target/release/vizrs

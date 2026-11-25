@@ -276,15 +276,16 @@ to kopie z VizRS CG System – `tools/sync-cg.sh [katalog-CG]` kopiuje, `tools/s
 Bramka przed commitem: `tools/sync-cg.sh --check`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo build --release`.
 Testy jednostkowe: `cargo test` (52/52).
 
-CI (`.github/workflows/ci.yml`):
+CI (`.github/workflows/ci.yml`; wypchnięcie na `main`, PR, ręcznie; wywoływany też przez `release.yml`):
 - `gate`: Ubuntu 22.04 – sprawdzenie modułów CG System, fmt, clippy, `cargo test`,
 - `build`: macierz trzech systemów (Linux `ubuntu-22.04`, Windows `windows-latest`, macOS `macos-latest`) – kompilacja release, paczki bundlera Tauri oraz test dymny `tests/e2e/smoke.js` na wszystkich trzech platformach,
-- `e2e`: test w działaniu pod Xvfb na Linuksie z serwerem `vizrs` zbudowanym z CG System w wersji z `web/CG_SYSTEM`.
+- `e2e`: test w działaniu pod Xvfb na Linuksie z serwerem `vizrs` zbudowanym z CG System w wersji z `web/CG_SYSTEM` oraz edytor scen w Chromium (`tests/e2e/editor.js`, Playwright).
 
 **Wydanie** (`.github/workflows/release.yml`): podnieś `version` w `Cargo.toml` i `tauri.conf.json` oraz sekcję w `CHANGELOG.md`, potem
 `git tag v<wersja> && git push origin v<wersja>` – albo Actions → Release → Run workflow (bez `publish` = szkic; szkice usuwa
-Actions → Usuń szkic wydania). Workflow buduje paczki instalacyjne na trzech systemach i dołącza je do jednego wydania GitHub Release
-wraz z `SHA256SUMS.txt`. Wersja ze znacznika musi się zgadzać z `Cargo.toml`, łącznik (`-rc1`) = wydanie wstępne.
+Actions → Usuń szkic wydania). Workflow uruchamia całe CI tego commita i dopiero po zielonym przebiegu dołącza paczki z joba
+`build` (bez drugiej budowy) do jednego wydania GitHub Release wraz z `SHA256SUMS.txt`. Wersja ze znacznika (bez części po
+łączniku) musi się zgadzać z `Cargo.toml` i `tauri.conf.json`, łącznik (`-rc1`) = wydanie wstępne; znacznik zawsze `v<wersja>`.
 
 Test dymny (bez serwera, na dowolnym z 3 systemów):
 ```bash
