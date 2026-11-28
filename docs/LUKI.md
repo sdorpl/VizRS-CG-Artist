@@ -5,6 +5,7 @@ Zamykając pozycję, usuń wiersz i dopisz wersję w `CHANGELOG.md`. Nowe braki 
 ## G1 – niezawodność i bezpieczeństwo
 | # | Luka | Uwagi |
 |---|---|---|
+| 14 | Magazyn lokalny (`src/local.rs`) nie wysyła nagłówka CSP – zasada pakietu „Dane z zewnątrz są obce” (2026-11-28) wymaga CSP bez skryptów inline | strona Artist i kopie modułów z CG System – razem z LUKI CG System #21; sekret okna i kontrola `Host`/`Origin` są |
 
 ## G2 – wierność
 | # | Luka | Uwagi |
