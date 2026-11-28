@@ -24,6 +24,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # tools/check-docs.sh porównuje CHANGELOG z HEAD~1
       - name: Biblioteki okna
         run: |
           sudo apt-get update
@@ -48,6 +50,8 @@ jobs:
           path: cg-zasady
       - name: Zasady pakietu zgodne z CG System
         run: tools/sync-zasady.sh --check cg-zasady
+      - name: Dokumentacja stanu (CHANGELOG, STATUS)
+        run: tools/check-docs.sh
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
