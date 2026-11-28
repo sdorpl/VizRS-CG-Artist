@@ -1,6 +1,8 @@
 # PLAN: VizRS CG Artist na Windows i macOS, później Android
 
-> Stan (2026-11-07): **zaplanowany, decyzje §7 otwarte**. Prośba użytkownika (2026-11-07): wydania Windows i macOS,
+> Stan (2026-11-28): **P1–P5 wdrożone inaczej niż w planie – na Tauri 2** (wydanie 0.3.0, 2026-11-07; paczki Windows i macOS w każdym wydaniu, bez podpisu – LUKI #13); **P6 (Android) – na później**. Sekcje §2–§7 to pierwotny plan z 2026-11-07 (GTK 4 + wry).
+>
+> Pierwotnie (2026-11-07): zaplanowany, decyzje §7 otwarte. Prośba użytkownika (2026-11-07): wydania Windows i macOS,
 > a kiedyś także Android. Dziś Artist jest tylko na Linuksie (GTK 4 + WebKitGTK 6.0 – na Windows i macOS ich nie ma).
 > Zgodnie z planem wydzielenia (`../VizRS CG System/docs/plany/PLAN-artist-osobny.md` §7 pkt 1): Linux zostaje na GTK 4,
 > Windows i macOS dostają okno na **wry** (WebView2 / WKWebView) z tymi samymi modułami bez GUI i tym samym mostem.
